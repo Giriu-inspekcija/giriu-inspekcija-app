@@ -1,7 +1,7 @@
 import base64
 import uuid
 from datetime import datetime, timezone
-from pilot import BASE,KEY,http,rows,rpc,sql
+from pilot import BASE,KEY,REST,http,rows,rpc,sql,request
 
 def case_and_document(chief,coord,reporter,other_staff,owner_id):
     incident=str(uuid.uuid4())
@@ -49,3 +49,18 @@ def case_and_document(chief,coord,reporter,other_staff,owner_id):
     assert rows('gi_documents',coord,'select=phase,revision&id=eq.'+doc)==[{'phase':'ready','revision':5}]
     assert len(rows('gi_document_versions',chief,'select=revision&document_id=eq.'+doc))==5
     print('PASS H draft, independent return, revision, ready to sign; signed/sent actions unavailable',flush=True)
+
+    message='Bandomoji pastaba '+str(uuid.uuid4())
+    for body in (message,message.upper()):
+        request('POST',REST+'/gi_feedback',reporter,{'reporter_id':owner_id,'category':'klaida','message':body})
+    queue=rows('gi_feedback_review',chief,'select=id,reports,gi_feedback!example_id(message)&order=last_report_at.desc&limit=1')[0]
+    assert queue['reports']==2 and queue['gi_feedback']['message']==message
+    assert not rows('gi_feedback_review',reporter,'select=id')
+    review_args={'p_id':queue['id'],'p_action':'task','p_title':'Patikrinti formą','p_note':'Peržiūrėti demonstracinį formos elgesį','p_priority':'normal'}
+    task=rpc('gi_review_feedback_group',review_args,chief)
+    assert rpc('gi_review_feedback_group',review_args,chief)==task
+    rpc('gi_review_feedback_group',dict(review_args,p_action='resolve',p_note='Pakartotinai patikrinta'),chief)
+    assert rows('gi_feedback_review',chief,'select=task_id,resolution&id=eq.'+queue['id'])==[{'task_id':task,'resolution':'Pakartotinai patikrinta'}]
+    counts=rpc('gi_deadline_counts',{},chief)[0]
+    assert 'overdue' in counts and 'upcoming' in counts
+    print('PASS feedback grouping, internal task, restricted visibility, resolution and deadline counts',flush=True)

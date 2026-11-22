@@ -182,6 +182,7 @@ header{padding:10px 16px 9px}
   </nav>
   <section id="tasksSection" class="workspace-section">
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
+  <div id="dueReminder" class="alert" hidden><b>Mano terminai</b><div class="actions" id="dueReminderButtons"></div></div>
   <div id="taskSummary" class="task-summary small" aria-live="polite"></div>
   <details class="card" id="taskFilterPanel" hidden><summary>Paieška ir filtrai</summary>
    <form id="taskSearchForm"><label class="field">Ieškoti užduoties<input id="taskSearch" type="search" maxlength="100" placeholder="Pavadinimas ar aprašymas"></label><div class="grid"><label class="field">Būsena<select id="taskStatusFilter">
@@ -290,6 +291,8 @@ header{padding:10px 16px 9px}
     <label class="field">Pastaba<textarea name="message" minlength="5" maxlength="1500" required></textarea></label>
     <button type="submit">Išsiųsti pastabą</button>
    </form>
+   <p class="small">Pastabą matote jūs ir GI koordinatoriai bei administratoriai.</p>
+   <div id="feedbackQueuePanel" hidden><h3>Pastabų nagrinėjimas</h3><div id="feedbackQueue"></div></div>
    <hr><h3 id="feedbackTitle">Mano pastabos</h3><div id="feedbackList"></div>
   </div>
   </section>

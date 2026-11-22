@@ -100,7 +100,7 @@
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
-  let cases=[],documents=[],documentRequest=null,caseRequest=new Map();
+  let feedbackGroups=[],cases=[],documents=[],documentRequest=null,caseRequest=new Map();
   const canWriteDocuments=()=>staff() || (profile?.role==='volunteer' && profile.can_prepare_documents);
   let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
   let searchText='', ownerFilter='', dueFilter='all';
@@ -133,7 +133,7 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
-    cases=[];documents=[];documentRequest=null;caseRequest.clear();
+    feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
     $('incidentForm').reset();$('incidentId').value='';$('incidentsList').replaceChildren();
     reviewableLogs.clear();
@@ -227,6 +227,16 @@
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
+      const [queue,reminder]=await Promise.all([
+        staff()?client.from('gi_feedback_review').select('id,reports,task_id,resolved_at,resolution,gi_feedback!example_id(category,message)').order('last_report_at',{ascending:false}).limit(60):Promise.resolve({data:[]}),
+        client.rpc('gi_deadline_counts')
+      ]);
+      if(queue.error||reminder.error)throw queue.error||reminder.error;
+      feedbackGroups=queue.data||[];
+      const counts=reminder.data?.[0]||{};
+      $('dueReminder').hidden=!Number(counts.overdue)&&!Number(counts.upcoming);
+      $('dueReminderButtons').innerHTML=(Number(counts.overdue)?'<button class="outline" data-when="overdue">Pradelstos · '+Number(counts.overdue)+'</button>':'')
+        +(Number(counts.upcoming)?'<button class="outline" data-when="week">Per 7 dienas · '+Number(counts.upcoming)+'</button>':'');
       const ownerSelect=$('taskOwnerFilter');
       ownerSelect.innerHTML='<option value="">Visi vykdytojai</option><option value="mine">Tik mano darbai</option>'
         +members.filter(m=>m.id!==currentUser.id && m.role!=='pending').map(m=>'<option value="'+escapeHTML(m.id)+'">'+escapeHTML(personName(m))+'</option>').join('');
@@ -440,6 +450,13 @@
         +(managed||'<p class="small">Nėra valdomų narių.</p>'):'');
   }
   function renderFeedback() {
+    $('feedbackQueuePanel').hidden=!staff();
+    $('feedbackQueue').innerHTML=feedbackGroups.map(g=>'<article class="card"><b>'+escapeHTML(g.gi_feedback?.category)+'</b>'
+      +'<p>'+escapeHTML(g.gi_feedback?.message)+'</p><p class="small">Pranešimų: '+Number(g.reports)+'</p>'
+      +(g.resolved_at?'<p>Sprendimas: '+escapeHTML(g.resolution)+'</p>':'<div class="actions">'
+        +(g.task_id?'<span>Užduotis '+escapeHTML(g.task_id.slice(0,8))+'</span>':'<button type="button" data-feedback-task="'+escapeHTML(g.id)+'">Sukurti užduotį</button>')
+        +'<button type="button" class="outline" data-feedback-resolve="'+escapeHTML(g.id)+'">Užrašyti sprendimą</button></div>')+'</article>').join('')
+      ||'<p class="small">Pastabų dar nėra.</p>';
     $('feedbackTitle').textContent = staff() ? 'Visos bandymo pastabos' : 'Mano pastabos';
     $('feedbackList').innerHTML = feedback.length
       ? feedback.map(item => {
@@ -965,6 +982,22 @@
   $('switchAccount').addEventListener('click',switchAccount);
   $('logout').addEventListener('click',switchAccount);
   $('refresh').addEventListener('click',refreshWorkspace);
+  $('dueReminderButtons').addEventListener('click',e=>{
+    const button=e.target.closest('[data-when]');
+    if(!button||loading)return;
+    $('taskStatusFilter').value='assigned';$('taskSearch').value='';$('taskDueFilter').value=button.dataset.when;
+    $('taskOwnerFilter').value='mine';$('taskSearchForm').requestSubmit();
+  });
+  $('feedbackQueue').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b||!staff())return;
+    const create=!!b.dataset.feedbackTask, id=b.dataset.feedbackTask||b.dataset.feedbackResolve;
+    const title=create?prompt('Koks užduoties pavadinimas?'):null;
+    if(create&&(!title||title.trim().length<3))return;
+    const note=prompt(create?'Aprašykite darbą vykdytojui be asmens duomenų.':'Kaip išspręsta pastaba?');
+    if(!note||note.trim().length<(create?5:3))return;
+    return run(()=>client.rpc('gi_review_feedback_group',{p_id:id,p_action:create?'task':'resolve',p_title:title,p_note:note,p_priority:'normal'}),
+      create?'Sukurta susieta užduotis.':'Sprendimas išsaugotas.');
+  });
   $('taskSearchForm').addEventListener('submit',event=>{
     event.preventDefault();
     if(!approved()||loading)return;
