@@ -192,6 +192,12 @@
     document.querySelectorAll('#documentList [data-document] textarea[data-body]').forEach(el=>{
       if(el.dataset.dirty==='true')docBodies.set(el.closest('[data-document]').dataset.document,el.value);
     });
+    const controls=new Map();
+    document.querySelectorAll('#taskList [data-due],#taskList [data-person]').forEach(el=>{
+      if(!el.closest('details')?.open)return;
+      const taskId=el.closest('[data-task]')?.dataset.task;
+      if(taskId)controls.set(taskId+':'+(el.matches('[data-due]')?'due':'person'),el.value);
+    });
     const results=new Map();
     document.querySelectorAll('#taskList form[data-submit-result]').forEach(form=>{
       const value=form.querySelector('[name="result"]')?.value||'';
@@ -199,7 +205,7 @@
     });
     return {
       openKeys:[...document.querySelectorAll('#taskList details[data-ui-key][open]')].map(el=>el.dataset.uiKey),
-      docBodies,results,
+      docBodies,results,controls,
       anchorType:anchor?.hasAttribute('data-task')?'task':anchor?.hasAttribute('data-document')?'document':null,
       anchorId:anchor?.dataset.task||anchor?.dataset.document||null,
       anchorTop:anchor?.getBoundingClientRect().top,
@@ -211,6 +217,12 @@
     const keys=new Set(state.openKeys);
     document.querySelectorAll('#taskList details[data-ui-key]').forEach(el=>{
       if(keys.has(el.dataset.uiKey))el.open=true;
+    });
+    document.querySelectorAll('#taskList [data-due],#taskList [data-person]').forEach(el=>{
+      const taskId=el.closest('[data-task]')?.dataset.task;
+      if(!taskId)return;
+      const key=taskId+':'+(el.matches('[data-due]')?'due':'person');
+      if(state.controls.has(key))el.value=state.controls.get(key);
     });
     document.querySelectorAll('#taskList form[data-submit-result]').forEach(form=>{
       const value=state.results.get(form.dataset.submitResult);
