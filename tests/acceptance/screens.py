@@ -156,7 +156,11 @@ def test_forms(page):
     page.emulate_media(media='print')
     expect(page.locator('#printDocument')).to_be_visible()
     expect(page.locator('#printDocument')).to_contain_text('Patikros rezultatas')
-    assert page.pdf().startswith(b'%PDF-')
+    import subprocess
+    pdf=page.pdf()
+    assert pdf.startswith(b'%PDF-')
+    text=subprocess.check_output(['pdftotext','-','-'],input=pdf).decode()
+    assert 'Naršyklės pažyma' in text and 'Patikros rezultatas' in text
     page.emulate_media(media='screen')
     doc.get_by_role('button',name='Pateikti peržiūrai').click()
     expect(doc).to_contain_text('Peržiūrima')
