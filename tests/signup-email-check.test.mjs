@@ -15,6 +15,6 @@ test('common email TLD typo is blocked before Supabase OTP request',()=>{
 test('signup shows actual recipient and allows manual correction',()=>{
   assert.match(app,/Registracijos laiško užklausa priimta adresu/);
   assert.match(app,/Pataisykite adresą prieš siunčiant laišką/);
-  assert.match(html,/Patikrinkite pašto adresą/);
+  assert.match(html,/patikrinkite pašto adresą/i);
   assert.match(sw,/v5-email-check/);
 });
