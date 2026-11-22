@@ -402,37 +402,43 @@
       : '<p class="small">Pastabų dar nėra.</p>';
   }
 
-  function buttonsFor(task) {
+  function buttonsFor(task){
     const id=escapeHTML(task.id);
     let markup='';
-    const eligible=staff() && ['proposed','pool','assigned'].includes(task.status);
-    if(eligible){
-      const safeButton=(!task.assigned_to && ['proposed','pool'].includes(task.status))
+    const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
+    if(staffEditable){
+      const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
         ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
           +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
       if(task.status==='proposed'){
-        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'+safeButton+'</div>';
+        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
+          +safeButton+'</div>';
       }else{
+        if(task.status==='pool'&&!task.assigned_to){
+          markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button></div>';
+        }
         const selectable=members.filter(m=>{
-          const isAllowed=['volunteer','coordinator','admin'].includes(m.role)
+          const allowed=['volunteer','coordinator','admin'].includes(m.role)
             || (m.role==='candidate'&&task.candidate_safe);
-          return isAllowed && memberEmails[m.id]?.verified;
+          return allowed && memberEmails[m.id]?.verified;
         });
-        markup+='<div class="actions form-inline"><select aria-label="Pasirinkti vykdytoją" data-person="'+id+'">'
+        markup+='<details><summary><b>Priskirti savanoriui</b></summary>'
+          +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
           +'<option value="">Pasirinkite savanorį</option>'
           +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
             +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">'
-          +(task.assigned_to?'Perduoti kitam':'Paskirti užduotį')+'</button>'
-          +(task.status==='assigned'?'<button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button>':'')
-          +safeButton+'</div>';
+          +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div>'
+          +'</details>'
+          +(task.status==='assigned'?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
+          +safeButton;
       }
-      markup+='<div class="form-inline"><label class="field">Terminas (nebūtina)'
+      markup+='<details><summary>Terminas (nebūtina)</summary>'
+        +'<div class="form-inline"><label class="field">Užduoties terminas'
         +'<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
         +(task.due_at?' value="'+escapeHTML(new Date(task.due_at).toLocaleString('sv-SE').replace(' ','T').slice(0,16))+'"':'')
-        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div>';
+        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div></details>';
     }
-    if(!task.assigned_to && task.status==='pool' &&
+    if(!staff() && !task.assigned_to && task.status==='pool' &&
       (profile?.role!=='candidate'||task.candidate_safe)){
       markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Pasiimti užduotį</button></div>';
     }
@@ -446,23 +452,25 @@
         +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
-    if(staff() && task.status==='submitted' && task.assigned_to!==currentUser?.id){
-      markup+='<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
+    if(staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
+      const attached=workLogs.filter(w=>w.task_id===task.id &&
+        w.volunteer_id===task.assigned_to && w.review_status==='submitted');
+      const count=attached.length,mins=attached.reduce((sum,w)=>sum+w.minutes,0);
+      markup+='<p class="small">Su rezultatu tvirtinama: '+count+' laiko įrašų'
+        +(count?' ('+escapeHTML(clockDuration(mins))+')':' – naujų laiko įrašų nėra')+'</p>'
+        +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
+        +(count?'Patvirtinti rezultatą ir laiką':'Patvirtinti rezultatą')+'</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
-    if(staff() && task.status==='submitted' && task.assigned_to===currentUser?.id)
-      markup+='<p class="small">Jūsų rezultato tvirtinimą turi atlikti kitas koordinatorius.</p>';
+    if(staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
+      markup+='<p class="small">Jūsų rezultatą turi patvirtinti kitas koordinatorius.</p>';
     return markup;
   }
   function timeEntry(task){
     if(task.assigned_to!==currentUser?.id ||
-      !['accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
-    return '<hr><details><summary><b>Pridėti savo savanorystės laiką</b></summary>'
-      +'<form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
-      +'<label class="field">Valandos<input type="number" name="hours" min="0" max="12" value="0" required></label>'
-      +'<label class="field">Minutės<input type="number" name="minutes" min="0" max="59" value="30" required></label>'
-      +'<label class="field">Ką atlikai? <input type="text" name="note" maxlength="1000" placeholder="Bandomasis darbas"></label>'
-      +'<button type="submit">Pateikti laiką</button></form></details>';
+       !['assigned','accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
+    return '<div class="actions"><button type="button" class="outline" data-time-for-task="'+escapeHTML(task.id)+'">'
+      +'Pridėti darbo laiką</button></div>';
   }
   function renderTasks(){
     const list=$('taskList');
