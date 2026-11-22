@@ -37,17 +37,29 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 <div class="alert"><b>Bandymo aplinka.</b> Prisijungimui reikalingas el. paštas ir pasirinktinai vardas. Į užduočių aprašymus bei pastabas nekelkite realių miškų koordinačių, kitų asmenų duomenų, pranešėjų informacijos, nuotraukų ar oficialių dokumentų.</div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
- <h1>Prisijungimas</h1>
- <p class="muted">Naudokite savo asmeninį el. paštą. Organizacijos Workspace dėžutės nereikia.</p>
+ <h1 id="authTitle">Registruotis</h1>
+ <p class="muted">Pirmą kartą kuriate paskyrą? Rinkitės „Registruotis“. Vėliau prisijunkite tuo pačiu el. paštu ir pasirinktu programėlės slaptažodžiu.</p>
  <div class="card">
+  <div class="actions" role="group" aria-label="Paskyros pasirinkimas">
+   <button type="button" id="showSignup" aria-pressed="true">Naujas naudotojas – registruotis</button>
+   <button type="button" class="outline" id="showLogin" aria-pressed="false">Jau turiu paskyrą</button>
+  </div>
   <form id="authForm">
-   <label class="field">Vardas (tik naujai registruojantis)<input id="fullName" autocomplete="name" maxlength="100" placeholder="Vardas"></label>
+   <label id="fullNameField" class="field">Vardas<input id="fullName" autocomplete="name" maxlength="100" required placeholder="Vardas"></label>
    <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="vardas@gmail.com"></label>
-   <label class="field">Slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
-   <div class="actions"><button type="submit" value="login" name="mode">Prisijungti</button><button type="submit" value="signup" name="mode" class="outline">Registruotis</button></div>
+   <label class="field"><span id="passwordLabel">Susikurkite programėlės slaptažodį</span><input id="password" type="password" autocomplete="new-password" minlength="6" required></label>
+   <div class="actions"><button type="submit" id="authSubmit">Sukurti paskyrą</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
   </form>
-  <p class="small">Po registracijos gali reikėti patvirtinti el. laišką. Naujai paskyrai vidines teises turi suteikti GI administratorius.</p>
+  <p class="small"><b>Nenaudokite Google Workspace slaptažodžio vien dėl to, kad turite organizacijos el. paštą.</b> Čia atskira programėlės paskyra. Po registracijos patvirtinkite el. pašto laišką; tada GI administratorius suteiks vidines teises.</p>
  </div>
+</section>
+<section id="passwordResetView" hidden>
+ <h1>Naujas slaptažodis</h1>
+ <p class="muted">Nustatykite naują programėlės slaptažodį. Tai nekeičia jūsų Google ar Workspace slaptažodžio.</p>
+ <form id="passwordResetForm" class="card">
+  <label class="field">Naujas slaptažodis<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+  <button type="submit">Išsaugoti naują slaptažodį</button>
+ </form>
 </section>
 <section id="appView" hidden>
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
