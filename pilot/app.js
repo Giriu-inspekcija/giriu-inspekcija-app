@@ -176,24 +176,34 @@
   }
 
   function buttonsFor(task) {
-    const id = escapeHTML(task.id);
+    const id=escapeHTML(task.id);
     if(staff()) {
-      if(task.status === 'proposed') return '<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Patvirtinti į fondą</button></div>';
+      const safeButton=(!task.assigned_to && ['proposed','pool'].includes(task.status))
+        ? '<button type="button" class="outline" data-candidate-task="'+id+'">'
+          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Pažymėti saugia kandidato užduotimi')+'</button>' : '';
+      if(task.status==='proposed') return '<div class="actions">'
+        +'<button type="button" data-step="publish" data-id="'+id+'">Patvirtinti į fondą</button>'
+        +safeButton+'</div>';
       if(['pool','assigned'].includes(task.status)) {
-        const selectable = members.filter(m => ['volunteer','coordinator','admin'].includes(m.role));
+        const selectable=members.filter(m=>
+          ['volunteer','coordinator','admin'].includes(m.role)
+          || (m.role==='candidate' && task.candidate_safe));
         return '<div class="actions form-inline">'
           +'<select aria-label="Pasirinkti savanorį" data-person="'+id+'"><option value="">Pasirinkti savanorį</option>'
-          +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'+escapeHTML(personName(m))+'</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">Paskirti</button></div>';
+          +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
+            +escapeHTML(personName(m))+' ('+escapeHTML(roleNames[m.role]||m.role)+')</option>').join('')
+          +'</select><button type="button" data-assign="'+id+'">Paskirti</button>'
+          +safeButton+'</div>';
       }
-      if(task.status === 'submitted') return '<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
+      if(task.status==='submitted') return '<div class="actions">'
+        +'<button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
         +'<button class="outline" type="button" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
       return '';
     }
-    if(task.status === 'assigned') return '<div class="actions"><button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button></div>';
+    if(task.status==='assigned') return '<div class="actions"><button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button></div>';
     if(['accepted','returned'].includes(task.status)) return '<div class="actions"><button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
-    if(task.status === 'in_progress') return '<div><form data-submit-result="'+id+'">'
-      +'<label class="field">Darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Ką atlikai? (tik išgalvotas turinys)"></textarea></label>'
+    if(task.status==='in_progress')return '<div><form data-submit-result="'+id+'">'
+      +'<label class="field">Darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Ką užfiksavai? (kol kas tik išgalvotas turinys)"></textarea></label>'
       +'<button type="submit">Pateikti rezultatą</button></form></div>';
     return '';
   }
@@ -219,6 +229,7 @@
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
         +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'
         +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris (ieškok pagal vardą)':'Nepaskirta')+'</p>':'')
+        +(t.candidate_safe?'<p class="small">Pažymėta kaip saugi kandidato užduotis (tik sintetinė)</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +buttonsFor(t)+timeEntry(t)
