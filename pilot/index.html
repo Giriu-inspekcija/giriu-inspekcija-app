@@ -38,12 +38,16 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
 .signup-steps{padding-left:22px;margin:10px 0 16px}.signup-steps li{margin-bottom:8px}
 .recipient{font-size:18px;font-weight:750;color:#154636;overflow-wrap:anywhere;margin:9px 0 16px}
 #emailHelp.invalid{color:#a12727;font-weight:650}
-@media(max-width:540px){main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
+.account-switch{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #ffffff44}
+.account-switch .account-label{font-size:12px;opacity:.9;overflow-wrap:anywhere;min-width:0}
+.account-switch button{background:#eef6ef;color:#205742;padding:9px 12px;flex-shrink:0}
+@media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
 
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p>
+<div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Keisti paskyrą</button></div></header>
 <main>
 <div class="alert"><b>Tik bandomosios užduotys.</b> Nekelkite tikrų miškų koordinačių, žmonių duomenų, nuotraukų ar oficialių dokumentų.</div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
