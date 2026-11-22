@@ -124,6 +124,25 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
 #threadStatus:not(:empty){padding:10px;background:#f2f5ed;border-radius:8px}.thread-title{font:inherit;color:#185438;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:540px){#threadDialog{width:100%;max-width:100%;height:100dvh;max-height:100dvh;border:0;border-radius:0;margin:0;padding:16px}.field-shortcut button{width:100%}}
 @media(prefers-reduced-motion:reduce){button[aria-busy="true"]::before{animation:none}}
+/* Clear tap feedback and predictable mobile sheets; no native browser prompt UI. */
+button:active:not(:disabled){filter:brightness(.9);transform:translateY(1px)}
+button[aria-busy="true"]{opacity:.72;cursor:progress}
+.feedback-item{border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin:8px 0;background:#fff}
+.feedback-item summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;line-height:1.4}
+.feedback-item summary::-webkit-details-marker{display:none}
+.feedback-item summary::after{content:"⌄";margin-left:auto;font-weight:700;color:var(--green)}
+.feedback-item[open] summary::after{content:"⌃"}
+.feedback-snippet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#425c4b;font-size:13px}
+.feedback-tag{font-size:12px;font-weight:750;color:var(--green);white-space:nowrap}
+.feedback-item p{overflow-wrap:anywhere;white-space:pre-wrap;margin:10px 0}
+.feedback-fast{bottom:calc(16px + env(safe-area-inset-bottom));padding:11px 14px}
+#decision,#quickFeedbackDialog{max-width:min(94vw,34rem);box-shadow:0 20px 45px #163a2750}
+#decision .actions,#quickFeedbackDialog .actions{display:flex;gap:10px}
+#decision .actions button,#quickFeedbackDialog .actions button{min-height:48px;flex:1}
+@media(max-width:720px){
+ #decision,#quickFeedbackDialog{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:100%;max-height:85dvh;border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));border-bottom:0}
+ .feedback-fast{font-size:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body><div class="shell">
@@ -357,13 +376,17 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
     <button type="submit">Pateikti pastabą</button>
    </form>
    <p class="small">Nerašyk asmens duomenų. Pastaba nepublikuojama viešai.</p>
-   <details id="feedbackQueuePanel" hidden><summary><b>Koordinatoriaus pastabų eilė</b></summary><div id="feedbackQueue"></div></details>
-   <hr><details id="feedbackArchive"><summary><b id="feedbackTitle">Mano pastabos</b></summary><div id="feedbackList"></div></details>
+   <details id="feedbackQueuePanel" hidden><summary><b>Koordinatoriaus pastabos <span id="feedbackQueueCount"></span></b></summary>
+    <button type="button" id="feedbackResolvedToggle" class="outline">Rodyti išspręstas</button>
+    <div id="feedbackQueue"></div></details>
+   <hr><details id="feedbackArchive"><summary><b id="feedbackTitle">Mano pastabos</b></summary>
+    <div id="feedbackList"></div>
+    <button type="button" id="feedbackMore" class="outline" hidden>Rodyti daugiau</button></details>
   </div>
   </section>
  </div>
 </section>
-<button type="button" id="quickFeedback" class="feedback-fast" aria-label="Greitai parašyti pastabą">✎ Parašyti pastabą</button>
+<button type="button" id="quickFeedback" class="feedback-fast" aria-label="Pastaba iš bet kurios skilties">✎ Pastaba</button>
 </main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
@@ -379,6 +402,19 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
  <form method="dialog"><h2 id="decisionTitle"></h2><p id="decisionText"></p>
  <label class="field" id="decisionField">Įrašykite atsakymą<textarea id="decisionInput"></textarea></label>
  <div class="actions"><button value="cancel" formnovalidate class="outline">Atšaukti</button><button id="decisionSubmit" value="accept"></button></div></form>
+</dialog>
+<dialog id="quickFeedbackDialog" aria-labelledby="quickFeedbackTitle">
+ <form id="quickFeedbackForm">
+  <div class="thread-top"><h2 id="quickFeedbackTitle">Pranešti apie problemą</h2>
+   <button type="button" class="outline" id="quickFeedbackClose" aria-label="Uždaryti pastabos formą">✕</button></div>
+  <p class="small" id="quickFeedbackContext">Skiltis: Darbai</p>
+  <label class="field">Tipas<select name="category">
+   <option value="klaida">Neveikia / klaida</option><option value="pasiulymas">Pasiūlymas</option><option value="klausimas">Klausimas</option>
+  </select></label>
+  <label class="field">Trumpai aprašykite<textarea name="message" required minlength="5" maxlength="1400" rows="4" placeholder="Kas neveikia arba kaip būtų patogiau?"></textarea></label>
+  <button type="submit" id="quickFeedbackSend">Išsiųsti pastabą</button>
+  <p class="small">Pastabą matys tik jūsų paskyra ir GI koordinatoriai. Neįrašykite asmens duomenų.</p>
+ </form>
 </dialog>
 <script defer src="./team-thread.js"></script>
 <script defer src="./app.js"></script>
