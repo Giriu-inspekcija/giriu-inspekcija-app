@@ -61,8 +61,12 @@ def exercise(user,password):
                 field=card.get_by_label('Užduoties terminas')
                 expect(field).to_have_value(date+'T09:05')
                 field.fill(date+'T18:45')
-                card.get_by_role('button',name='Išsaugoti terminą').click()
+                deadline_requests=[]
+                page.on('request',lambda req: deadline_requests.append(1) if '/rpc/gi_change_task_due' in req.url else None)
+                save=card.get_by_role('button',name='Išsaugoti terminą')
+                save.evaluate('(button)=>{button.click();button.click()}')
                 expect(card).to_contain_text('18:45')
+                assert len(deadline_requests)==1
                 # A fresh context enforces a new password login and a DB reread.
                 ctx.close()
                 ctx=browser.new_context(**p.devices[device],timezone_id=zone,service_workers='block')
@@ -89,6 +93,20 @@ def exercise(user,password):
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 if name=='desktop':
                     test_forms(page)
+                    page.route('**/rest/v1/gi_profiles?**',lambda route:route.fulfill(status=401,
+                        content_type='application/json',body='{"message":"JWT expired"}'))
+                    page.locator('[data-nav=tasks]').click()
+                    page.locator('#refresh').click()
+                    expect(page.locator('#notice')).to_contain_text('JWT expired')
+                    page.unroute('**/rest/v1/gi_profiles?**')
+                    ctx.clear_cookies()
+                    page.evaluate('localStorage.clear()')
+                    page.goto(base)
+                    page.locator('#showSignup').click()
+                    field=page.locator('#email')
+                    field.fill('neteisingas-adresas')
+                    assert not field.evaluate('(field)=>field.checkValidity()')
+                    print('PASS J double click, invalid date/email, disconnected API, simulated expired session and role denials')
                 browser.close()
     finally:
         server.shutdown()
