@@ -9,7 +9,8 @@ test('common email TLD typo is blocked before Supabase signup',()=>{
   assert.match(app,/'gmail.con':'gmail.com'/);
   assert.match(app,/const suggestedEmail=likelyEmailTypo\(email\)/);
   assert.match(app,/if\(signup&&suggestedEmail\)/);
-  assert.ok(app.indexOf('if(signup&&suggestedEmail)')<app.indexOf('setOtpCooldown();'));
+  const submit=app.slice(app.indexOf("$('authForm').addEventListener('submit'"));
+  assert.ok(submit.indexOf('if(signup&&suggestedEmail)')<submit.indexOf('setOtpCooldown();'));
   assert.ok(app.indexOf('if(signup&&suggestedEmail)')<app.indexOf('client.auth.signUp('));
 });
 test('signup shows actual recipient and allows manual correction',()=>{
