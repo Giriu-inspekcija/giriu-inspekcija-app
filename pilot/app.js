@@ -207,11 +207,19 @@
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
-      const logResult=await client.from('gi_work_logs')
-        .select('id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at')
-        .order('created_at',{ascending:false}).limit(100);
-      if(logResult.error)throw logResult.error;
-      workLogs=logResult.data||[];
+      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at';
+      const ownLogs=await client.from('gi_work_logs').select(logFields)
+        .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70);
+      if(ownLogs.error)throw ownLogs.error;
+      let others=[];
+      if(staff()){
+        const pendingLogs=await client.from('gi_work_logs').select(logFields)
+          .eq('review_status','submitted').neq('volunteer_id',currentUser.id)
+          .order('created_at',{ascending:false}).limit(50);
+        if(pendingLogs.error)throw pendingLogs.error;
+        others=pendingLogs.data||[];
+      }
+      workLogs=[...(ownLogs.data||[]),...others];
       const ownTaskResult=await client.from('gi_tasks')
         .select('id,title,status,updated_at')
         .eq('assigned_to',currentUser.id)
@@ -270,24 +278,33 @@
     if(!independent)$('manualTimeActivity').value='';
   }
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
-  function renderWorkLogs() {
+  function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
-    const pending=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
-    const approvedTime=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
-    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(pending)+' · Patvirtinta: '+clockDuration(approvedTime);
-    const shown=staff()?workLogs:mine;
-    $('workLogsList').innerHTML=shown.length?shown.map(w=>{
-      const task=tasks.find(t=>t.id===w.task_id),owner=members.find(p=>p.id===w.volunteer_id);
-      return '<article class="card"><b>'+escapeHTML(task?.title||'Bandomoji užduotis')+'</b>'
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):w.volunteer_id===currentUser.id?'Aš':'Savanoris')+'</p>':'')
-        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '+escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)+'</p>'
-        +(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
+    const waiting=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
+    const accepted=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(waiting)+' · Patvirtinta: '+clockDuration(accepted);
+    const entry=w=>{
+      const task=timeOwnTasks.find(t=>t.id===w.task_id)||tasks.find(t=>t.id===w.task_id);
+      const owner=members.find(p=>p.id===w.volunteer_id);
+      const title=w.activity_title||task?.title||'Bandomasis darbas';
+      return '<article class="card"><b>'+escapeHTML(title)+'</b>'
+        +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):'Savanoris')+'</p>':'')
+        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '
+        +escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)
+        +'</p>'+(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
         +(w.review_note?'<p class="small">Koordinatoriaus pastaba: '+escapeHTML(w.review_note)+'</p>':'')
-        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser.id
+        +(w.review_status==='returned'?'<p class="small">Patikslinkite pateikdami naują įrašą aukščiau.</p>':'')
+        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser?.id
           ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
-           +'<button class="outline" type="button" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
+           +'<button type="button" class="outline" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
         +'</article>';
-    }).join(''):'<p class="card">Savanorystės laiko įrašų dar nėra.</p>';
+    };
+    $('workLogsList').innerHTML=mine.length?mine.map(entry).join('')
+      :'<p class="card">Jūsų pateiktų valandų dar nėra. Galite įrašyti ir atskirą savanorystės veiklą.</p>';
+    const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&w.review_status==='submitted'):[];
+    $('staffTimePanel').hidden=!staff();
+    $('staffTimeLogs').innerHTML=others.length?others.map(entry).join('')
+      :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
   }
   const incidentCategoryLabel={cutting:'Kirtimai',timber_truck:'Medienos vežimas',pollution:'Tarša',tree_damage:'Medžių pažeidimai',waste:'Atliekos',other:'Kita',unknown:'Nežinau'};
   function renderIncidents() {
