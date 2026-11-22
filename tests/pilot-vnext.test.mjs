@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 const app=readFileSync(new URL('../pilot/app.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../pilot/index.html',import.meta.url),'utf8');
 const migration=readFileSync(new URL('../supabase/migrations/20261122230000_gi_pilot_registration_tasks_time_incidents.sql',import.meta.url),'utf8');
+const emailFix=readFileSync(new URL('../supabase/migrations/20261122230500_gi_staff_member_email_type_fix.sql',import.meta.url),'utf8');
 
 test('new pilot view references exactly defined UI controls',()=>{
   const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
@@ -40,7 +41,7 @@ test('registration withdrawal and staff rejection do not delete auth identities 
 test('staff can distinguish verified member emails but volunteer cannot query list',()=>{
   assert.match(migration,/private\.gi_member_emails/);
   assert.match(migration,/Staff permission required/);
-  assert.match(migration,/u\.email::text/);
+  assert.match(emailFix,/u\.email::text/);
   assert.match(app,/memberEmails=/);
   assert.match(app,/memberEmails\[p\.id\]/);
 });
