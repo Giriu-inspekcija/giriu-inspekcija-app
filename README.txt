@@ -1,9 +1,9 @@
 GIRIŲ INSPEKCIJA — SINTETINIS DEMO | 2026-11-22
 
 GREITAS BANDYMAS
-1. Atsisiųskite failą "Giriu-inspekcija-demo.html" ir atidarykite naršyklėje kompiuteryje arba Android telefone.
+1. Atverkite paskelbtos demonstracijos HTTPS nuorodą telefone ar kompiuteryje.
 2. Viršuje pasirinkite "Koordinatorius (demo)"; per "Valdymas" sukurkite išgalvotą užduotį.
-3. Pasirinkite "Asta (savanorė)" ir atsidarykite "Darbai". Priimkite užduotį, pradėkite ir pateikite rezultatą.
+3. Pasirinkite "Asta (demo)" ir atsidarykite "Darbai". Priimkite užduotį, pradėkite ir pateikite rezultatą.
 4. Grįžę prie koordinatoriaus patvirtinkite rezultatą.
 5. Išbandykite "Pranešti", "Laikas" ir "Pastabos".
 
