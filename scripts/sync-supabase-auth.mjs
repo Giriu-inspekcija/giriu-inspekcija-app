@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 export const PROJECT_REF = 'mkhxokzuietqgjdpkcqq';
 export const PREVIEW_URL = 'https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/';
+export const LIVE_URL = 'https://starlit-shortbread-a38110.netlify.app/pilot/';
 const MANAGEMENT_URL = 'https://api.supabase.com/v1/projects/' + PROJECT_REF + '/config/auth';
 const TEMPLATE_SETTINGS = Object.freeze([
   {
@@ -74,8 +75,8 @@ export function makePatch(current, templates = loadTemplates()) {
   if (typeof site !== 'string') throw Error('Missing current site_url: refusing to modify Auth');
   const patch = {...templates};
   // The pilot must not break later production URLs. Only replace the old local-dev default.
-  if (['http://localhost:3000','http://localhost:3000/',PREVIEW_URL].includes(site)) {
-    patch.site_url = PREVIEW_URL;
+  if (['http://localhost:3000','http://localhost:3000/',PREVIEW_URL,LIVE_URL].includes(site)) {
+    patch.site_url = LIVE_URL;
   } else {
     const candidate = new URL(site);
     if (candidate.protocol !== 'https:') throw Error('Unexpected insecure site_url; review manually');
@@ -83,6 +84,7 @@ export function makePatch(current, templates = loadTemplates()) {
   }
   const allowed = normalizeAllowedURLs(current.uri_allow_list);
   if (!allowed.includes(PREVIEW_URL)) allowed.push(PREVIEW_URL);
+  if (!allowed.includes(LIVE_URL)) allowed.push(LIVE_URL);
   patch.uri_allow_list = allowed.join(',');
   // Explicitly exclude SMTP credentials and user privilege controls from the patch.
   const keys = Object.keys(patch);
@@ -141,7 +143,7 @@ async function main() {
   console.log('GI Auth: checked ' + TEMPLATE_SETTINGS.length + ' Lithuanian templates / official logo / secure links');
   if (action === '--check') {
     const sample = makePatch({site_url:'http://localhost:3000',uri_allow_list:''},templates);
-    if (sample.site_url !== PREVIEW_URL || !sample.uri_allow_list.includes(PREVIEW_URL)) throw Error('Offline configuration test failed');
+    if (sample.site_url !== LIVE_URL || !sample.uri_allow_list.includes(PREVIEW_URL) || !sample.uri_allow_list.includes(LIVE_URL)) throw Error('Offline configuration test failed');
     console.log('Offline validation passed; no network request, no Auth change');
     return;
   }
