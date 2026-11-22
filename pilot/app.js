@@ -340,19 +340,23 @@
     const candidates=others.filter(p=>p.role==='candidate');
     const pendingRows=pending.map(p=>{
       const id=escapeHTML(p.id),existing=p.membership_intent==='existing_volunteer';
+      const verified=memberEmails[p.id]?.verified===true;
       return '<article class="card">'+person(p)
-        +'<p class="small">Nurodytas statusas nėra patikrinimas. Pirma įsitikinkite, kad pažįstate asmenį.</p>'
+        +'<p class="small">'+(verified?'Statusas anketoje nėra patikrinimas. Patikrinkite žmogų.'
+          :'El. paštas nepatvirtintas – savanorio teisių suteikti negalima.')+'</p>'
         +'<div class="actions">'
-        +'<button type="button" data-approve-'+(existing?'volunteer':'candidate')+'="'+id+'">'
-        +(existing?'Patvirtinti kaip savanorį':'Priimti kandidatu')+'</button>'
-        +'<button type="button" class="outline" data-approve-'+(existing?'candidate':'volunteer')+'="'+id+'">'
-        +(existing?'Vietoj to – kandidatu':'Vietoj to – savanoriu')+'</button>'
+        +(verified?'<button type="button" data-approve-'+(existing?'volunteer':'candidate')+'="'+id+'">'
+          +(existing?'Patvirtinti kaip savanorį':'Priimti kandidatu')+'</button>'
+          +'<button type="button" class="outline" data-approve-'+(existing?'candidate':'volunteer')+'="'+id+'">'
+          +(existing?'Priimti kandidatu':'Patvirtinti kaip savanorį')+'</button>':'')
         +'<button type="button" class="outline" data-reject-registration="'+id+'">Atmesti registraciją</button>'
         +'</div></article>';
     }).join('');
     const stoppedRows=stopped.map(p=>'<article class="card">'+person(p)
       +'<p class="small">Registracija: '+escapeHTML(p.registration_state==='withdrawn'?'atšaukta paties naudotojo':'atmesta koordinatoriaus')+'</p>'
       +'<button class="outline" type="button" data-restore-registration="'+escapeHTML(p.id)+'">Atkurti registracijos prašymą</button>'
+      +(admin()&&memberEmails[p.id]?.verified===false
+        ?'<button class="outline" type="button" data-purge-invalid="'+escapeHTML(p.id)+'">Išvalyti klaidingą adresą</button>':'')
       +'</article>').join('');
     const candidateRows=candidates.map(p=>'<article class="card">'+person(p)
       +'<p class="small">Kandidatas – tik specialiai pažymėtos demonstracinės užduotys.</p>'
@@ -366,7 +370,7 @@
         +'<div class="form-inline"><select aria-label="Keisti vaidmenį" data-role-select="'+id+'">'
         +['pending','candidate','volunteer','coordinator'].map(role=>
           '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role]||role)+'</option>').join('')
-        +'</select><button type="button" data-change-role="'+id+'">Išsaugoti vaidmenį</button></div>'
+        +'</select><button type="button" data-change-role="'+id+'">Patvirtinti vaidmens pakeitimą</button></div>'
         +(['candidate','volunteer'].includes(p.role)?
           '<div class="form-inline"><select aria-label="Savanorio laipsnis" data-rank-select="'+id+'">'
           +Object.keys(rankNames).filter(k=>p.role!=='candidate'||k==='pradedantysis').map(rank=>
