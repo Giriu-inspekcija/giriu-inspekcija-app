@@ -19,7 +19,7 @@
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
   let authMode = 'signup', passwordRecovery = false;
   const TASK_PAGE_SIZE = 50;
-  let taskPage = 1, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
+  let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
   function notice(msg, error = false) {
     const el = $('notice');
@@ -34,7 +34,7 @@
   const personName = p => (p?.display_name || 'Naudotojas ' + String(p?.id || '').slice(0,8)).trim();
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = [];
-    taskPage = 1; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
+    taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
     $('passwordResetView').hidden = true;
@@ -48,7 +48,7 @@
     if(error) throw error;
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
   }
-  async function refreshWorkspace() {
+  async function refreshWorkspace({appendTasks = false} = {}) {
     if(!currentUser || loading) return;
     loading = true;
     try {
@@ -69,23 +69,22 @@
       $('memberSearchPanel').hidden = !staff();
 
       if(!approved()) return;
-      const taskLimit = Math.min(taskPage * TASK_PAGE_SIZE, 1000);
-      let taskQuery = client.from('gi_tasks')
-        .select('id,title,details,status,priority,assigned_to,source_ref,result_text,feedback_text,created_at')
-        .order('created_at',{ascending:false}).order('id',{ascending:false})
-        .range(0,taskLimit);
-      if(staff()){
-        if(taskFilter === 'pool') taskQuery=taskQuery.in('status',['proposed','pool']);
-        if(taskFilter === 'assigned') taskQuery=taskQuery.in('status',['assigned','accepted','in_progress','returned']);
-        if(taskFilter === 'submitted') taskQuery=taskQuery.eq('status','submitted');
-        if(taskFilter === 'approved') taskQuery=taskQuery.eq('status','approved');
-      }
-      const {data,error} = await taskQuery;
-      if(error) throw error;
-      tasks = (data||[]).slice(0,taskLimit);
-      hasMoreTasks=(data||[]).length>taskLimit;
-      $('taskLoadMore').hidden = !hasMoreTasks;
-      $('taskPageInfo').textContent = 'Rodoma: ' + tasks.length + ' užduočių';
+      const {data,error}=await client.rpc('gi_list_tasks_page',{
+        p_before_created_at:appendTasks && taskCursor ? taskCursor.created_at : null,
+        p_before_id:appendTasks && taskCursor ? taskCursor.id : null,
+        p_limit:TASK_PAGE_SIZE+1,
+        p_filter:staff()?taskFilter:'all'
+      });
+      if(error)throw error;
+      const page=(data||[]).slice(0,TASK_PAGE_SIZE);
+      hasMoreTasks=(data||[]).length>TASK_PAGE_SIZE;
+      tasks=appendTasks?[...tasks,...page]:page;
+      taskCursor=page.length?{
+        created_at:page[page.length-1].created_at,
+        id:page[page.length-1].id
+      }:(appendTasks?taskCursor:null);
+      $('taskLoadMore').hidden=!hasMoreTasks;
+      $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
       if(staff()){
         let peopleQuery=client.from('gi_profiles')
           .select('id,display_name,role,created_at').order('created_at',{ascending:false}).limit(100);
@@ -367,13 +366,13 @@
   $('taskStatusFilter').addEventListener('change',event=>{
     if(!staff())return;
     taskFilter=String(event.target.value||'all');
-    taskPage=1;
+    taskCursor=null;
+    tasks=[];
     refreshWorkspace();
   });
   $('taskLoadMore').addEventListener('click',()=>{
     if(loading||!hasMoreTasks)return;
-    taskPage=Math.min(taskPage+1,20);
-    refreshWorkspace();
+    refreshWorkspace({appendTasks:true});
   });
   $('memberSearchForm').addEventListener('submit',event=>{
     event.preventDefault();
