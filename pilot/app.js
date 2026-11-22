@@ -372,7 +372,7 @@
         +members.filter(m=>m.id!==currentUser.id && m.role!=='pending').map(m=>'<option value="'+escapeHTML(m.id)+'">'+escapeHTML(personName(m))+'</option>').join('');
       if(ownerFilter && ![...ownerSelect.options].some(o=>o.value===ownerFilter))ownerSelect.add(new Option('Pasirinktas vykdytojas',ownerFilter));
       ownerSelect.value=ownerFilter;
-      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity';
+      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity,worker:gi_profiles!volunteer_id(display_name),job:gi_tasks!task_id(title)';
       const totals=await client.rpc('gi_my_time_totals');
       if(totals.error)throw totals.error;
       timeTotals=totals.data?.[0]||{submitted:0,approved:0};
@@ -381,9 +381,7 @@
       if(ownLogs.error)throw ownLogs.error;
       let others=[];
       if(staff()){
-        const pendingLogs=await client.from('gi_work_logs').select(logFields)
-          .eq('review_status','submitted').neq('volunteer_id',currentUser.id)
-          .order('created_at',{ascending:false}).limit(50);
+        const pendingLogs=await client.rpc('gi_review_queue').select(logFields).order('created_at').order('id');
         if(pendingLogs.error)throw pendingLogs.error;
         others=pendingLogs.data||[];
       }
@@ -491,9 +489,9 @@
     const entry=w=>{
       const task=timeOwnTasks.find(t=>t.id===w.task_id)||tasks.find(t=>t.id===w.task_id);
       const owner=members.find(p=>p.id===w.volunteer_id);
-      const title=w.activity_title||task?.title||'Bandomasis darbas';
+      const title=w.activity_title||w.job?.title||task?.title||'Savanorystės veikla';
       return '<article class="log-card"><div class="log-head"><b>'+escapeHTML(title)+'</b><strong>'+escapeHTML(clockDuration(w.minutes))+'</strong></div>'
-        +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):'Savanoris')+'</p>':'')
+        +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(w.worker?.display_name||(owner?personName(owner):'Savanoris'))+'</p>':'')
         +'<p class="small">'+escapeHTML(w.work_date||window.giDeadlines.inputValue(w.created_at).slice(0,10))
         +(w.project_label?' · '+escapeHTML(w.project_label):'')+'</p>'
         +'<p class="small">'
@@ -509,9 +507,9 @@
     $('workLogsList').innerHTML=mine.length?mine.map(entry).join('')
       :'<p class="card">Jūsų pateiktų valandų dar nėra. Galite įrašyti ir atskirą savanorystės veiklą.</p>';
     const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&reviewableLogs.has(w.id)):[];
-    $('reviewCount').textContent=String(others.length);
+    $('reviewCount').textContent=others.length>50?'50+':String(others.length);
     $('staffTimePanel').hidden=!staff();
-    $('staffTimeLogs').innerHTML=others.length?others.map(entry).join('')
+    $('staffTimeLogs').innerHTML=others.length?others.slice(0,50).map(entry).join('')
       :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
   }
   function renderIncidents() {
@@ -759,13 +757,11 @@
       const refreshed=await refreshWorkspace();
       if(!refreshed)throw Error('Pakeitimas išsaugotas, tačiau būsenos atnaujinti nepavyko. Spauskite „Atnaujinti“.');
       const msg=typeof successMessage==='function'?successMessage(result?.data):successMessage;
-      notice(msg);
       toast(msg);
       return true;
     } catch(error) {
       if(expiredSession(error)){endExpiredSession();return false;}
       const message='Nepavyko atlikti veiksmo: '+(error?.message||'Nežinoma klaida');
-      notice(message,true);
       toast(message,true);
       return false;
     } finally {
@@ -1299,7 +1295,7 @@
   $('batchImport').addEventListener('click',async()=>{
     if(!staff()||!reviewedBatch?.length)return;
     const copy=reviewedBatch;
-    $('batchImport').disabled=true;
+    const restore=busy($('batchImport'),'Įkeliama…');
     let imported=0, failures=[];
     for(const t of copy){
       try {
@@ -1318,6 +1314,7 @@
         imported++;
       } catch(err) {failures.push(t.source_ref+': '+(err?.message||String(err)));}
     }
+    restore();$('batchImport').disabled=true;
     reviewedBatch=null;
     if(!failures.length){$('batchJson').value='';$('batchReview').textContent='';}
     else $('batchReview').textContent='Klaidos: '+failures.slice(0,5).join(' | ');
@@ -1402,7 +1399,7 @@
   });
   $('taskList').addEventListener('click',async event=>{
     const b=event.target.closest('button');
-    if(!b||loading||mutationInFlight)return;
+    if(!b||mutationInFlight)return;
     if(b.dataset.loadHistory){
       const id=b.dataset.loadHistory;
       const box=b.closest('details')?.querySelector('[data-task-history]');
@@ -1692,7 +1689,9 @@
   async function uploadPhotos(id,files){
     if(!files.length)return;
     const occupied=new Set(await photoSlots(id));
+    let number=0;
     for(const file of files){
+      $('incidentProgress').textContent='Įkeliama nuotrauka '+(++number)+' iš '+files.length+'…';
       let slot=assignedSlots.get(file);
       if(slot?.id!==id)slot=null;
       if(!slot){
@@ -1766,6 +1765,7 @@
   });
   $('incidentForm').addEventListener('submit',event=>{
     event.preventDefault();
+    if(mutationInFlight)return;
     const submit=event.submitter?.value==='submit',desc=$('incidentDescription').value.trim();
     const raw=$('incidentCoords').value.trim();
     const coordinates=raw?raw.match(/^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/):null;
@@ -1777,6 +1777,9 @@
     if(!$('incidentId').value)$('incidentId').value=crypto.randomUUID();
     const payload={p_id:$('incidentId').value,p_description:desc,p_category:$('incidentCategory').value,
       p_event_state:$('incidentEventState').value,p_lat:coordinates?Number(coordinates[1]):null,p_lon:coordinates?Number(coordinates[2]):null};
+    const controls=Array.from(event.target.elements).filter(c=>c!==event.submitter&&!c.disabled);
+    controls.forEach(c=>c.disabled=true);
+    $('incidentProgress').textContent=submit?'Pateikiamas pranešimas…':'Saugomas juodraštis…';
     run(async()=>{
       const draft=await client.rpc('gi_incident_draft',{...payload,p_observed:window.giDeadlines.toInstant($('incidentObserved').value)});
       if(draft.error)throw draft.error;
@@ -1786,7 +1789,7 @@
         if(sent.error)throw sent.error;
       }
       resetIncident();
-    },submit?'Pranešimas pateiktas patikrai.':'Juodraštis išsaugotas.').then(ok=>{if(ok)$('incidentEditor').open=false;});
+    },submit?'Pranešimas pateiktas patikrai.':'Juodraštis išsaugotas.').then(ok=>{controls.forEach(c=>c.disabled=false);$('incidentProgress').textContent='';if(ok)$('incidentEditor').open=false;});
   });
   function refreshWhenIdle(){
     // A native date picker can blur the window; replacing its card discards the edit.

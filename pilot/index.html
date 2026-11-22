@@ -308,7 +308,7 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
         <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
         <button type="submit" name="action" value="submit">Pateikti bandomąjį pranešimą</button>
         <button type="button" class="outline" id="incidentClear">Naujas juodraštis</button>
-      </div>
+      </div><p role="status" id="incidentProgress" class="small"></p>
     </form>
     </details><h3>Pranešimų sąrašas</h3><div id="incidentsList"></div>
   </section>
@@ -367,7 +367,7 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
 <script defer src="./deadlines.js"></script>
 <dialog id="threadDialog" aria-labelledby="threadTitle">
  <div class="thread-top"><strong id="threadName">Darbo kortelė</strong><button type="button" class="outline" id="closeThread">Uždaryti</button></div>
- <h2 id="threadTitle">Kraunama…</h2><div id="threadContent"></div><p id="threadStatus" role="status"></p>
+ <h2 id="threadTitle">Kraunama…</h2><p id="threadStatus" role="status"></p><div id="threadContent"></div>
 </dialog>
 <dialog id="decision" aria-labelledby="decisionTitle" aria-describedby="decisionText">
  <form method="dialog"><h2 id="decisionTitle"></h2><p id="decisionText"></p>

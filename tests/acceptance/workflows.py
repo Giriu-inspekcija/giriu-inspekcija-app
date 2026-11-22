@@ -58,6 +58,7 @@ def case_and_document(chief,coord,reporter,other_staff,owner_id):
     assert len(rows('gi_thread_entries',helper,'select=id&task_id=eq.'+task))==2
     rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':False},coord)
     assert rows('gi_thread_entries',helper,q)==[]
+    assert not http.get(file_url,headers=headers,timeout=10).ok
     request('POST',endpoint,helper,{'incident_id':incident,'kind':'note','body':'Test'},{401,403})
     print('PASS restricted and shared threads, case link, helpers, contextual file and visibility revocation',flush=True)
 

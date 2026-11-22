@@ -70,7 +70,7 @@ test('task can be self-claimed without dropdown and delegated via explicit assig
 });
 test('own time entries remain visible to admin separately from other volunteer approvals',()=>{
   assert.match(js,/\.eq\('volunteer_id',currentUser\.id\)/);
-  assert.match(js,/\.eq\('review_status','submitted'\)\.neq\('volunteer_id',currentUser\.id\)/);
+  assert.match(js,/client\.rpc\('gi_review_queue'\)/);
   assert.match(js,/\$\('staffTimeLogs'\)\.addEventListener\('click',handleTimeReviewClick\)/);
   assert.match(js,/\$\('workLogsList'\)\.innerHTML=mine\.length/);
   assert.match(sw,/v15-team-threads/);

@@ -64,13 +64,18 @@ CREATE POLICY gi_thread_write ON public.gi_thread_entries FOR INSERT TO authenti
 
 INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
  VALUES('gi-thread-files','gi-thread-files',false,5242880,ARRAY['image/jpeg','image/png','image/webp','application/pdf']);
+CREATE FUNCTION private.gi_thread_file_allowed(path text) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
+ SELECT CASE WHEN path ~ '^[0-9a-f-]{36}/(incident|task)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$'
+ THEN private.gi_thread_allowed(CASE WHEN split_part(path,'/',2)='incident' THEN split_part(path,'/',3)::uuid END,
+       CASE WHEN split_part(path,'/',2)='task' THEN split_part(path,'/',3)::uuid END) ELSE false END
+$$;
+REVOKE ALL ON FUNCTION private.gi_thread_file_allowed(text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_thread_file_allowed(text) TO authenticated;
 CREATE POLICY gi_thread_upload ON storage.objects FOR INSERT TO authenticated WITH CHECK(
- bucket_id='gi-thread-files' AND split_part(name,'/',1)=(SELECT auth.uid())::text AND
- CASE WHEN name ~ '^[0-9a-f-]{36}/(incident|task)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$'
- THEN private.gi_thread_allowed(CASE WHEN split_part(name,'/',2)='incident' THEN split_part(name,'/',3)::uuid END,
-       CASE WHEN split_part(name,'/',2)='task' THEN split_part(name,'/',3)::uuid END) ELSE false END);
+ bucket_id='gi-thread-files' AND split_part(name,'/',1)=(SELECT auth.uid())::text AND private.gi_thread_file_allowed(name));
 CREATE POLICY gi_thread_download ON storage.objects FOR SELECT TO authenticated USING(
- bucket_id='gi-thread-files' AND (split_part(name,'/',1)=(SELECT auth.uid())::text
+ bucket_id='gi-thread-files' AND ((split_part(name,'/',1)=(SELECT auth.uid())::text AND private.gi_thread_file_allowed(name))
  OR EXISTS(SELECT FROM public.gi_thread_entries e WHERE e.attachment=name)));
 
 CREATE FUNCTION private.gi_set_team_visibility(p_kind text,p_id uuid,p_visible boolean) RETURNS void
@@ -93,3 +98,15 @@ REVOKE ALL ON FUNCTION private.gi_thread_author(),private.gi_thread_allowed(uuid
  public.gi_set_team_visibility(text,uuid,boolean) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION private.gi_thread_allowed(uuid,uuid),private.gi_set_team_visibility(text,uuid,boolean),
  public.gi_set_team_visibility(text,uuid,boolean) TO authenticated;
+
+-- Apply reviewer eligibility before paging so ineligible records cannot hide older volunteer work.
+CREATE FUNCTION private.gi_review_queue() RETURNS SETOF public.gi_work_logs
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT w.* FROM public.gi_work_logs w WHERE w.review_status='submitted' AND w.volunteer_id<>auth.uid()
+ AND private.gi_may_review_time(w.volunteer_id,w.general_activity)
+ ORDER BY w.created_at,w.id LIMIT 51
+$$;
+CREATE FUNCTION public.gi_review_queue() RETURNS SETOF public.gi_work_logs
+ LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$ SELECT * FROM private.gi_review_queue() $$;
+REVOKE ALL ON FUNCTION public.gi_review_queue(),private.gi_review_queue() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_review_queue(),private.gi_review_queue() TO authenticated;
