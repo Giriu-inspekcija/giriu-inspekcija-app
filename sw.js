@@ -1,6 +1,6 @@
 const PREFIX = 'giriu-inspekcija-demo-';
-const CACHE = PREFIX + '20261122-v3-official-logo';
-const assets = ['index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'logo.png'];
+const CACHE = PREFIX + '20261122-v4-official-giriu-inspekcija-icons';
+const assets = ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon-64.png', 'logo.png'];
 const urls = assets.map(path => new URL(path, self.registration.scope).href);
 const indexUrl = urls[0];
 
