@@ -139,7 +139,7 @@ declare v_status text; v_role text;
 begin
   if coalesce((select private.gi_role()), 'pending') not in ('coordinator','admin') then raise exception 'GI permission denied'; end if;
   select role into v_role from public.gi_profiles where id=p_volunteer;
-  if v_role not in ('volunteer','coordinator','admin') then raise exception 'Volunteer not approved'; end if;
+  if coalesce(v_role, 'pending') not in ('volunteer','coordinator','admin') then raise exception 'Volunteer not approved'; end if;
   select status into v_status from public.gi_tasks where id=p_id for update;
   if v_status is null or v_status not in ('pool','assigned') then raise exception 'Invalid assignment stage'; end if;
   update public.gi_tasks set assigned_to=p_volunteer,status='assigned',updated_at=now() where id=p_id;
