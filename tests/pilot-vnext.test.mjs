@@ -27,7 +27,7 @@ test('volunteers can follow the entire synthetic task cycle, including time logg
   assert.match(html,/id="taskSummary"/);
   assert.match(app,/data-step="claim"/);
   assert.match(app,/data-step="decline"/);
-  assert.match(app,/gi_set_task_due/);
+  assert.match(app,/gi_change_task_due/);
   assert.match(app,/data-time-for-task/);
   assert.match(html,/id="manualTimeHours"/);
   assert.match(html,/id="manualTimeMinutes"/);
@@ -71,7 +71,7 @@ test('mobile navigation and professional Google button remain accessible',()=>{
   assert.match(html,/aria-label="Darbo vietos skiltys"/);
   assert.match(html,/aria-label="Google"/);
   assert.match(html,/Bandomoji GI sistema/);
-  assert.match(sw,/v11-hours-cleanup/);
+  assert.match(sw,/v12-vilnius-reviews/);
   assert.match(html,/#EA4335/);
   assert.doesNotMatch(html,/<span class="google-mark" aria-hidden="true">G<\/span>/);
   assert.match(html,/id="switchAccount"/);

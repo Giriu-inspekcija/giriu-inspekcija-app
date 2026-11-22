@@ -1,0 +1,249 @@
+-- Reviewer appointments are bound privately to verified Auth UUIDs by an operator.
+CREATE TABLE private.gi_time_reviewers (
+  appointment text PRIMARY KEY CHECK (appointment IN ('chief','coordinator')),
+  user_id uuid UNIQUE NOT NULL REFERENCES public.gi_profiles(id) ON DELETE CASCADE
+);
+REVOKE ALL ON private.gi_time_reviewers FROM PUBLIC,anon,authenticated;
+
+-- Historical records without a project classification require independent review.
+ALTER TABLE public.gi_work_logs
+  ADD COLUMN work_date date,
+  ADD COLUMN request_id uuid,
+  ADD COLUMN project_label text CHECK (char_length(project_label) BETWEEN 2 AND 120),
+  ADD COLUMN general_activity boolean NOT NULL DEFAULT false,
+  ADD CONSTRAINT gi_general_without_project CHECK (NOT general_activity OR project_label IS NULL);
+CREATE UNIQUE INDEX gi_work_logs_request_idx ON public.gi_work_logs(volunteer_id,request_id)
+WHERE request_id IS NOT NULL;
+CREATE TABLE private.gi_time_review_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  log_id uuid NOT NULL REFERENCES public.gi_work_logs(id),
+  actor_id uuid NOT NULL REFERENCES public.gi_profiles(id),
+  action text NOT NULL CHECK (action IN ('approve','return')),
+  self_review boolean NOT NULL, note text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE ALL ON private.gi_time_review_events FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION private.gi_may_review_time(p_owner uuid,p_general boolean)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM private.gi_time_reviewers r
+    JOIN public.gi_profiles reviewer ON reviewer.id=r.user_id
+    JOIN auth.users u ON u.id=reviewer.id AND u.email_confirmed_at IS NOT NULL
+    JOIN public.gi_profiles owner ON owner.id=p_owner
+    WHERE reviewer.id=(SELECT auth.uid()) AND reviewer.registration_state='active'
+      AND ((r.appointment='chief' AND reviewer.role='admin' AND (reviewer.id<>owner.id OR p_general))
+        OR (r.appointment='coordinator' AND reviewer.role='coordinator' AND reviewer.id<>owner.id
+          AND owner.role IN ('candidate','volunteer')))
+  )
+$$;
+REVOKE ALL ON FUNCTION private.gi_may_review_time(uuid,boolean) FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION private.gi_reviewable_logs(p_ids uuid[])
+RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+  SELECT w.id FROM public.gi_work_logs w WHERE w.id=ANY(p_ids) AND cardinality(p_ids)<=150
+    AND w.review_status='submitted' AND private.gi_may_review_time(w.volunteer_id,w.general_activity)
+$$;
+REVOKE ALL ON FUNCTION private.gi_reviewable_logs(uuid[]) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_reviewable_logs(uuid[]) TO authenticated;
+CREATE FUNCTION public.gi_reviewable_logs(p_ids uuid[]) RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$ SELECT * FROM private.gi_reviewable_logs(p_ids) $$;
+REVOKE ALL ON FUNCTION public.gi_reviewable_logs(uuid[]) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_reviewable_logs(uuid[]) TO authenticated;
+
+CREATE OR REPLACE FUNCTION private.gi_review_work_log(p_id uuid,p_action text,p_note text DEFAULT NULL)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE w public.gi_work_logs%rowtype;
+BEGIN
+  SELECT * INTO w FROM public.gi_work_logs WHERE id=p_id FOR UPDATE;
+  IF NOT FOUND OR w.review_status<>'submitted' OR NOT private.gi_may_review_time(w.volunteer_id,w.general_activity)
+    THEN RAISE EXCEPTION 'Šio laiko įrašo tvirtinti negalite.'; END IF;
+  IF p_action IS NULL OR p_action NOT IN ('approve','return') OR
+    (p_action='return' AND length(trim(coalesce(p_note,''))) NOT BETWEEN 3 AND 1000)
+    THEN RAISE EXCEPTION 'Pasirinkite veiksmą ir nurodykite grąžinimo priežastį.'; END IF;
+  UPDATE public.gi_work_logs SET review_status=CASE p_action WHEN 'approve' THEN 'approved' ELSE 'returned' END,
+    reviewed_by=auth.uid(),reviewed_at=now(),review_note=nullif(trim(left(p_note,1000)),'') WHERE id=p_id;
+  INSERT INTO private.gi_time_review_events(log_id,actor_id,action,self_review,note)
+    VALUES(p_id,auth.uid(),p_action,auth.uid()=w.volunteer_id,left(p_note,1000));
+  IF w.task_id IS NOT NULL THEN
+    INSERT INTO public.gi_task_events(task_id,actor_id,action,note)
+      VALUES(w.task_id,auth.uid(),'time_'||p_action,left(p_note,1000));
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION private.gi_approve_result_with_time(p_task_id uuid)
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE t public.gi_tasks%rowtype; log_id uuid; n integer:=0;
+BEGIN
+  SELECT * INTO t FROM public.gi_tasks WHERE id=p_task_id AND is_demo FOR UPDATE;
+  IF NOT FOUND OR t.status<>'submitted' OR t.assigned_to IS NULL OR t.assigned_to=auth.uid()
+     OR coalesce(private.gi_role(),'pending') NOT IN ('admin','coordinator')
+    THEN RAISE EXCEPTION 'Rezultatą turi peržiūrėti kitas koordinatorius.'; END IF;
+  FOR log_id IN SELECT w.id FROM public.gi_work_logs w WHERE w.task_id=t.id AND w.review_status='submitted'
+      AND private.gi_may_review_time(w.volunteer_id,w.general_activity) ORDER BY w.id FOR UPDATE LOOP
+    PERFORM private.gi_review_work_log(log_id,'approve',NULL);
+    n:=n+1;
+  END LOOP;
+  PERFORM private.gi_task_action(t.id,'approve',NULL);
+  RETURN n;
+END $$;
+
+CREATE FUNCTION private.gi_record_dated_time(p_task_id uuid,p_minutes integer,p_activity_title text,p_note text,
+  p_date date,p_project text,p_general boolean,p_request uuid DEFAULT NULL)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE new_id uuid; project text:=nullif(trim(p_project),''); previous public.gi_work_logs%rowtype;
+BEGIN
+  IF p_date IS NULL OR p_date>(now() AT TIME ZONE 'Europe/Vilnius')::date
+    OR p_general IS NULL OR (p_general AND project IS NOT NULL) OR (NOT p_general AND project IS NULL)
+    OR length(trim(coalesce(p_note,''))) NOT BETWEEN 1 AND 1000
+    THEN RAISE EXCEPTION 'Patikrinkite darbo datą, projektą ir aprašymą.'; END IF;
+  IF p_request IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(auth.uid()::text||p_request::text,0));
+    SELECT * INTO previous FROM public.gi_work_logs WHERE volunteer_id=auth.uid() AND request_id=p_request;
+    IF FOUND THEN
+      IF previous.task_id IS DISTINCT FROM p_task_id OR previous.minutes IS DISTINCT FROM p_minutes
+        OR previous.work_date IS DISTINCT FROM p_date OR previous.project_label IS DISTINCT FROM project
+        OR previous.note IS DISTINCT FROM trim(p_note)
+        OR (p_task_id IS NULL AND previous.activity_title IS DISTINCT FROM trim(p_activity_title))
+        THEN RAISE EXCEPTION 'Pateikimo kodas jau panaudotas kitam įrašui.'; END IF;
+      RETURN previous.id;
+    END IF;
+  END IF;
+  new_id:=private.gi_record_volunteer_time(p_task_id,p_minutes,p_activity_title,p_note);
+  UPDATE public.gi_work_logs SET work_date=p_date,project_label=project,general_activity=p_general,request_id=p_request WHERE id=new_id;
+  RETURN new_id;
+END $$;
+REVOKE ALL ON FUNCTION private.gi_record_dated_time(uuid,integer,text,text,date,text,boolean,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_record_dated_time(uuid,integer,text,text,date,text,boolean,uuid) TO authenticated;
+CREATE FUNCTION public.gi_record_dated_time(p_task_id uuid,p_minutes integer,p_activity_title text,p_note text,
+  p_date date,p_project text,p_general boolean,p_request uuid DEFAULT NULL)
+RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
+  SELECT private.gi_record_dated_time(p_task_id,p_minutes,p_activity_title,p_note,p_date,p_project,p_general,p_request)
+$$;
+REVOKE ALL ON FUNCTION public.gi_record_dated_time(uuid,integer,text,text,date,text,boolean,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_record_dated_time(uuid,integer,text,text,date,text,boolean,uuid) TO authenticated;
+
+CREATE FUNCTION public.gi_search_tasks_page(p_before_created_at timestamptz,p_before_id uuid,p_limit integer,
+  p_filter text,p_search text,p_owner uuid,p_due_filter text)
+RETURNS SETOF public.gi_tasks LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
+  SELECT t.* FROM public.gi_tasks t
+  WHERE (p_before_created_at IS NULL OR (t.created_at,t.id)<(p_before_created_at,p_before_id))
+    AND (p_owner IS NULL OR t.assigned_to=p_owner)
+    AND (coalesce(p_search,'')='' OR strpos(lower(t.title||' '||t.details),lower(left(trim(p_search),100)))>0)
+    AND (p_filter='all' OR (p_filter='pool' AND t.status IN ('pool','proposed'))
+      OR (p_filter='assigned' AND t.status IN ('assigned','accepted','in_progress','returned'))
+      OR t.status=p_filter)
+    AND (p_due_filter='all' OR (p_due_filter='none' AND t.due_at IS NULL)
+      OR (t.status NOT IN ('approved','submitted') AND ((p_due_filter='overdue' AND t.due_at<now())
+        OR (p_due_filter='week' AND t.due_at BETWEEN now() AND now()+interval '7 days'))))
+  ORDER BY t.created_at DESC,t.id DESC LIMIT least(greatest(coalesce(p_limit,51),1),100)
+$$;
+REVOKE ALL ON FUNCTION public.gi_search_tasks_page(timestamptz,uuid,integer,text,text,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_search_tasks_page(timestamptz,uuid,integer,text,text,uuid,text) TO authenticated;
+
+-- Atomically create a proposal (including its deadline) or return the existing proposal on retry.
+CREATE FUNCTION private.gi_submit_task(p_source_ref text,p_title text,p_details text,p_priority text,p_due timestamptz)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE task uuid; old public.gi_tasks%rowtype;
+BEGIN
+  IF coalesce(private.gi_role(),'pending') NOT IN ('admin','coordinator') OR
+    p_source_ref IS NULL OR length(trim(p_source_ref)) NOT BETWEEN 3 AND 160 OR p_priority IS NULL
+    THEN RAISE EXCEPTION 'Reikia koordinatoriaus teisių ir pastovaus šaltinio kodo.'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(trim(p_source_ref),0));
+  SELECT * INTO old FROM public.gi_tasks WHERE source_ref=trim(p_source_ref);
+  IF FOUND THEN
+    IF old.title IS DISTINCT FROM trim(p_title) OR old.details IS DISTINCT FROM trim(p_details) OR old.priority IS DISTINCT FROM p_priority
+      THEN RAISE EXCEPTION 'Šaltinio kodas jau panaudotas kitai užduočiai.'; END IF;
+    RETURN old.id;
+  END IF;
+  task:=private.gi_create_proposal(p_title,p_details,p_priority,trim(p_source_ref));
+  IF p_due IS NOT NULL THEN PERFORM private.gi_set_task_due(task,p_due); END IF;
+  INSERT INTO public.gi_task_events(task_id,actor_id,action) VALUES(task,auth.uid(),'propose');
+  RETURN task;
+END $$;
+REVOKE ALL ON FUNCTION private.gi_submit_task(text,text,text,text,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_submit_task(text,text,text,text,timestamptz) TO authenticated;
+CREATE FUNCTION public.gi_submit_task(p_source_ref text,p_title text,p_details text,p_priority text DEFAULT 'normal',p_due timestamptz DEFAULT NULL)
+RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
+  SELECT private.gi_submit_task(p_source_ref,p_title,p_details,p_priority,p_due)
+$$;
+REVOKE ALL ON FUNCTION public.gi_submit_task(text,text,text,text,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_submit_task(text,text,text,text,timestamptz) TO authenticated;
+
+-- Administrative MCP intake. An operator submits synthetic proposals under the
+-- integration's own audit action. This function neither assigns work nor impersonates a person.
+CREATE FUNCTION private.gi_agent_propose(p_payload jsonb)
+RETURNS uuid LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+DECLARE
+  source text:=trim(p_payload->>'source_ref'); title_text text:=trim(p_payload->>'title');
+  details_text text:=trim(p_payload->>'details'); priority_text text:=coalesce(p_payload->>'priority','normal');
+  due_text text:=p_payload->>'due_at'; due timestamptz; task uuid; old public.gi_tasks%rowtype;
+BEGIN
+  IF jsonb_typeof(p_payload) IS DISTINCT FROM 'object'
+    OR p_payload - ARRAY['source_ref','title','details','priority','due_at'] <> '{}'::jsonb
+    OR jsonb_typeof(p_payload->'title') IS DISTINCT FROM 'string'
+    OR jsonb_typeof(p_payload->'details') IS DISTINCT FROM 'string'
+    OR coalesce(source,'') !~ '^agent:[A-Za-z0-9._:/-]{1,150}$'
+    OR length(title_text) NOT BETWEEN 3 AND 140 OR length(details_text) NOT BETWEEN 5 AND 6000
+    OR priority_text NOT IN ('normal','low','high') THEN RAISE EXCEPTION 'Invalid proposal'; END IF;
+  IF due_text IS NOT NULL THEN
+    IF due_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})$'
+      THEN RAISE EXCEPTION 'Use an ISO deadline with timezone'; END IF;
+    due:=due_text::timestamptz;
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(source,0));
+  SELECT * INTO old FROM public.gi_tasks WHERE source_ref=source;
+  IF FOUND THEN
+    IF old.title<>title_text OR old.details<>details_text OR old.priority<>priority_text
+      THEN RAISE EXCEPTION 'Reference already used for another proposal'; END IF;
+    RETURN old.id;
+  END IF;
+  IF due IS NOT NULL AND (due<now()-interval '1 day' OR due>now()+interval '3 years')
+    THEN RAISE EXCEPTION 'Invalid proposal deadline'; END IF;
+  INSERT INTO public.gi_tasks(source_ref,title,details,priority,due_at,is_demo,status)
+    VALUES(source,title_text,details_text,priority_text,due,true,'proposed') RETURNING id INTO task;
+  INSERT INTO public.gi_task_events(task_id,actor_id,action,note)
+    VALUES(task,NULL,'agent_propose','GI pilot · MCP');
+  RETURN task;
+END $$;
+REVOKE ALL ON FUNCTION private.gi_agent_propose(jsonb) FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION public.gi_my_time_totals()
+RETURNS TABLE(submitted bigint,approved bigint) LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
+  SELECT coalesce(sum(minutes) FILTER (WHERE review_status='submitted'),0),
+         coalesce(sum(minutes) FILTER (WHERE review_status='approved'),0)
+  FROM public.gi_work_logs WHERE volunteer_id=(SELECT auth.uid())
+$$;
+REVOKE ALL ON FUNCTION public.gi_my_time_totals() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_my_time_totals() TO authenticated;
+
+CREATE FUNCTION private.gi_change_task_due(p_id uuid,p_expected timestamptz,p_due timestamptz)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE t public.gi_tasks%rowtype;
+BEGIN
+  IF coalesce(private.gi_role(),'pending') NOT IN ('admin','coordinator')
+    THEN RAISE EXCEPTION 'Terminą keičia koordinatorius.'; END IF;
+  SELECT * INTO t FROM public.gi_tasks WHERE id=p_id AND is_demo FOR UPDATE;
+  IF NOT FOUND OR t.status NOT IN ('proposed','pool','assigned','accepted','in_progress','returned')
+    THEN RAISE EXCEPTION 'Šios užduoties termino keisti nebegalima.'; END IF;
+  IF t.due_at IS NOT DISTINCT FROM p_due THEN RETURN; END IF;
+  IF t.due_at IS DISTINCT FROM p_expected THEN RAISE EXCEPTION 'Kitas žmogus jau pakeitė terminą. Atnaujinkite užduotį.'; END IF;
+  IF p_due IS NOT NULL AND (p_due<now()-interval '1 day' OR p_due>now()+interval '3 years')
+    THEN RAISE EXCEPTION 'Pasirinkite terminą nuo vakar iki trejų metų į priekį.'; END IF;
+  PERFORM private.gi_set_task_due(p_id,p_due);
+END $$;
+REVOKE ALL ON FUNCTION private.gi_change_task_due(uuid,timestamptz,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_change_task_due(uuid,timestamptz,timestamptz) TO authenticated;
+CREATE FUNCTION public.gi_change_task_due(p_id uuid,p_expected timestamptz,p_due timestamptz)
+RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
+  SELECT private.gi_change_task_due(p_id,p_expected,p_due)
+$$;
+REVOKE ALL ON FUNCTION public.gi_change_task_due(uuid,timestamptz,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.gi_change_task_due(uuid,timestamptz,timestamptz) TO authenticated;
+
+-- All older RPCs also receive a concrete least-privileged value for an inactive/missing profile.
+CREATE OR REPLACE FUNCTION private.gi_role() RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+  SELECT coalesce((SELECT p.role FROM public.gi_profiles p JOIN auth.users u ON u.id=p.id
+    WHERE p.id=(SELECT auth.uid()) AND p.registration_state='active' AND u.email_confirmed_at IS NOT NULL),'pending')
+$$;

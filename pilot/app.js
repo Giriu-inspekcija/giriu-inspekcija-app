@@ -100,6 +100,9 @@
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
+  let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
+  let searchText='', ownerFilter='', dueFilter='all';
+  let proposalRef=null, timeRequest=null;
   function notice(msg, error = false) {
     const el = $('notice');
     if(!msg) {el.hidden = true; return;}
@@ -128,6 +131,13 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
+    reviewableLogs.clear();
+    proposalRef=null;timeRequest=null;searchText='';ownerFilter='';dueFilter='all';
+    $('taskSearchForm').reset();
+    $('proposalForm').reset();
+    $('manualTimeForm').reset();
+    $('taskList').replaceChildren();
+    $('workLogsList').replaceChildren();
     document.body.classList.remove('signed-in');
     timeOwnTasks=[];
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
@@ -171,16 +181,20 @@
       $('staffPanel').hidden = !staff();
       $('adminPanel').hidden = !staff();
       $('tasksHeading').textContent = staff() ? 'Organizacijos užduotys' : 'Mano užduotys';
-      $('taskFilterPanel').hidden = !staff();
+      $('taskFilterPanel').hidden = !approved();
       $('memberSearchPanel').hidden = !staff();
 
       if(!approved()) return true;
-      const {data,error}=await client.rpc('gi_list_tasks_page',{
+      const pageArgs={
         p_before_created_at:appendTasks && taskCursor ? taskCursor.created_at : null,
         p_before_id:appendTasks && taskCursor ? taskCursor.id : null,
         p_limit:TASK_PAGE_SIZE+1,
-        p_filter:staff()?taskFilter:'all'
-      });
+        p_filter:taskFilter
+      };
+      const {data,error}=(searchText || ownerFilter || dueFilter!=='all')
+        ? await client.rpc('gi_search_tasks_page',{...pageArgs,p_search:searchText,
+          p_owner:ownerFilter==='mine'?currentUser.id:ownerFilter||null,p_due_filter:dueFilter})
+        : await client.rpc('gi_list_tasks_page',pageArgs);
       if(error)throw error;
       const page=(data||[]).slice(0,TASK_PAGE_SIZE);
       hasMoreTasks=(data||[]).length>TASK_PAGE_SIZE;
@@ -207,7 +221,15 @@
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
-      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at';
+      const ownerSelect=$('taskOwnerFilter');
+      ownerSelect.innerHTML='<option value="">Visi vykdytojai</option><option value="mine">Tik mano darbai</option>'
+        +members.filter(m=>m.id!==currentUser.id && m.role!=='pending').map(m=>'<option value="'+escapeHTML(m.id)+'">'+escapeHTML(personName(m))+'</option>').join('');
+      if(ownerFilter && ![...ownerSelect.options].some(o=>o.value===ownerFilter))ownerSelect.add(new Option('Pasirinktas vykdytojas',ownerFilter));
+      ownerSelect.value=ownerFilter;
+      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity';
+      const totals=await client.rpc('gi_my_time_totals');
+      if(totals.error)throw totals.error;
+      timeTotals=totals.data?.[0]||{submitted:0,approved:0};
       const ownLogs=await client.from('gi_work_logs').select(logFields)
         .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70);
       if(ownLogs.error)throw ownLogs.error;
@@ -220,6 +242,12 @@
         others=pendingLogs.data||[];
       }
       workLogs=[...(ownLogs.data||[]),...others];
+      const ids=workLogs.filter(w=>w.review_status==='submitted').map(w=>w.id);
+      const permissions=staff() && ids.length ? await client.rpc('gi_reviewable_logs',{p_ids:ids}) : {data:[]};
+      if(permissions.error)throw permissions.error;
+      reviewableLogs=new Set(permissions.data||[]);
+      $('manualTimeDate').max=window.giDeadlines.inputValue(new Date()).slice(0,10);
+      if(!$('manualTimeDate').value) $('manualTimeDate').value=$('manualTimeDate').max;
       const ownTaskResult=await client.from('gi_tasks')
         .select('id,title,status,updated_at')
         .eq('assigned_to',currentUser.id)
@@ -280,28 +308,29 @@
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
   function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
-    const waiting=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
-    const accepted=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
-    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(waiting)+' · Patvirtinta: '+clockDuration(accepted);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(Number(timeTotals.submitted))
+      +' · Patvirtinta iš viso: '+clockDuration(Number(timeTotals.approved));
     const entry=w=>{
       const task=timeOwnTasks.find(t=>t.id===w.task_id)||tasks.find(t=>t.id===w.task_id);
       const owner=members.find(p=>p.id===w.volunteer_id);
       const title=w.activity_title||task?.title||'Bandomasis darbas';
       return '<article class="card"><b>'+escapeHTML(title)+'</b>'
         +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):'Savanoris')+'</p>':'')
+        +'<p class="small">'+escapeHTML(w.work_date||window.giDeadlines.inputValue(w.created_at).slice(0,10))
+        +(w.project_label?' · '+escapeHTML(w.project_label):'')+'</p>'
         +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '
         +escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)
         +'</p>'+(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
         +(w.review_note?'<p class="small">Koordinatoriaus pastaba: '+escapeHTML(w.review_note)+'</p>':'')
         +(w.review_status==='returned'?'<p class="small">Patikslinkite pateikdami naują įrašą aukščiau.</p>':'')
-        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser?.id
+        +(reviewableLogs.has(w.id)
           ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
            +'<button type="button" class="outline" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
         +'</article>';
     };
     $('workLogsList').innerHTML=mine.length?mine.map(entry).join('')
       :'<p class="card">Jūsų pateiktų valandų dar nėra. Galite įrašyti ir atskirą savanorystės veiklą.</p>';
-    const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&w.review_status==='submitted'):[];
+    const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&reviewableLogs.has(w.id)):[];
     $('staffTimePanel').hidden=!staff();
     $('staffTimeLogs').innerHTML=others.length?others.map(entry).join('')
       :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
@@ -436,11 +465,14 @@
           +(task.status==='assigned'?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
           +safeButton;
       }
-      markup+='<details><summary>Terminas (nebūtina)</summary>'
-        +'<div class="form-inline"><label class="field">Užduoties terminas'
-        +'<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
-        +(task.due_at?' value="'+escapeHTML(new Date(task.due_at).toLocaleString('sv-SE').replace(' ','T').slice(0,16))+'"':'')
-        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div></details>';
+    }
+    if(staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
+      markup+='<details><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
+        +'<label class="field">Data ir laikas Vilniuje<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
+        +(task.due_at?' value="'+window.giDeadlines.inputValue(task.due_at)+'"':'')+'></label>'
+        +'<div class="actions"><button type="button" data-set-due="'+id+'">Išsaugoti terminą</button>'
+        +(task.due_at?'<button class="outline" type="button" data-clear-due="'+id+'">Pašalinti terminą</button>':'')
+        +'</div></details>';
     }
     if(!staff() && !task.assigned_to && task.status==='pool' &&
       (profile?.role!=='candidate'||task.candidate_safe)){
@@ -457,9 +489,10 @@
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
     if(staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
-      markup+='<p class="small">Vienu veiksmu patvirtinsite rezultatą ir visus prie jo pateiktus laiko įrašus.</p>'
+      markup+='<p class="small">Galite kartu patvirtinti jums leidžiamus laiko įrašus arba atskirai peržiūrėti valandas.</p>'
         +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
         +'Patvirtinti rezultatą ir laiką</button>'
+        +'<button type="button" class="outline" data-step="approve" data-id="'+id+'">Patvirtinti tik rezultatą</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
     if(staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
@@ -491,8 +524,8 @@
       const owner=members.find(p=>p.id===t.assigned_to);
       let due='';
       if(t.due_at){
-        const end=new Date(t.due_at),late=end.getTime()<Date.now()&&!['approved'].includes(t.status);
-        due='<p class="small"><b>Terminas:</b> '+escapeHTML(end.toLocaleString('lt-LT',{dateStyle:'medium',timeStyle:'short'}))
+        const end=new Date(t.due_at),late=end.getTime()<Date.now()&&!['approved','submitted'].includes(t.status);
+        due='<p class="small"><b>Terminas:</b> '+escapeHTML(window.giDeadlines.display(end)+' (Vilniaus laiku)')
           +(late?' · Terminas praėjęs':'')+'</p>';
       }
       return '<article class="task">'
@@ -516,6 +549,7 @@
     const button=document.activeElement;
     const wasButton=button?.tagName==='BUTTON';
     if(wasButton)button.disabled=true;
+    toast('Išsaugoma…');
     try {
       notice('');
       const result=await call();
@@ -912,9 +946,11 @@
   $('switchAccount').addEventListener('click',switchAccount);
   $('logout').addEventListener('click',switchAccount);
   $('refresh').addEventListener('click',refreshWorkspace);
-  $('taskStatusFilter').addEventListener('change',event=>{
-    if(!staff())return;
-    taskFilter=String(event.target.value||'all');
+  $('taskSearchForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!approved()||loading)return;
+    taskFilter=$('taskStatusFilter').value;
+    searchText=$('taskSearch').value.trim();ownerFilter=$('taskOwnerFilter').value;dueFilter=$('taskDueFilter').value;
     taskCursor=null;
     tasks=[];
     refreshWorkspace();
@@ -956,14 +992,17 @@
     if(!staff()) return;
     const form=event.currentTarget, fd=new FormData(form);
     run(async()=>{
-      const result=await client.rpc('gi_create_proposal',{
+      const deadline=String(fd.get('due')||'');
+      if(!proposalRef)proposalRef=crypto.randomUUID();
+      const result=await client.rpc('gi_submit_task',{
+        p_due:deadline?window.giDeadlines.toInstant(deadline):null,
         p_title:String(fd.get('title')||''),p_details:String(fd.get('details')||''),
         p_priority:String(fd.get('priority')||'normal'),
-        p_source_ref:'web-'+crypto.randomUUID()
+        p_source_ref:'web-'+proposalRef
       });
-      if(!result.error) form.reset();
+      if(!result.error){form.reset();proposalRef=null;}
       return result;
-    });
+    },'Užduotis sukurta.');
   });
   $('feedbackForm').addEventListener('submit',event => {
     event.preventDefault();
@@ -1139,7 +1178,7 @@
     if(b.dataset.jointApprove && staff()){
       const task=tasks.find(t=>t.id===id);
       if(!task||task.assigned_to===currentUser?.id)return;
-      if(!confirm('Patvirtinti rezultatą ir visus dar nepatvirtintus šios užduoties laiko įrašus?'))return;
+      if(!confirm('Patvirtinti rezultatą ir jums leidžiamus šios užduoties laiko įrašus?'))return;
       return run(()=>client.rpc('gi_approve_result_with_time',{p_task_id:id}),
         rows=>'Patvirtintas darbo rezultatas ir '+Number(rows||0)+' laiko įrašų.');
     }
@@ -1163,11 +1202,17 @@
       return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}),
         'Užduotis priskirta: '+personName(target));
     }
-    if(b.dataset.setDue && staff()){
-      const input=[...document.querySelectorAll('[data-due]')].find(e=>e.dataset.due===id);
-      const raw=input?.value||'',dt=raw?new Date(raw):null;
-      if(dt&&Number.isNaN(dt.getTime()))return notice('Neteisinga termino data.',true);
-      return run(()=>client.rpc('gi_set_task_due',{p_id:id,p_due:dt?dt.toISOString():null}));
+    if((b.dataset.setDue || b.dataset.clearDue) && staff()){
+      const taskId=b.dataset.setDue || b.dataset.clearDue;
+      const input=b.closest('details').querySelector('[data-due]');
+      let due=null;
+      if(b.dataset.setDue){
+        try { due=window.giDeadlines.toInstant(input.value); }
+        catch(error){input.focus();return toast(error.message,true);}
+      }else if(!confirm('Pašalinti šios užduoties terminą?'))return;
+      const previous=tasks.find(t=>t.id===taskId)?.due_at||null;
+      return run(()=>client.rpc('gi_change_task_due',{p_id:taskId,p_expected:previous,p_due:due}),
+        due?'Terminas išsaugotas: '+window.giDeadlines.display(due)+' (Vilniaus laiku).':'Terminas pašalintas.');
     }
     const action=b.dataset.step;
     if(!action)return;
@@ -1176,6 +1221,7 @@
       note=prompt(action==='return'?'Kodėl grąžini užduotį taisyti?':'Kodėl atsisakai bandomosios užduoties?');
       if(!note||note.trim().length<3)return notice('Įrašykite bent 3 simbolių priežastį.',true);
     }
+    if(action==='approve'&&!confirm('Patvirtinti tik darbo rezultatą? Valandas galėsite peržiūrėti atskirai.'))return;
     if(action==='unassign'&&!confirm('Atšaukti paskyrimą? Užduotis grįš į bendrą fondą.'))return;
     const labels={claim:'Užduotis priskirta jums.',accept:'Užduotis priimta.',start:'Užduotis pradėta.',
       decline:'Užduotis grąžinta į bendrą fondą.',unassign:'Paskyrimas atšauktas.',
@@ -1208,7 +1254,7 @@
     const id=b.dataset.timeApprove||b.dataset.timeReturn;
     if(!id)return;
     const row=workLogs.find(x=>x.id===id);
-    if(!row||row.volunteer_id===currentUser?.id)return;
+    if(!row||!reviewableLogs.has(row.id))return;
     const action=b.dataset.timeApprove?'approve':'return';
     let note=null;
     if(action==='return'){
@@ -1232,11 +1278,18 @@
     if(!taskId&&(title.length<5||title.length>160))
       return toast('Veiklai be užduoties nurodykite bent 5 simbolių pavadinimą.',true);
     const params={p_task_id:taskId,p_minutes:total,
-      p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim()};
-    const ok=await run(()=>client.rpc('gi_record_volunteer_time',params),
+      p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim(),
+      p_date:$('manualTimeDate').value,p_project:$('timeProject').value.trim()||null,
+      p_general:!$('timeProject').value.trim()};
+    const signature=JSON.stringify(params);
+    if(timeRequest?.signature!==signature)timeRequest={signature,id:crypto.randomUUID()};
+    params.p_request=timeRequest.id;
+    const ok=await run(()=>client.rpc('gi_record_dated_time',params),
       'Pateikta '+clockDuration(total)+' patvirtinimui.');
     if(ok){
+      timeRequest=null;
       $('manualTimeForm').reset();
+      $('manualTimeDate').value=$('manualTimeDate').max;
       updateManualActivityMode();
     }
   });
@@ -1278,6 +1331,12 @@
       return result;
     });
   });
+  function refreshWhenIdle(){
+    // A native date picker can blur the window; replacing its card discards the edit.
+    if(mutationInFlight || document.querySelector('#taskList details[open]') ||
+       document.activeElement?.closest('#workspace form'))return;
+    refreshWorkspace();
+  }
   if(client){
     client.auth.onAuthStateChange((event,session)=>{
       if(event==='PASSWORD_RECOVERY')setTimeout(displayPasswordReset,0);
@@ -1289,15 +1348,15 @@
     // Refresh on return to the app, plus a conservative 3-minute visible-session fallback.
     document.addEventListener('visibilitychange',()=>{
       if(document.hidden)return;
-      if(currentUser)refreshWorkspace();
+      if(currentUser)refreshWhenIdle();
       else if(signupWaiting)checkSignedInAfterEmail();
     });
     window.addEventListener('focus',()=>{
       if(document.hidden)return;
-      if(currentUser)refreshWorkspace();
+      if(currentUser)refreshWhenIdle();
       else if(signupWaiting)checkSignedInAfterEmail();
     });
-    setInterval(()=>{if(currentUser&&!document.hidden)refreshWorkspace()},180000);
+    setInterval(()=>{if(currentUser&&!document.hidden)refreshWhenIdle()},180000);
   }else{
     notice('Nepavyko įkelti Supabase prisijungimo bibliotekos. Patikrink tinklą.',true);
   }
