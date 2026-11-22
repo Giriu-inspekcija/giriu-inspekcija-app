@@ -57,16 +57,32 @@ details{border-top:1px solid #dbe5db;margin-top:12px;padding-top:12px}
 details summary{cursor:pointer;color:#205742}
 .pilot-info{background:#eef4ed;color:#42634c;border:1px solid #d5e2d5;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:14px}
 .pilot-info details{margin-top:6px;padding-top:4px;border:0}
+body.signed-in .pilot-info{display:none}
+header{padding:10px 16px 9px}
+.brand{gap:9px;min-height:38px}
+.brand img{width:40px;height:40px;border-radius:10px;padding:3px}
+.brand b{font-size:17px}
+.brand small{font-size:10px;letter-spacing:.25px}
+.pilot{padding:3px 7px;font-size:10px}
+.account-switch{margin:0 0 0 auto;padding:0;border:0;gap:7px}
+.account-switch .account-label{font-size:11px}
+.account-switch button{padding:7px 10px;font-size:12px}
+#appView>.row{margin:0 0 6px}
+#greeting{font-size:18px;margin:2px 0 0}
+#roleName{font-size:11px;margin:0}
+.action-toast{position:fixed;z-index:99;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:max-content;max-width:min(90vw,440px);background:#194a36;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 9px 30px #122b1c40;font-size:14px;font-weight:650}
+.action-toast.error{background:#9b342b}
+#manualTimeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:540px){header{padding:8px 11px 7px}.brand img{width:36px;height:36px}.brand b{font-size:15px}.brand small{display:none}.pilot{font-size:9px;padding:2px 5px}.account-switch{flex-direction:row;align-items:center}.account-switch .account-label{display:none}.account-switch button{padding:7px 8px;font-size:11px}#manualTimeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
 
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p>
-<div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot">PILOTAS</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
 <main>
 <div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
-<div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+<div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
 <section id="authView">
  <h1 id="authTitle">Prisijungimas</h1>
  <p class="muted" id="authIntro">Prisijunkite su Google paskyra arba el. paštu ir slaptažodžiu.</p>
@@ -191,10 +207,26 @@ details summary{cursor:pointer;color:#205742}
   <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
   </section>
   <section id="timeSection" class="workspace-section" hidden>
-    <h2>Mano savanorystės laikas</h2>
+    <h2>Mano valandos</h2>
     <div id="myTimeSummary" class="card"></div>
-    <p class="small">Laikas registruojamas prie priimtos užduoties. Koordinatorius patvirtina pateiktas valandas.</p>
+    <form id="manualTimeForm" class="card">
+      <h3>Pridėti darbo laiką</h3>
+      <p class="small">Galite įrašyti laiką ir po rezultato pateikimo arba už veiklą be išankstinės užduoties.</p>
+      <label class="field">Susieti su mano užduotimi (nebūtina)
+        <select id="manualTimeTask"><option value="">Kita savanorystės veikla (be užduoties)</option></select>
+      </label>
+      <p class="small" id="manualTimeTaskHint">Rodoma iki 25 naujausių jums priskirtų užduočių.</p>
+      <label class="field" id="manualTimeActivityField">Veiklos pavadinimas <input id="manualTimeActivity" minlength="5" maxlength="160" required placeholder="Pvz., bandomosios medžiagos paruošimas"></label>
+      <div class="grid">
+        <label class="field">Valandos <input id="manualTimeHours" type="number" min="0" max="12" value="0" required></label>
+        <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
+      </div>
+      <label class="field">Ką atlikote? (nebūtina) <textarea id="manualTimeNote" maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
+      <button type="submit">Pateikti laiką patvirtinti</button>
+    </form>
+    <h3>Mano laiko įrašai</h3>
     <div id="workLogsList"></div>
+    <div id="staffTimePanel" hidden><h3>Kitų savanorių laikas – patvirtinti</h3><div id="staffTimeLogs"></div></div>
   </section>
   <section id="incidentsSection" class="workspace-section" hidden>
     <h2>Pranešti apie įvykį</h2>

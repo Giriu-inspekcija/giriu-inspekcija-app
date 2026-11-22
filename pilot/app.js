@@ -17,7 +17,7 @@
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
-  let authMode = 'login', passwordRecovery = false;
+  let authMode = 'login', passwordRecovery = false, mutationInFlight=false, toastTimer=null, timeOwnTasks=[];
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
   const SIGNUP_WAITING_KEY = 'gi-pilot-signup-waiting-v1';
@@ -107,6 +107,14 @@
     el.classList.toggle('error', !!error);
     el.hidden = false;
   }
+  function toast(msg,error=false){
+    const el=$('actionToast');
+    if(toastTimer)clearTimeout(toastTimer);
+    el.textContent=msg;
+    el.classList.toggle('error',!!error);
+    el.hidden=false;
+    toastTimer=setTimeout(()=>{el.hidden=true;toastTimer=null;},6500);
+  }
   const staff = () => ['coordinator','admin'].includes(profile?.role);
   const admin = () => profile?.role === 'admin';
   const approved = () => ['candidate','volunteer','coordinator','admin'].includes(profile?.role);
@@ -120,6 +128,8 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
+    document.body.classList.remove('signed-in');
+    timeOwnTasks=[];
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
@@ -136,7 +146,7 @@
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
   }
   async function refreshWorkspace({appendTasks = false} = {}) {
-    if(!currentUser || loading) return;
+    if(!currentUser || loading) return false;
     loading = true;
     try {
       await fetchProfile();
@@ -164,7 +174,7 @@
       $('taskFilterPanel').hidden = !staff();
       $('memberSearchPanel').hidden = !staff();
 
-      if(!approved()) return;
+      if(!approved()) return true;
       const {data,error}=await client.rpc('gi_list_tasks_page',{
         p_before_created_at:appendTasks && taskCursor ? taskCursor.created_at : null,
         p_before_id:appendTasks && taskCursor ? taskCursor.id : null,
@@ -197,11 +207,26 @@
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
-      const logResult=await client.from('gi_work_logs')
-        .select('id,task_id,volunteer_id,minutes,note,review_status,review_note,created_at')
-        .order('created_at',{ascending:false}).limit(100);
-      if(logResult.error)throw logResult.error;
-      workLogs=logResult.data||[];
+      const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at';
+      const ownLogs=await client.from('gi_work_logs').select(logFields)
+        .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70);
+      if(ownLogs.error)throw ownLogs.error;
+      let others=[];
+      if(staff()){
+        const pendingLogs=await client.from('gi_work_logs').select(logFields)
+          .eq('review_status','submitted').neq('volunteer_id',currentUser.id)
+          .order('created_at',{ascending:false}).limit(50);
+        if(pendingLogs.error)throw pendingLogs.error;
+        others=pendingLogs.data||[];
+      }
+      workLogs=[...(ownLogs.data||[]),...others];
+      const ownTaskResult=await client.from('gi_tasks')
+        .select('id,title,status,updated_at')
+        .eq('assigned_to',currentUser.id)
+        .order('updated_at',{ascending:false}).limit(25);
+      if(ownTaskResult.error)throw ownTaskResult.error;
+      timeOwnTasks=ownTaskResult.data||[];
+      renderManualTimeTaskOptions();
       const incidentResult=await client.from('gi_incidents')
         .select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at')
         .order('created_at',{ascending:false}).limit(100);
@@ -212,8 +237,10 @@
       renderIncidents();
       renderPendingMembers();
       renderFeedback();
+      return true;
     } catch(error) {
       notice('Nepavyko atnaujinti: ' + (error?.message || String(error)), true);
+      return false;
     } finally {loading=false;}
   }
 
@@ -236,24 +263,48 @@
     openPanel(button.dataset.nav);
   });
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
-  function renderWorkLogs() {
+  function renderManualTimeTaskOptions(){
+    const select=$('manualTimeTask'),old=select.value;
+    select.innerHTML='<option value="">Kita savanorystės veikla (be užduoties)</option>'
+      +timeOwnTasks.map(t=>'<option value="'+escapeHTML(t.id)+'">'
+        +escapeHTML(t.title)+' ('+escapeHTML(statusNames[t.status]||t.status)+')</option>').join('');
+    if(timeOwnTasks.some(t=>t.id===old))select.value=old;
+    updateManualActivityMode();
+  }
+  function updateManualActivityMode(){
+    const independent=!$('manualTimeTask').value;
+    $('manualTimeActivityField').hidden=!independent;
+    $('manualTimeActivity').required=independent;
+    if(!independent)$('manualTimeActivity').value='';
+  }
+  $('manualTimeTask').addEventListener('change',updateManualActivityMode);
+  function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
-    const pending=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
-    const approvedTime=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
-    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(pending)+' · Patvirtinta: '+clockDuration(approvedTime);
-    const shown=staff()?workLogs:mine;
-    $('workLogsList').innerHTML=shown.length?shown.map(w=>{
-      const task=tasks.find(t=>t.id===w.task_id),owner=members.find(p=>p.id===w.volunteer_id);
-      return '<article class="card"><b>'+escapeHTML(task?.title||'Bandomoji užduotis')+'</b>'
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):w.volunteer_id===currentUser.id?'Aš':'Savanoris')+'</p>':'')
-        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '+escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)+'</p>'
-        +(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
+    const waiting=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
+    const accepted=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(waiting)+' · Patvirtinta: '+clockDuration(accepted);
+    const entry=w=>{
+      const task=timeOwnTasks.find(t=>t.id===w.task_id)||tasks.find(t=>t.id===w.task_id);
+      const owner=members.find(p=>p.id===w.volunteer_id);
+      const title=w.activity_title||task?.title||'Bandomasis darbas';
+      return '<article class="card"><b>'+escapeHTML(title)+'</b>'
+        +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):'Savanoris')+'</p>':'')
+        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '
+        +escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)
+        +'</p>'+(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
         +(w.review_note?'<p class="small">Koordinatoriaus pastaba: '+escapeHTML(w.review_note)+'</p>':'')
-        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser.id
+        +(w.review_status==='returned'?'<p class="small">Patikslinkite pateikdami naują įrašą aukščiau.</p>':'')
+        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser?.id
           ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
-           +'<button class="outline" type="button" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
+           +'<button type="button" class="outline" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
         +'</article>';
-    }).join(''):'<p class="card">Savanorystės laiko įrašų dar nėra.</p>';
+    };
+    $('workLogsList').innerHTML=mine.length?mine.map(entry).join('')
+      :'<p class="card">Jūsų pateiktų valandų dar nėra. Galite įrašyti ir atskirą savanorystės veiklą.</p>';
+    const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&w.review_status==='submitted'):[];
+    $('staffTimePanel').hidden=!staff();
+    $('staffTimeLogs').innerHTML=others.length?others.map(entry).join('')
+      :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
   }
   const incidentCategoryLabel={cutting:'Kirtimai',timber_truck:'Medienos vežimas',pollution:'Tarša',tree_damage:'Medžių pažeidimai',waste:'Atliekos',other:'Kita',unknown:'Nežinau'};
   function renderIncidents() {
@@ -289,19 +340,23 @@
     const candidates=others.filter(p=>p.role==='candidate');
     const pendingRows=pending.map(p=>{
       const id=escapeHTML(p.id),existing=p.membership_intent==='existing_volunteer';
+      const verified=memberEmails[p.id]?.verified===true;
       return '<article class="card">'+person(p)
-        +'<p class="small">Nurodytas statusas nėra patikrinimas. Pirma įsitikinkite, kad pažįstate asmenį.</p>'
+        +'<p class="small">'+(verified?'Statusas anketoje nėra patikrinimas. Patikrinkite žmogų.'
+          :'El. paštas nepatvirtintas – savanorio teisių suteikti negalima.')+'</p>'
         +'<div class="actions">'
-        +'<button type="button" data-approve-'+(existing?'volunteer':'candidate')+'="'+id+'">'
-        +(existing?'Patvirtinti kaip savanorį':'Priimti kandidatu')+'</button>'
-        +'<button type="button" class="outline" data-approve-'+(existing?'candidate':'volunteer')+'="'+id+'">'
-        +(existing?'Vietoj to – kandidatu':'Vietoj to – savanoriu')+'</button>'
+        +(verified?'<button type="button" data-approve-'+(existing?'volunteer':'candidate')+'="'+id+'">'
+          +(existing?'Patvirtinti kaip savanorį':'Priimti kandidatu')+'</button>'
+          +'<button type="button" class="outline" data-approve-'+(existing?'candidate':'volunteer')+'="'+id+'">'
+          +(existing?'Priimti kandidatu':'Patvirtinti kaip savanorį')+'</button>':'')
         +'<button type="button" class="outline" data-reject-registration="'+id+'">Atmesti registraciją</button>'
         +'</div></article>';
     }).join('');
     const stoppedRows=stopped.map(p=>'<article class="card">'+person(p)
       +'<p class="small">Registracija: '+escapeHTML(p.registration_state==='withdrawn'?'atšaukta paties naudotojo':'atmesta koordinatoriaus')+'</p>'
       +'<button class="outline" type="button" data-restore-registration="'+escapeHTML(p.id)+'">Atkurti registracijos prašymą</button>'
+      +(admin()&&memberEmails[p.id]?.verified===false
+        ?'<button class="outline" type="button" data-purge-invalid="'+escapeHTML(p.id)+'">Išvalyti klaidingą adresą</button>':'')
       +'</article>').join('');
     const candidateRows=candidates.map(p=>'<article class="card">'+person(p)
       +'<p class="small">Kandidatas – tik specialiai pažymėtos demonstracinės užduotys.</p>'
@@ -315,7 +370,7 @@
         +'<div class="form-inline"><select aria-label="Keisti vaidmenį" data-role-select="'+id+'">'
         +['pending','candidate','volunteer','coordinator'].map(role=>
           '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role]||role)+'</option>').join('')
-        +'</select><button type="button" data-change-role="'+id+'">Išsaugoti vaidmenį</button></div>'
+        +'</select><button type="button" data-change-role="'+id+'">Patvirtinti vaidmens pakeitimą</button></div>'
         +(['candidate','volunteer'].includes(p.role)?
           '<div class="form-inline"><select aria-label="Savanorio laipsnis" data-rank-select="'+id+'">'
           +Object.keys(rankNames).filter(k=>p.role!=='candidate'||k==='pradedantysis').map(rank=>
@@ -351,37 +406,43 @@
       : '<p class="small">Pastabų dar nėra.</p>';
   }
 
-  function buttonsFor(task) {
+  function buttonsFor(task){
     const id=escapeHTML(task.id);
     let markup='';
-    const eligible=staff() && ['proposed','pool','assigned'].includes(task.status);
-    if(eligible){
-      const safeButton=(!task.assigned_to && ['proposed','pool'].includes(task.status))
+    const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
+    if(staffEditable){
+      const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
         ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
           +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
       if(task.status==='proposed'){
-        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'+safeButton+'</div>';
+        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
+          +safeButton+'</div>';
       }else{
+        if(task.status==='pool'&&!task.assigned_to){
+          markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button></div>';
+        }
         const selectable=members.filter(m=>{
-          const isAllowed=['volunteer','coordinator','admin'].includes(m.role)
+          const allowed=['volunteer','coordinator','admin'].includes(m.role)
             || (m.role==='candidate'&&task.candidate_safe);
-          return isAllowed && memberEmails[m.id]?.verified;
+          return allowed && memberEmails[m.id]?.verified;
         });
-        markup+='<div class="actions form-inline"><select aria-label="Pasirinkti vykdytoją" data-person="'+id+'">'
+        markup+='<details><summary><b>Priskirti savanoriui</b></summary>'
+          +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
           +'<option value="">Pasirinkite savanorį</option>'
           +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
             +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">'
-          +(task.assigned_to?'Perduoti kitam':'Paskirti užduotį')+'</button>'
-          +(task.status==='assigned'?'<button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button>':'')
-          +safeButton+'</div>';
+          +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div>'
+          +'</details>'
+          +(task.status==='assigned'?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
+          +safeButton;
       }
-      markup+='<div class="form-inline"><label class="field">Terminas (nebūtina)'
+      markup+='<details><summary>Terminas (nebūtina)</summary>'
+        +'<div class="form-inline"><label class="field">Užduoties terminas'
         +'<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
         +(task.due_at?' value="'+escapeHTML(new Date(task.due_at).toLocaleString('sv-SE').replace(' ','T').slice(0,16))+'"':'')
-        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div>';
+        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div></details>';
     }
-    if(!task.assigned_to && task.status==='pool' &&
+    if(!staff() && !task.assigned_to && task.status==='pool' &&
       (profile?.role!=='candidate'||task.candidate_safe)){
       markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Pasiimti užduotį</button></div>';
     }
@@ -395,23 +456,21 @@
         +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
-    if(staff() && task.status==='submitted' && task.assigned_to!==currentUser?.id){
-      markup+='<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
+    if(staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
+      markup+='<p class="small">Vienu veiksmu patvirtinsite rezultatą ir visus prie jo pateiktus laiko įrašus.</p>'
+        +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
+        +'Patvirtinti rezultatą ir laiką</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
-    if(staff() && task.status==='submitted' && task.assigned_to===currentUser?.id)
-      markup+='<p class="small">Jūsų rezultato tvirtinimą turi atlikti kitas koordinatorius.</p>';
+    if(staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
+      markup+='<p class="small">Jūsų rezultatą turi patvirtinti kitas koordinatorius.</p>';
     return markup;
   }
   function timeEntry(task){
     if(task.assigned_to!==currentUser?.id ||
-      !['accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
-    return '<hr><details><summary><b>Pridėti savo savanorystės laiką</b></summary>'
-      +'<form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
-      +'<label class="field">Valandos<input type="number" name="hours" min="0" max="12" value="0" required></label>'
-      +'<label class="field">Minutės<input type="number" name="minutes" min="0" max="59" value="30" required></label>'
-      +'<label class="field">Ką atlikai? <input type="text" name="note" maxlength="1000" placeholder="Bandomasis darbas"></label>'
-      +'<button type="submit">Pateikti laiką</button></form></details>';
+       !['assigned','accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
+    return '<div class="actions"><button type="button" class="outline" data-time-for-task="'+escapeHTML(task.id)+'">'
+      +'Pridėti darbo laiką</button></div>';
   }
   function renderTasks(){
     const list=$('taskList');
@@ -449,15 +508,32 @@
         +buttonsFor(t)+timeEntry(t)+'</article>';
     }).join('');
   }
-  async function run(call) {
+  // Prevent duplicate taps and show a persistent, local confirmation even when
+  // the updated button disappears after a status transition.
+  async function run(call,successMessage='Veiksmas išsaugotas.') {
+    if(mutationInFlight)return false;
+    mutationInFlight=true;
+    const button=document.activeElement;
+    const wasButton=button?.tagName==='BUTTON';
+    if(wasButton)button.disabled=true;
     try {
       notice('');
-      const result = await call();
-      if(result?.error) throw result.error;
-      await refreshWorkspace();
-      notice('Veiksmas išsaugotas.');
+      const result=await call();
+      if(result?.error)throw result.error;
+      const refreshed=await refreshWorkspace();
+      if(!refreshed)throw Error('Pakeitimas išsaugotas, tačiau būsenos atnaujinti nepavyko. Spauskite „Atnaujinti“.');
+      const msg=typeof successMessage==='function'?successMessage(result?.data):successMessage;
+      notice(msg);
+      toast(msg);
+      return true;
     } catch(error) {
-      notice(error?.message || 'Nepavyko atlikti veiksmo.', true);
+      const message='Nepavyko atlikti veiksmo: '+(error?.message||'Nežinoma klaida');
+      notice(message,true);
+      toast(message,true);
+      return false;
+    } finally {
+      if(wasButton)button.disabled=false;
+      mutationInFlight=false;
     }
   }
   async function onSignIn() {
@@ -490,6 +566,7 @@
     $('passwordResetView').hidden=true;
     $('authView').hidden=true;
     $('appView').hidden=false;
+    document.body.classList.add('signed-in');
     await refreshWorkspace();
   }
 
@@ -972,41 +1049,60 @@
   });
   $('pendingMembers').addEventListener('click',event=>{
     const btn=event.target.closest('button');
-    if(!btn || !staff())return;
+    if(!btn || !staff() || mutationInFlight)return;
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
       ||btn.dataset.rankChange||btn.dataset.docPermission
-      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration;
+      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration||btn.dataset.purgeInvalid;
     if(!id || id===currentUser?.id)return;
     const person=members.find(p=>p.id===id);
+    const email=memberEmails[id]?.email||'';
+    if(btn.dataset.purgeInvalid){
+      if(!admin()||person?.role!=='pending'||memberEmails[id]?.verified!==false
+        ||!['rejected','withdrawn'].includes(person.registration_state))return;
+      const typed=prompt('Negrįžtamai pašalinti nepatvirtintą registraciją. Patvirtinkite įvesdami tikslų el. paštą: '+email);
+      if(typed===null)return;
+      if(typed.trim().toLowerCase()!==email.toLowerCase()){
+        toast('Adresas nesutampa. Nieko nepašalinta.',true);return;
+      }
+      return run(()=>client.rpc('gi_purge_invalid_signup',{p_user:id,p_expected_email:email}),
+        'Klaidinga nepatvirtinta registracija išvalyta.');
+    }
     if(btn.dataset.rejectRegistration){
       if(!person||person.role!=='pending')return;
       if(!confirm('Atmesti '+personName(person)+' registracijos prašymą? Tai neatlieka fizinio paskyros ištrynimo.'))return;
-      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}));
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}),
+        'Registracija atmesta: '+email);
     }
     if(btn.dataset.restoreRegistration){
       if(!person||person.role!=='pending')return;
       if(!confirm('Atkurti '+personName(person)+' registracijos prašymą peržiūrai?'))return;
-      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}));
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}),
+        'Registracija grąžinta peržiūrai: '+email);
     }
     if(btn.dataset.approveCandidate) {
       if(!confirm('Patvirtinti šį žmogų kandidatu? Jis matys tik specialiai leistas užduotis.'))return;
-      return run(()=>client.rpc('gi_approve_candidate',{p_user:id}));
+      return run(()=>client.rpc('gi_approve_candidate',{p_user:id}),
+        'Kandidatas priimtas: '+email);
     }
     if(btn.dataset.approveVolunteer){
       if(!confirm('Patvirtinti, kad šis žmogus yra GI savanoris?'))return;
-      return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}));
+      return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}),
+        'Savanoris patvirtintas: '+email);
     }
     if(btn.dataset.promoteCandidate){
       if(!confirm('Po darbo peržiūros pakelti kandidatą į patvirtintą savanorį?'))return;
-      return run(()=>client.rpc('gi_promote_candidate',{p_user:id}));
+      return run(()=>client.rpc('gi_promote_candidate',{p_user:id}),
+        'Kandidatas patvirtintas savanoriu: '+email);
     }
     if(!admin())return;
     if(btn.dataset.changeRole){
       const role=[...document.querySelectorAll('[data-role-select]')].find(e=>e.dataset.roleSelect===id)?.value;
       if(!['pending','candidate','volunteer','coordinator'].includes(role))return;
       if(!confirm('Pakeisti šio nario vaidmenį į „'+roleNames[role]+'“?'))return;
-      return run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}));
+      if(role===person?.role)return toast('Jokių pakeitimų: jau pasirinktas vaidmuo „'+roleNames[role]+'“.');
+      return run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}),
+        'Vaidmuo pakeistas į „'+roleNames[role]+'“: '+email);
     }
     if(btn.dataset.rankChange){
       const rank=[...document.querySelectorAll('[data-rank-select]')].find(e=>e.dataset.rankSelect===id)?.value;
@@ -1024,8 +1120,29 @@
   });
   $('taskList').addEventListener('click',event=>{
     const b=event.target.closest('button');
-    if(!b||loading)return;
-    const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask;
+    if(!b||loading||mutationInFlight)return;
+    const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask
+      || b.dataset.jointApprove || b.dataset.timeForTask;
+    if(b.dataset.timeForTask){
+      const task=tasks.find(t=>t.id===id);
+      if(task && task.assigned_to===currentUser?.id){
+        const select=$('manualTimeTask');
+        if(![...select.options].some(o=>o.value===id)){
+          const extra=document.createElement('option');extra.value=id;extra.textContent=task.title;
+          select.add(extra);
+        }
+        select.value=id;updateManualActivityMode();openPanel('time');
+        $('manualTimeForm').scrollIntoView({behavior:'smooth',block:'start'});
+      }
+      return;
+    }
+    if(b.dataset.jointApprove && staff()){
+      const task=tasks.find(t=>t.id===id);
+      if(!task||task.assigned_to===currentUser?.id)return;
+      if(!confirm('Patvirtinti rezultatą ir visus dar nepatvirtintus šios užduoties laiko įrašus?'))return;
+      return run(()=>client.rpc('gi_approve_result_with_time',{p_task_id:id}),
+        rows=>'Patvirtintas darbo rezultatas ir '+Number(rows||0)+' laiko įrašų.');
+    }
     if(b.dataset.candidateTask && staff()){
       const task=tasks.find(t=>t.id===id);
       if(!task || task.assigned_to)return;
@@ -1041,7 +1158,10 @@
       const target=members.find(p=>p.id===choice);
       if(!target)return notice('Savanoris nepasiekiamas. Atnaujinkite sąrašą.',true);
       if(!confirm('Paskirti bandomąją užduotį žmogui „'+personName(target)+'“?'))return;
-      return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}));
+      if(choice===tasks.find(t=>t.id===id)?.assigned_to)
+        return toast('Vykdytojas jau paskirtas. Nieko keisti nereikia.');
+      return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}),
+        'Užduotis priskirta: '+personName(target));
     }
     if(b.dataset.setDue && staff()){
       const input=[...document.querySelectorAll('[data-due]')].find(e=>e.dataset.due===id);
@@ -1057,7 +1177,10 @@
       if(!note||note.trim().length<3)return notice('Įrašykite bent 3 simbolių priežastį.',true);
     }
     if(action==='unassign'&&!confirm('Atšaukti paskyrimą? Užduotis grįš į bendrą fondą.'))return;
-    run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}));
+    const labels={claim:'Užduotis priskirta jums.',accept:'Užduotis priimta.',start:'Užduotis pradėta.',
+      decline:'Užduotis grąžinta į bendrą fondą.',unassign:'Paskyrimas atšauktas.',
+      publish:'Užduotis paskelbta fonde.',return:'Rezultatas grąžintas taisyti.'};
+    run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}),labels[action]||'Užduotis atnaujinta.');
   });
   $('taskList').addEventListener('submit',event=>{
     const form=event.target;
@@ -1079,7 +1202,7 @@
       }));
     }
   });
-  $('workLogsList').addEventListener('click',event=>{
+  const handleTimeReviewClick=(event)=>{
     const b=event.target.closest('button');
     if(!b||!staff())return;
     const id=b.dataset.timeApprove||b.dataset.timeReturn;
@@ -1092,7 +1215,30 @@
       note=prompt('Kodėl reikia patikslinti darbo laiko įrašą?');
       if(!note||note.trim().length<3)return notice('Nurodykite priežastį.',true);
     }else if(!confirm('Patvirtinti '+clockDuration(row.minutes)+' savanorystės laiką?'))return;
-    return run(()=>client.rpc('gi_review_work_log',{p_id:id,p_action:action,p_note:note}));
+    return run(()=>client.rpc('gi_review_work_log',{p_id:id,p_action:action,p_note:note}),
+      action==='approve'?'Savanorio darbo laikas patvirtintas.':'Laiko įrašas grąžintas patikslinti.');
+  };
+  $('workLogsList').addEventListener('click',handleTimeReviewClick);
+  $('staffTimeLogs').addEventListener('click',handleTimeReviewClick);
+  $('manualTimeForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(mutationInFlight||!currentUser||!approved())return;
+    const hours=Number($('manualTimeHours').value),minutes=Number($('manualTimeMinutes').value);
+    const total=hours*60+minutes,taskId=$('manualTimeTask').value||null;
+    const title=$('manualTimeActivity').value.trim();
+    if(!Number.isInteger(hours)||!Number.isInteger(minutes)||hours<0||hours>12
+      ||minutes<0||minutes>59||total<1||total>720)
+      return toast('Įveskite 1–720 min. valandomis ir minutėmis.',true);
+    if(!taskId&&(title.length<5||title.length>160))
+      return toast('Veiklai be užduoties nurodykite bent 5 simbolių pavadinimą.',true);
+    const params={p_task_id:taskId,p_minutes:total,
+      p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim()};
+    const ok=await run(()=>client.rpc('gi_record_volunteer_time',params),
+      'Pateikta '+clockDuration(total)+' patvirtinimui.');
+    if(ok){
+      $('manualTimeForm').reset();
+      updateManualActivityMode();
+    }
   });
   $('incidentClear').addEventListener('click',()=>{
     $('incidentForm').reset();
