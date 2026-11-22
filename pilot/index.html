@@ -6,6 +6,7 @@
 <meta name="description" content="Girių inspekcija – testinė savanorių darbo vieta tik su sintetinėmis užduotimis.">
 <title>Girių inspekcija – savanorių pilotas</title>
 <link rel="icon" type="image/png" href="../logo.png">
+<link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:#edf2ed;color:#203b30;--green:#205742;--muted:#687b70;--line:#dbe5db;--paper:#fff}
 *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
@@ -116,8 +117,13 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
   </div>
  </div>
 </section>
-</main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai</footer>
+</main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai. Prisijungus saugomi vardas, el. paštas ir paskyros techniniai įrašai. Dėl duomenų tvarkymo kreipkitės: info@giriuinspekcija.lt. <a href="./privatumas.html">Plačiau apie testavimo duomenis</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
 <script defer src="./app.js"></script>
+<script>
+if('serviceWorker' in navigator) {
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script>
 </body></html>
