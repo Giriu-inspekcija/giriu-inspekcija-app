@@ -24,7 +24,7 @@ test('no public client writes directly to tables', () => {
   assert.doesNotMatch(sql, /grant (?:insert|update|delete|all) on public\.gi_tasks to authenticated/i);
 });
 test('task assignments check approved volunteer status', () => {
-  assert.match(sql, /v_role not in \('volunteer','coordinator','admin'\)/);
+  assert.match(sql, /coalesce\(v_role, 'pending'\) not in \('volunteer','coordinator','admin'\)/);
   assert.match(sql, /assigned_to=p_volunteer/);
 });
 test('task mutations create audit events', () => {
