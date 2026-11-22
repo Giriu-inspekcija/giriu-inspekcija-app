@@ -16,7 +16,7 @@
   const client = window.supabase && window.supabase.createClient(URL, KEY, {
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
-  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
+  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
   let authMode = 'login', passwordRecovery = false;
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
@@ -115,9 +115,11 @@
     const email=currentUser?.email || signupWaiting?.email || '';
     $('accountSwitchBar').hidden=!(email || passwordRecovery);
     $('accountSwitchLabel').textContent=email?'Paskyra: '+email:'Slaptažodžio keitimas';
+    $('switchAccount').textContent=currentUser?'Atsijungti':'Kita paskyra';
   }
   function showLoggedOut() {
-    currentUser = null; profile = null; tasks = []; members = []; feedback = [];
+    currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
+    activePanel='tasks';
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
@@ -128,7 +130,7 @@
 
   async function fetchProfile() {
     if(!currentUser) return;
-    const {data,error} = await client.from('gi_profiles').select('id,display_name,role,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
+    const {data,error} = await client.from('gi_profiles').select('id,display_name,role,registration_state,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
       .eq('id',currentUser.id).maybeSingle();
     if(error) throw error;
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
@@ -141,10 +143,19 @@
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
       $('roleName').textContent = (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
       $('pendingView').hidden = approved();
+      const regState=profile.registration_state||'active';
+      $('pendingHeading').textContent=regState==='rejected'?'Registracija atmesta':regState==='withdrawn'?'Registracija atšaukta':'Laukiama koordinatoriaus patvirtinimo';
+      $('pendingDescription').textContent=regState==='rejected'
+        ?'Koordinatorius atmetė bandomąją registraciją. Jei tai klaida, kreipkitės info@giriuinspekcija.lt.'
+        :regState==='withdrawn'?'Jūsų registracija sustabdyta. Norėdami ją atkurti, susisiekite su GI koordinatoriumi.'
+        :'Paskyra aktyvi. Po patikros koordinatorius suteiks tinkamą vaidmenį.';
+      $('withdrawRegistration').hidden=regState!=='active';
+      $('teamNav').hidden=!staff();
+      openPanel(activePanel);
       $('activateMaster').hidden = true;
       if(!approved()){
         const candidate=await client.rpc('gi_is_bootstrap_candidate');
-        if(!candidate.error && candidate.data===true) $('activateMaster').hidden=false;
+        if(!candidate.error && candidate.data===true && regState==='active') $('activateMaster').hidden=false;
       }
       $('workspace').hidden = !approved();
       $('staffPanel').hidden = !staff();
@@ -172,17 +183,33 @@
       $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
       if(staff()){
         let peopleQuery=client.from('gi_profiles')
-          .select('id,display_name,role,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
+          .select('id,display_name,role,registration_state,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
         if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
         const {data:people,error:e2}=await peopleQuery;
         if(e2) throw e2;
         members=people||[];
-      } else members=[];
+        const ids=members.map(p=>p.id);
+        const lookup=ids.length?await client.rpc('gi_member_emails',{p_ids:ids}):{data:[]};
+        if(lookup.error)throw lookup.error;
+        memberEmails=Object.fromEntries((lookup.data||[]).map(x=>[x.user_id,x]));
+      } else {members=[];memberEmails={};}
       const feedbackResult = await client.from('gi_feedback')
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
+      const logResult=await client.from('gi_work_logs')
+        .select('id,task_id,volunteer_id,minutes,note,review_status,review_note,created_at')
+        .order('created_at',{ascending:false}).limit(100);
+      if(logResult.error)throw logResult.error;
+      workLogs=logResult.data||[];
+      const incidentResult=await client.from('gi_incidents')
+        .select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at')
+        .order('created_at',{ascending:false}).limit(100);
+      if(incidentResult.error)throw incidentResult.error;
+      incidents=incidentResult.data||[];
       renderTasks();
+      renderWorkLogs();
+      renderIncidents();
       renderPendingMembers();
       renderFeedback();
     } catch(error) {
@@ -190,62 +217,126 @@
     } finally {loading=false;}
   }
 
+  function openPanel(name) {
+    if(!['tasks','time','incidents','team','feedback'].includes(name))name='tasks';
+    if(name==='team'&&!staff())name='tasks';
+    activePanel=name;
+    for(const panel of ['tasks','time','incidents','team','feedback']){
+      $(panel+'Section').hidden=panel!==name;
+      const button=document.querySelector('[data-nav="'+panel+'"]');
+      if(button) {
+        if(panel===name)button.setAttribute('aria-current','page');
+        else button.removeAttribute('aria-current');
+      }
+    }
+  }
+  $('workspaceNav').addEventListener('click',event=>{
+    const button=event.target.closest('[data-nav]');
+    if(!button)return;
+    openPanel(button.dataset.nav);
+  });
+  const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
+  function renderWorkLogs() {
+    const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
+    const pending=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
+    const approvedTime=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(pending)+' · Patvirtinta: '+clockDuration(approvedTime);
+    const shown=staff()?workLogs:mine;
+    $('workLogsList').innerHTML=shown.length?shown.map(w=>{
+      const task=tasks.find(t=>t.id===w.task_id),owner=members.find(p=>p.id===w.volunteer_id);
+      return '<article class="card"><b>'+escapeHTML(task?.title||'Bandomoji užduotis')+'</b>'
+        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):w.volunteer_id===currentUser.id?'Aš':'Savanoris')+'</p>':'')
+        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '+escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)+'</p>'
+        +(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
+        +(w.review_note?'<p class="small">Koordinatoriaus pastaba: '+escapeHTML(w.review_note)+'</p>':'')
+        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser.id
+          ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
+           +'<button class="outline" type="button" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
+        +'</article>';
+    }).join(''):'<p class="card">Savanorystės laiko įrašų dar nėra.</p>';
+  }
+  const incidentCategoryLabel={cutting:'Kirtimai',timber_truck:'Medienos vežimas',pollution:'Tarša',tree_damage:'Medžių pažeidimai',waste:'Atliekos',other:'Kita',unknown:'Nežinau'};
+  function renderIncidents() {
+    $('incidentsList').innerHTML=incidents.length?incidents.map(v=>{
+      const owner=members.find(m=>m.id===v.reporter_id);
+      return '<article class="card"><b>'+escapeHTML(incidentCategoryLabel[v.category]||v.category)+'</b>'
+        +' · '+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')
+        +(staff()?'<p class="small">Pateikė: '+escapeHTML(owner?personName(owner):v.reporter_id===currentUser?.id?'Aš':'Naudotojas')+'</p>':'')
+        +'<p>'+escapeHTML(v.description)+'</p>'
+        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Testinės koordinatės: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+'</p>':'')
+        +(v.status==='draft'&&v.reporter_id===currentUser?.id
+          ?'<button type="button" class="outline" data-edit-incident="'+escapeHTML(v.id)+'">Redaguoti juodraštį</button>':'')
+        +'</article>';
+    }).join(''):'<p class="card">Pranešimų dar nėra.</p>';
+  }
   function renderPendingMembers() {
     if(!staff())return;
-    const others=members.filter(p=>p.id!==currentUser.id);
-    const intentNames={new_candidate:'Naujas kandidatas',existing_volunteer:'Jau savanoriauja',unspecified:'Nenurodė'};
-    const activityNames={field:'Išvykos ir fiksavimas',advocacy:'Advokacija',gis:'GIS',communications:'Komunikacija',other:'Kita'};
+    const others=members.filter(p=>p.id!==currentUser?.id);
+    const intentNames={new_candidate:'Naujas kandidatas',existing_volunteer:'Jau savanoriauja',unspecified:'Nenurodyta'};
+    const activityNames={field:'Išvykos / fiksavimas',advocacy:'Advokacija',gis:'GIS',communications:'Komunikacija',other:'Kita'};
     const rankNames={pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'};
-    const info=p=>'<p class="small">Anketoje: '+escapeHTML(intentNames[p.membership_intent]||'Nenurodė')
-      +' · '+escapeHTML(activityNames[p.preferred_activity]||'Kita')
-      +(p.region_label?' · '+escapeHTML(p.region_label):'')+'</p>';
-    const pending=others.filter(p=>p.role==='pending');
-    const pendingRows=pending.map(p=>{
-      const id=escapeHTML(p.id);
-      const likelyExisting=p.membership_intent==='existing_volunteer';
-      return '<div class="card"><b>'+escapeHTML(personName(p))+'</b>'+info(p)
-        +'<p class="small">Anketoje pasirinktas statusas nėra įrodymas – prieš suteikdamas prieigą patikrink žmogų.</p>'
-        +'<div class="actions">'
-        +(likelyExisting
-          ? '<button type="button" data-approve-volunteer="'+id+'">Patvirtinti savanorį</button>'
-          : '<button type="button" data-approve-candidate="'+id+'">Priimti kandidatu</button>')
-        +'<button type="button" class="outline" data-'+(likelyExisting?'approve-candidate':'approve-volunteer')+'="'+id+'">Kitas vaidmuo (po patikros)</button>'
-        +'</div></div>';
-    }).join('');
+    const person=p=>{
+      const e=memberEmails[p.id];
+      return '<b>'+escapeHTML(personName(p))+'</b>'
+        +'<p class="small">'+escapeHTML(e?.email||'El. paštas nežinomas')
+        +' · '+escapeHTML(e?.verified?'El. paštas patvirtintas':'El. paštas dar nepatvirtintas')+'</p>'
+        +'<p class="small">Anketoje: '+escapeHTML(intentNames[p.membership_intent]||'Nenurodyta')
+        +' · '+escapeHTML(activityNames[p.preferred_activity]||'Kita')
+        +(p.region_label?' · '+escapeHTML(p.region_label):'')+'</p>';
+    };
+    const pending=others.filter(p=>p.role==='pending'&&(!p.registration_state||p.registration_state==='active'));
+    const stopped=others.filter(p=>p.role==='pending'&&['withdrawn','rejected'].includes(p.registration_state));
     const candidates=others.filter(p=>p.role==='candidate');
-    const candidateRows=candidates.map(p=>'<div class="card"><b>'+escapeHTML(personName(p))+'</b>'
-      +info(p)+'<p class="small">Kandidatas – tik specialiai pažymėtos užduotys</p>'
-      +'<button type="button" data-promote-candidate="'+escapeHTML(p.id)+'">Patvirtinti kaip savanorį</button></div>').join('');
+    const pendingRows=pending.map(p=>{
+      const id=escapeHTML(p.id),existing=p.membership_intent==='existing_volunteer';
+      return '<article class="card">'+person(p)
+        +'<p class="small">Nurodytas statusas nėra patikrinimas. Pirma įsitikinkite, kad pažįstate asmenį.</p>'
+        +'<div class="actions">'
+        +'<button type="button" data-approve-'+(existing?'volunteer':'candidate')+'="'+id+'">'
+        +(existing?'Patvirtinti kaip savanorį':'Priimti kandidatu')+'</button>'
+        +'<button type="button" class="outline" data-approve-'+(existing?'candidate':'volunteer')+'="'+id+'">'
+        +(existing?'Vietoj to – kandidatu':'Vietoj to – savanoriu')+'</button>'
+        +'<button type="button" class="outline" data-reject-registration="'+id+'">Atmesti registraciją</button>'
+        +'</div></article>';
+    }).join('');
+    const stoppedRows=stopped.map(p=>'<article class="card">'+person(p)
+      +'<p class="small">Registracija: '+escapeHTML(p.registration_state==='withdrawn'?'atšaukta paties naudotojo':'atmesta koordinatoriaus')+'</p>'
+      +'<button class="outline" type="button" data-restore-registration="'+escapeHTML(p.id)+'">Atkurti registracijos prašymą</button>'
+      +'</article>').join('');
+    const candidateRows=candidates.map(p=>'<article class="card">'+person(p)
+      +'<p class="small">Kandidatas – tik specialiai pažymėtos demonstracinės užduotys.</p>'
+      +'<button type="button" data-promote-candidate="'+escapeHTML(p.id)+'">Patvirtinti kaip savanorį</button>'
+      +'</article>').join('');
     const managed=admin()?others.filter(p=>['candidate','volunteer','coordinator'].includes(p.role)).map(p=>{
       const id=escapeHTML(p.id);
-      return '<div class="card"><b>'+escapeHTML(personName(p))+'</b>'
+      return '<article class="card">'+person(p)
         +'<p class="small">Dabartinis vaidmuo: '+escapeHTML(roleNames[p.role]||p.role)
         +(p.volunteer_rank?' · '+escapeHTML(rankNames[p.volunteer_rank]||p.volunteer_rank):'')+'</p>'
         +'<div class="form-inline"><select aria-label="Keisti vaidmenį" data-role-select="'+id+'">'
         +['pending','candidate','volunteer','coordinator'].map(role=>
-          '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
+          '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role]||role)+'</option>').join('')
         +'</select><button type="button" data-change-role="'+id+'">Išsaugoti vaidmenį</button></div>'
         +(['candidate','volunteer'].includes(p.role)?
-         '<div class="form-inline"><select aria-label="Savanorio laipsnis" data-rank-select="'+id+'">'
+          '<div class="form-inline"><select aria-label="Savanorio laipsnis" data-rank-select="'+id+'">'
           +Object.keys(rankNames).filter(k=>p.role!=='candidate'||k==='pradedantysis').map(rank=>
             '<option value="'+rank+'"'+(p.volunteer_rank===rank?' selected':'')+'>'+escapeHTML(rankNames[rank])+'</option>').join('')
           +'</select><button class="outline" type="button" data-rank-change="'+id+'">Patvirtinti laipsnį</button></div>'
           :'')
         +(p.role==='volunteer'
           ?'<div class="actions"><button type="button" class="outline" data-doc-permission="'+id+'">'
-            +(p.can_prepare_documents?'Atšaukti raštų rengimo teisę':'Leisti rengti raštų projektus')+'</button></div>'
-          :'')
-        +'</div>';
+           +(p.can_prepare_documents?'Atšaukti raštų rengimo teisę':'Leisti rengti raštų projektus')+'</button></div>'
+          :'')+'</article>';
     }).join(''):'';
-    $('pendingMembers').innerHTML='<h3>Laukia patvirtinimo ('+pending.length+')</h3>'
+    $('pendingMembers').innerHTML='<h3>Laukia peržiūros ('+pending.length+')</h3>'
       +(pendingRows||'<p class="small">Naujų registracijų nėra.</p>')
+      +'<hr><h3>Atšauktos / atmestos ('+stopped.length+')</h3>'
+      +(stoppedRows||'<p class="small">Nėra atšauktų registracijų.</p>')
       +'<hr><h3>Kandidatai ('+candidates.length+')</h3>'
       +(candidateRows||'<p class="small">Patvirtintų kandidatų nėra.</p>')
       +(admin()?'<hr><h3>Vaidmenys ir papildomos teisės</h3>'
-        +'<p class="small">Laipsnis savaime nesuteikia prieigos prie raštų ar jautrių bylų. Leidimas rengti raštus paruoštas, tačiau DI API dar neprijungta.</p>'
-        +(managed||'<p class="small">Nėra valdomų paskyrų.</p>'):'');
+        +'<p class="small">Laipsnis nesuteikia dokumentų prieigos. Registracijos atmetimas nėra „Supabase“ paskyros ištrynimas.</p>'
+        +(managed||'<p class="small">Nėra valdomų narių.</p>'):'');
   }
-
   function renderFeedback() {
     $('feedbackTitle').textContent = staff() ? 'Visos bandymo pastabos' : 'Mano pastabos';
     $('feedbackList').innerHTML = feedback.length
@@ -262,63 +353,100 @@
 
   function buttonsFor(task) {
     const id=escapeHTML(task.id);
-    if(staff()) {
+    let markup='';
+    const eligible=staff() && ['proposed','pool','assigned'].includes(task.status);
+    if(eligible){
       const safeButton=(!task.assigned_to && ['proposed','pool'].includes(task.status))
-        ? '<button type="button" class="outline" data-candidate-task="'+id+'">'
-          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Pažymėti saugia kandidato užduotimi')+'</button>' : '';
-      if(task.status==='proposed') return '<div class="actions">'
-        +'<button type="button" data-step="publish" data-id="'+id+'">Patvirtinti į fondą</button>'
-        +safeButton+'</div>';
-      if(['pool','assigned'].includes(task.status)) {
-        const selectable=members.filter(m=>
-          ['volunteer','coordinator','admin'].includes(m.role)
-          || (m.role==='candidate' && task.candidate_safe));
-        return '<div class="actions form-inline">'
-          +'<select aria-label="Pasirinkti savanorį" data-person="'+id+'"><option value="">Pasirinkti savanorį</option>'
+        ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
+          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
+      if(task.status==='proposed'){
+        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'+safeButton+'</div>';
+      }else{
+        const selectable=members.filter(m=>{
+          const isAllowed=['volunteer','coordinator','admin'].includes(m.role)
+            || (m.role==='candidate'&&task.candidate_safe);
+          return isAllowed && memberEmails[m.id]?.verified;
+        });
+        markup+='<div class="actions form-inline"><select aria-label="Pasirinkti vykdytoją" data-person="'+id+'">'
+          +'<option value="">Pasirinkite savanorį</option>'
           +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
-            +escapeHTML(personName(m))+' ('+escapeHTML(roleNames[m.role]||m.role)+')</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">Paskirti</button>'
+            +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
+          +'</select><button type="button" data-assign="'+id+'">'
+          +(task.assigned_to?'Perduoti kitam':'Paskirti užduotį')+'</button>'
+          +(task.status==='assigned'?'<button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button>':'')
           +safeButton+'</div>';
       }
-      if(task.status==='submitted') return '<div class="actions">'
-        +'<button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
-        +'<button class="outline" type="button" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
-      return '';
+      markup+='<div class="form-inline"><label class="field">Terminas (nebūtina)'
+        +'<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
+        +(task.due_at?' value="'+escapeHTML(new Date(task.due_at).toLocaleString('sv-SE').replace(' ','T').slice(0,16))+'"':'')
+        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div>';
     }
-    if(task.status==='assigned') return '<div class="actions"><button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button></div>';
-    if(['accepted','returned'].includes(task.status)) return '<div class="actions"><button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
-    if(task.status==='in_progress')return '<div><form data-submit-result="'+id+'">'
-      +'<label class="field">Darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Ką užfiksavai? (kol kas tik išgalvotas turinys)"></textarea></label>'
-      +'<button type="submit">Pateikti rezultatą</button></form></div>';
-    return '';
+    if(!task.assigned_to && task.status==='pool' &&
+      (profile?.role!=='candidate'||task.candidate_safe)){
+      markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Pasiimti užduotį</button></div>';
+    }
+    if(task.assigned_to===currentUser?.id){
+      if(task.status==='assigned')markup+='<div class="actions">'
+        +'<button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button>'
+        +'<button type="button" class="outline" data-step="decline" data-id="'+id+'">Atsisakyti užduoties</button></div>';
+      if(['accepted','returned'].includes(task.status))markup+='<div class="actions">'
+        +'<button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
+      if(task.status==='in_progress')markup+='<form data-submit-result="'+id+'">'
+        +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
+        +'<button type="submit">Pateikti rezultatą</button></form>';
+    }
+    if(staff() && task.status==='submitted' && task.assigned_to!==currentUser?.id){
+      markup+='<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
+        +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
+    }
+    if(staff() && task.status==='submitted' && task.assigned_to===currentUser?.id)
+      markup+='<p class="small">Jūsų rezultato tvirtinimą turi atlikti kitas koordinatorius.</p>';
+    return markup;
   }
-  function timeEntry(task) {
-    if(staff() && task.assigned_to !== currentUser.id) return '';
-    if(!['accepted','in_progress','submitted','returned','approved'].includes(task.status)) return '';
-    return '<hr><form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
-      +'<label class="field">Savanorystės minutės<input type="number" name="minutes" min="1" max="720" required placeholder="30"></label>'
-      +'<label class="field">Aprašymas (demo)<input type="text" name="note" maxlength="1000" placeholder="Bandomoji veikla"></label>'
-      +'<button type="submit">Įrašyti laiką</button></form>';
+  function timeEntry(task){
+    if(task.assigned_to!==currentUser?.id ||
+      !['accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
+    return '<hr><details><summary><b>Pridėti savo savanorystės laiką</b></summary>'
+      +'<form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
+      +'<label class="field">Valandos<input type="number" name="hours" min="0" max="12" value="0" required></label>'
+      +'<label class="field">Minutės<input type="number" name="minutes" min="0" max="59" value="30" required></label>'
+      +'<label class="field">Ką atlikai? <input type="text" name="note" maxlength="1000" placeholder="Bandomasis darbas"></label>'
+      +'<button type="submit">Pateikti laiką</button></form></details>';
   }
-  function renderTasks() {
-    const list = $('taskList');
-    if(!tasks.length){list.innerHTML='<div class="card"><p>Pagal šį filtrą užduočių nėra.</p></div>';return;}
-    const sorted = [...tasks].sort((a,b) => {
-      const priority = {proposed:0,pool:1,submitted:2,assigned:3,accepted:4,in_progress:5,returned:6,approved:7};
-      return (priority[a.status]??9) - (priority[b.status]??9);
-    });
-    list.innerHTML = sorted.map(t => {
-      const owner = members.find(p=>p.id===t.assigned_to);
+  function renderTasks(){
+    const list=$('taskList');
+    const mine=tasks.filter(t=>t.assigned_to===currentUser?.id);
+    const pool=tasks.filter(t=>t.status==='pool'&&!t.assigned_to).length;
+    const active=mine.filter(t=>['assigned','accepted','in_progress','returned'].includes(t.status)).length;
+    const submitted=staff()?tasks.filter(t=>t.status==='submitted').length
+      :mine.filter(t=>t.status==='submitted').length;
+    $('taskSummary').innerHTML='<span><b>Mano aktyvios:</b> '+active+'</span>'
+      +'<span><b>Užduočių fonde:</b> '+pool+'</span>'
+      +'<span><b>Rezultatų peržiūra:</b> '+submitted+'</span>';
+    if(!tasks.length){
+      list.innerHTML='<div class="card"><p>Užduočių pagal pasirinktą filtrą nėra.</p></div>';return;
+    }
+    const order={proposed:0,pool:1,assigned:2,accepted:3,in_progress:4,returned:5,submitted:6,approved:7};
+    const sorted=[...tasks].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9));
+    list.innerHTML=sorted.map(t=>{
+      const owner=members.find(p=>p.id===t.assigned_to);
+      let due='';
+      if(t.due_at){
+        const end=new Date(t.due_at),late=end.getTime()<Date.now()&&!['approved'].includes(t.status);
+        due='<p class="small"><b>Terminas:</b> '+escapeHTML(end.toLocaleString('lt-LT',{dateStyle:'medium',timeStyle:'short'}))
+          +(late?' · Terminas praėjęs':'')+'</p>';
+      }
       return '<article class="task">'
-        +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'+escapeHTML(statusNames[t.status]||t.status)+'</span>'
+        +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
+          +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
-        +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris (ieškok pagal vardą)':'Nepaskirta')+'</p>':'')
-        +(t.candidate_safe?'<p class="small">Pažymėta kaip saugi kandidato užduotis (tik sintetinė)</p>':'')
+        +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'+due
+        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
+        +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
+        +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
-        +buttonsFor(t)+timeEntry(t)
-        +'</article>';
+        +buttonsFor(t)+timeEntry(t)+'</article>';
     }).join('');
   }
   async function run(call) {
@@ -730,6 +858,11 @@
     $('memberSearch').value='';
     refreshWorkspace();
   });
+  $('withdrawRegistration').addEventListener('click',async()=>{
+    if(!currentUser||profile?.role!=='pending'||profile?.registration_state!=='active')return;
+    if(!confirm('Atšaukti registracijos prašymą? Prieiga nebus suteikta. Paskyros duomenys nebus automatiškai ištrinti.'))return;
+    await run(()=>client.rpc('gi_review_registration',{p_user:currentUser.id,p_action:'withdraw'}));
+  });
   $('pendingRefresh').addEventListener('click',async()=>{
     await refreshWorkspace();
     if(profile?.role==='pending')notice('Būsena nepasikeitė: laukiate koordinatoriaus patvirtinimo.');
@@ -842,8 +975,20 @@
     if(!btn || !staff())return;
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
-      ||btn.dataset.rankChange||btn.dataset.docPermission;
+      ||btn.dataset.rankChange||btn.dataset.docPermission
+      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration;
     if(!id || id===currentUser?.id)return;
+    const person=members.find(p=>p.id===id);
+    if(btn.dataset.rejectRegistration){
+      if(!person||person.role!=='pending')return;
+      if(!confirm('Atmesti '+personName(person)+' registracijos prašymą? Tai neatlieka fizinio paskyros ištrynimo.'))return;
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}));
+    }
+    if(btn.dataset.restoreRegistration){
+      if(!person||person.role!=='pending')return;
+      if(!confirm('Atkurti '+personName(person)+' registracijos prašymą peržiūrai?'))return;
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}));
+    }
     if(btn.dataset.approveCandidate) {
       if(!confirm('Patvirtinti šį žmogų kandidatu? Jis matys tik specialiai leistas užduotis.'))return;
       return run(()=>client.rpc('gi_approve_candidate',{p_user:id}));
@@ -893,15 +1038,25 @@
     if(b.dataset.assign && staff()) {
       const choice=[...document.querySelectorAll('[data-person]')].find(e=>e.dataset.person===id)?.value;
       if(!choice)return notice('Pasirink savanorį.',true);
+      const target=members.find(p=>p.id===choice);
+      if(!target)return notice('Savanoris nepasiekiamas. Atnaujinkite sąrašą.',true);
+      if(!confirm('Paskirti bandomąją užduotį žmogui „'+personName(target)+'“?'))return;
       return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}));
+    }
+    if(b.dataset.setDue && staff()){
+      const input=[...document.querySelectorAll('[data-due]')].find(e=>e.dataset.due===id);
+      const raw=input?.value||'',dt=raw?new Date(raw):null;
+      if(dt&&Number.isNaN(dt.getTime()))return notice('Neteisinga termino data.',true);
+      return run(()=>client.rpc('gi_set_task_due',{p_id:id,p_due:dt?dt.toISOString():null}));
     }
     const action=b.dataset.step;
     if(!action)return;
     let note=null;
-    if(action==='return'){
-      note=prompt('Kodėl grąžini užduotį taisyti?');
-      if(!note)return;
+    if(action==='return'||action==='decline'){
+      note=prompt(action==='return'?'Kodėl grąžini užduotį taisyti?':'Kodėl atsisakai bandomosios užduoties?');
+      if(!note||note.trim().length<3)return notice('Įrašykite bent 3 simbolių priežastį.',true);
     }
+    if(action==='unassign'&&!confirm('Atšaukti paskyrimą? Užduotis grįš į bendrą fondą.'))return;
     run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}));
   });
   $('taskList').addEventListener('submit',event=>{
@@ -914,10 +1069,68 @@
     if(form.dataset.logTime){
       event.preventDefault();
       const fd=new FormData(form);
+      const hours=Number(fd.get('hours')),minutes=Number(fd.get('minutes'));
+      const total=hours*60+minutes;
+      if(!Number.isInteger(hours)||!Number.isInteger(minutes)||hours<0||hours>12
+        ||minutes<0||minutes>59||total<1||total>720)
+        return notice('Įveskite nuo 1 min. iki 12 val., naudodami valandas ir minutes.',true);
       return run(()=>client.rpc('gi_log_minutes',{
-        p_id:form.dataset.logTime,p_minutes:Number(fd.get('minutes')),p_note:String(fd.get('note')||'')
+        p_id:form.dataset.logTime,p_minutes:total,p_note:String(fd.get('note')||'')
       }));
     }
+  });
+  $('workLogsList').addEventListener('click',event=>{
+    const b=event.target.closest('button');
+    if(!b||!staff())return;
+    const id=b.dataset.timeApprove||b.dataset.timeReturn;
+    if(!id)return;
+    const row=workLogs.find(x=>x.id===id);
+    if(!row||row.volunteer_id===currentUser?.id)return;
+    const action=b.dataset.timeApprove?'approve':'return';
+    let note=null;
+    if(action==='return'){
+      note=prompt('Kodėl reikia patikslinti darbo laiko įrašą?');
+      if(!note||note.trim().length<3)return notice('Nurodykite priežastį.',true);
+    }else if(!confirm('Patvirtinti '+clockDuration(row.minutes)+' savanorystės laiką?'))return;
+    return run(()=>client.rpc('gi_review_work_log',{p_id:id,p_action:action,p_note:note}));
+  });
+  $('incidentClear').addEventListener('click',()=>{
+    $('incidentForm').reset();
+    $('incidentId').value='';
+    notice('Galite kurti naują demonstracinį pranešimą.');
+  });
+  $('incidentsList').addEventListener('click',event=>{
+    const b=event.target.closest('[data-edit-incident]');
+    if(!b)return;
+    const item=incidents.find(v=>v.id===b.dataset.editIncident);
+    if(!item||item.reporter_id!==currentUser?.id||item.status!=='draft')return;
+    $('incidentId').value=item.id;
+    $('incidentDescription').value=item.description;
+    $('incidentCategory').value=item.category;
+    $('incidentEventState').value=item.event_state;
+    $('incidentLat').value=item.latitude??'';
+    $('incidentLon').value=item.longitude??'';
+    $('incidentForm').scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  $('incidentForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    const button=event.submitter;
+    const submit=button?.value==='submit';
+    const desc=$('incidentDescription').value.trim();
+    if(desc.length<5)return notice('Aprašykite bent 5 simboliais.',true);
+    const lat=$('incidentLat').value.trim(),lon=$('incidentLon').value.trim();
+    if((lat==='')!==(lon===''))return notice('Koordinatėms reikia abiejų reikšmių arba nė vienos.',true);
+    const payload={
+      p_id:$('incidentId').value||null,p_description:desc,
+      p_category:$('incidentCategory').value,p_event_state:$('incidentEventState').value,
+      p_lat:lat===''?null:Number(lat),p_lon:lon===''?null:Number(lon),
+      p_submit:submit
+    };
+    run(async()=>{
+      const result=await client.rpc('gi_save_incident',payload);
+      if(!result.error){$('incidentForm').reset();$('incidentId').value='';}
+      return result;
+    });
   });
   if(client){
     client.auth.onAuthStateChange((event,session)=>{

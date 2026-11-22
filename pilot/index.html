@@ -47,21 +47,36 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
 .account-switch{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #ffffff44}
 .account-switch .account-label{font-size:12px;opacity:.9;overflow-wrap:anywhere;min-width:0}
 .account-switch button{background:#eef6ef;color:#205742;padding:9px 12px;flex-shrink:0}
+.workspace-nav{display:flex;gap:7px;overflow-x:auto;scrollbar-width:thin;padding:2px 0 12px;margin:0 0 14px}
+.workspace-nav button{white-space:nowrap;background:#edf3ed;color:#205742;border:1px solid #cddfd3;padding:10px 12px;font-size:13px;flex:0 0 auto}
+.workspace-nav button[aria-current="page"]{background:#205742;color:#fff}
+.workspace-section{min-height:200px}
+.task-summary{border-bottom:1px solid #dbe5db;padding:4px 0 12px;margin-bottom:9px}
+.task-summary span{display:inline-block;margin:3px 8px 3px 0}
+details{border-top:1px solid #dbe5db;margin-top:12px;padding-top:12px}
+details summary{cursor:pointer;color:#205742}
+.pilot-info{background:#eef4ed;color:#42634c;border:1px solid #d5e2d5;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+.pilot-info details{margin-top:6px;padding-top:4px;border:0}
 @media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
 
 </style>
 </head>
 <body><div class="shell">
 <header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p>
-<div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Keisti paskyrą</button></div></header>
+<div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></header>
 <main>
-<div class="alert"><b>Tik bandomosios užduotys.</b> Nekelkite tikrų miškų koordinačių, žmonių duomenų, nuotraukų ar oficialių dokumentų.</div>
+<div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
  <h1 id="authTitle">Prisijungimas</h1>
  <p class="muted" id="authIntro">Prisijunkite su Google paskyra arba el. paštu ir slaptažodžiu.</p>
  <div class="card">
-  <div id="googleLoginPanel" hidden><button type="button" id="googleLogin" class="google-signin"><span class="google-mark" aria-hidden="true">G</span>Tęsti su Google</button></div>
+  <div id="googleLoginPanel" hidden><button type="button" id="googleLogin" class="google-signin"><svg width="20" height="20" viewBox="0 0 48 48" role="img" aria-label="Google" style="flex-shrink:0">
+<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.25 5.48-4.75 7.18v5.98h7.73c4.51-4.17 7.06-10.32 7.06-17.63z"/>
+<path fill="#FBBC05" d="M10.53 28.59c-.48-1.44-.76-2.97-.76-4.59s.27-3.15.76-4.59v-6.19H2.56C.92 16.45 0 20.11 0 24s.92 7.55 2.56 10.78l7.97-6.19z"/>
+<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.82l-7.73-5.98c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+</svg>Tęsti su Google</button></div>
   <div id="googleSeparator" class="auth-separator" hidden>arba el. paštu</div>
   <div class="actions" role="group" aria-label="Registracija arba prisijungimas">
    <button type="button" class="outline" id="showSignup" aria-pressed="false">Registruotis</button>
@@ -136,10 +151,19 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
  </form>
 </section>
 <section id="appView" hidden>
- <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
- <div id="pendingView" class="card" hidden><h2>Laukiama koordinatoriaus patvirtinimo</h2><p>Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
+ <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline" hidden>Atsijungti</button></div>
+ <div id="pendingView" class="card" hidden><h2 id="pendingHeading">Laukiama koordinatoriaus patvirtinimo</h2><p id="pendingDescription">Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="withdrawRegistration" class="outline" type="button">Atšaukti savo registraciją</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
+  <nav id="workspaceNav" class="workspace-nav" aria-label="Darbo vietos skiltys">
+    <button type="button" data-nav="tasks" aria-current="page">Užduotys</button>
+    <button type="button" data-nav="time">Mano valandos</button>
+    <button type="button" data-nav="incidents">Pranešti apie įvykį</button>
+    <button type="button" data-nav="team" id="teamNav" hidden>Komanda</button>
+    <button type="button" data-nav="feedback">Pastabos</button>
+  </nav>
+  <section id="tasksSection" class="workspace-section">
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
+  <div id="taskSummary" class="task-summary small" aria-live="polite"></div>
   <div class="card" id="taskFilterPanel" hidden>
    <label class="field">Užduočių filtras<select id="taskStatusFilter">
      <option value="all">Visos būsenos</option><option value="pool">Laukia paskirstymo</option>
@@ -149,26 +173,64 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
   </div>
   <div id="staffPanel" hidden>
    <div class="card"><h2>Užduočių fondas</h2><p class="small">Kurti pasiūlymus, patvirtinti ir paskirstyti. ChatGPT importą prijungsime per atskirą saugų etapą.</p>
-    <form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
+    <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
      <button type="submit">Pridėti siūlomą užduotį</button>
-    </form>
-    <hr><h3>Importuoti ChatGPT pasiūlytas užduotis</h3>
+    </form></details>
+    <details><summary><b>Importuoti ChatGPT pasiūlytas užduotis</b></summary>
     <p class="small">Įklijuok JSON masyvą su laukais <code>source_ref</code>, <code>title</code>, <code>details</code> ir <code>priority</code>. Parodysime peržiūrą. Užduotys bus tik siūlomos, jos nebus automatiškai paskirtos.</p>
     <label class="field">JSON iš ChatGPT<textarea id="batchJson" spellcheck="false" placeholder='[{"source_ref":"SYNTH-CG-01","title":"Bandomoji užduotis","details":"Tik išgalvotas aprašymas","priority":"normal"}]'></textarea></label>
     <div class="actions"><button type="button" class="outline" id="batchPreview">Peržiūrėti sąrašą</button><button type="button" id="batchImport" disabled>Patvirtinti ir įkelti į fondą</button></div>
-    <div id="batchReview" class="small" aria-live="polite"></div>
+    <div id="batchReview" class="small" aria-live="polite"></div></details>
     </div>
+
+
+  </div>
+  <div id="taskList" class="tasks"></div>
+  <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
+  </section>
+  <section id="timeSection" class="workspace-section" hidden>
+    <h2>Mano savanorystės laikas</h2>
+    <div id="myTimeSummary" class="card"></div>
+    <p class="small">Laikas registruojamas prie priimtos užduoties. Koordinatorius patvirtina pateiktas valandas.</p>
+    <div id="workLogsList"></div>
+  </section>
+  <section id="incidentsSection" class="workspace-section" hidden>
+    <h2>Pranešti apie įvykį</h2>
+    <div class="alert"><b>Tik demonstracija.</b> Naudokite išgalvotas vietas ir situacijas. Nekelkite tikrų miškų koordinačių, žmonių duomenų ar nuotraukų.</div>
+    <form id="incidentForm" class="card">
+      <input id="incidentId" type="hidden">
+      <label class="field">Kas nutiko? <textarea id="incidentDescription" minlength="5" maxlength="3000" required placeholder="Aprašykite išgalvotą situaciją..."></textarea></label>
+      <div class="grid">
+        <label class="field">Kategorija (neprivaloma)
+          <select id="incidentCategory"><option value="unknown">Nežinau</option><option value="cutting">Kirtimai</option><option value="timber_truck">Medienos vežimas</option><option value="pollution">Tarša</option><option value="tree_damage">Medžių pažeidimai</option><option value="waste">Atliekos</option><option value="other">Kita</option></select>
+        </label>
+        <label class="field">Būsena <select id="incidentEventState"><option value="unknown">Nežinau</option><option value="ongoing">Vyksta</option><option value="past">Jau įvyko</option><option value="needs_check">Reikia patikrinti</option></select></label>
+      </div>
+      <p class="small">Tik išgalvotos koordinatės. Testo metu nenaudokite tikros GPS vietos.</p>
+      <div class="grid">
+        <label class="field">Platuma (nebūtina) <input id="incidentLat" type="number" step="any" min="-90" max="90"></label>
+        <label class="field">Ilguma (nebūtina) <input id="incidentLon" type="number" step="any" min="-180" max="180"></label>
+      </div>
+      <div class="actions">
+        <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
+        <button type="submit" name="action" value="submit">Pateikti bandomąjį pranešimą</button>
+        <button type="button" class="outline" id="incidentClear">Naujas juodraštis</button>
+      </div>
+    </form>
+    <h3>Mano pranešimai</h3><div id="incidentsList"></div>
+  </section>
+  <section id="teamSection" class="workspace-section" hidden>
+    <h2>Komanda ir registracijos</h2>
    <div class="card" id="memberSearchPanel" hidden>
     <h3>Surasti savanorį</h3>
     <p class="small">Kai savanorių bus daugiau, ieškokite pagal vardą. Paieška padeda ir priskirti užduotis, ir patvirtinti registraciją.</p>
     <form id="memberSearchForm" class="form-inline"><input id="memberSearch" type="search" maxlength="80" placeholder="Ieškoti pagal vardą" aria-label="Savanorio paieška"><button type="submit">Ieškoti</button><button type="button" class="outline" id="clearMemberSearch">Valyti</button></form>
    </div>
    <div id="adminPanel" class="card" hidden><h2>Komandos nariai</h2><p class="small">Koordinatorius gali priimti kandidatą, patvirtinti esamą savanorį ir vėliau pakelti kandidatą į savanorį. Tik administratorius gali suteikti aukštesnes teises, rangą ar prieigą prie dokumentų rengimo.</p><div id="pendingMembers"></div></div>
-  </div>
-  <div id="taskList" class="tasks"></div>
-  <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
+  </section>
+  <section id="feedbackSection" class="workspace-section" hidden>
   <div class="card" id="feedbackPanel">
    <h2>Pastabos apie programėlę</h2>
    <p class="small">Pastabos čia bus siunčiamos į bendrą testinio projekto duomenų bazę. Koordinatoriai jas matys, bet jos automatiškai netaps viešais GitHub įrašais. Nerašykite asmens duomenų.</p>
@@ -179,9 +241,10 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
    </form>
    <hr><h3 id="feedbackTitle">Mano pastabos</h3><div id="feedbackList"></div>
   </div>
+  </section>
  </div>
 </section>
-</main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai. Prisijungus saugomi vardas, el. paštas ir paskyros techniniai įrašai. Dėl duomenų tvarkymo kreipkitės: info@giriuinspekcija.lt. <a href="./privatumas.html">Plačiau apie testavimo duomenis</a></footer>
+</main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
 <script defer src="./app.js"></script>

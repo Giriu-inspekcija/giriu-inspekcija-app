@@ -37,7 +37,7 @@ test('registration progress does not falsely cancel an Auth account or bypass OT
 
 test('signup text is concise, no Workspace mailbox demand, mobile fields fit',()=>{
   assert.doesNotMatch(html,/Savanoriams nereikia organizacijos Google Workspace paskyros/);
-  assert.match(html,/Tik bandomosios užduotys/);
+  assert.match(html,/Bandomoji GI sistema/);
   assert.match(html,/width:100%;max-width:100%/);
   assert.match(html,/overflow-wrap:anywhere/);
   assert.match(sw,/const CACHE='gi-pilot-shell-\d{8}-v\d+-[a-z-]+'/);
@@ -77,5 +77,5 @@ test('Google sign-in is hidden unless enabled on Supabase and never grants GI ro
   assert.match(js,/client\.auth\.signInWithOAuth\(\{/);
   assert.match(js,/provider:'google'/);
   assert.match(js,/client\.rpc\('gi_password_needed'\)/);
-  assert.match(sw,/v9-google-password/);
+  assert.match(sw,/v10-workspace/);
 });
