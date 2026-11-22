@@ -83,8 +83,13 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
    <label class="field">El. paštas<input id="email" type="email" autocomplete="email" inputmode="email" required placeholder="jusu.pastas@gmail.com" maxlength="254"></label>
    <label class="field" id="emailConfirmField">Pakartokite el. paštą<input id="emailConfirm" type="email" inputmode="email" autocomplete="off" spellcheck="false" required placeholder="Patvirtinkite adresą" maxlength="254"></label>
    <p class="small" id="emailHelp" role="status" aria-live="polite">Prieš siųsdami patikrinkite, kad abu adresai sutaptų.</p>
+   <div class="actions" id="loginOptions" hidden>
+    <button type="button" id="loginEmailLink">Prisijungti be slaptažodžio</button>
+    <button type="button" class="outline" id="togglePasswordLogin">Turiu slaptažodį</button>
+   </div>
+   <p class="small" id="loginLinkStatus" role="status" aria-live="polite" hidden></p>
    <label class="field" id="loginPasswordField" hidden>Programėlės slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8"></label>
-   <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
+   <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Susikurti / atkurti slaptažodį</button></div>
    <p class="small" id="signupSendStatus" role="status" aria-live="polite" hidden></p>
   </form>
   <section id="signupWaiting" class="signup-progress" aria-labelledby="signupWaitingTitle" hidden>
