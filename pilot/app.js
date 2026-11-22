@@ -17,7 +17,7 @@
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
-  let authMode = 'signup', passwordRecovery = false, passwordLoginOpen = false;
+  let authMode = 'login', passwordRecovery = false;
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
   const SIGNUP_WAITING_KEY = 'gi-pilot-signup-waiting-v1';
@@ -83,16 +83,12 @@
   }
   function updateOtpButton() {
     const remaining=otpRemainingSeconds();
-    const link=$('loginEmailLink');
-    link.disabled=otpRequestInFlight || remaining>0;
-    link.textContent=otpRequestInFlight?'Siunčiama...'
-      :remaining>0?'Prisijungimo nuoroda po '+remaining+' s':'Prisijungti be slaptažodžio';
     const status=$('signupSendStatus');
     status.hidden=authMode!=='signup'||!!signupWaiting;
     if(authMode!=='signup')return;
     $('authSubmit').disabled=otpRequestInFlight||remaining>0;
     $('authSubmit').textContent=otpRequestInFlight?'Siunčiama...'
-      :remaining>0?'Siųsti dar kartą po '+remaining+' s':'Gauti patvirtinimo laišką';
+      :remaining>0?'Siųsti dar kartą po '+remaining+' s':'Registruotis';
     const resend=$('resendSignupEmail');
     resend.disabled=otpRequestInFlight||remaining>0;
     resend.textContent=remaining>0?'Siųsti naują laišką po '+remaining+' s':'Siųsti naują laišką';
@@ -369,15 +365,35 @@
     await refreshWorkspace();
   }
 
-  function updatePasswordLoginUI() {
-    const login=authMode==='login';
-    $('loginOptions').hidden=!login;
-    $('loginPasswordField').hidden=!(login && passwordLoginOpen);
-    $('password').required=login && passwordLoginOpen;
-    $('authSubmit').hidden=login && !passwordLoginOpen;
-    $('togglePasswordLogin').textContent=passwordLoginOpen?'Slėpti slaptažodį':'Turiu slaptažodį';
-    if(!passwordLoginOpen)$('password').value='';
+  async function refreshGoogleProvider() {
+    $('googleLoginPanel').hidden=true;
+    $('googleSeparator').hidden=true;
+    try {
+      const res=await fetch(URL+'/auth/v1/settings',{headers:{apikey:KEY},cache:'no-store'});
+      if(!res.ok)return;
+      const settings=await res.json();
+      const enabled=settings?.external?.google===true;
+      $('googleLoginPanel').hidden=!enabled;
+      $('googleSeparator').hidden=!enabled;
+    }catch {}
   }
+  $('googleLogin').addEventListener('click',async()=>{
+    const button=$('googleLogin');
+    button.disabled=true;
+    try{
+      if(!client)throw new Error('Prisijungimas nepasiekiamas.');
+      const {error}=await client.auth.signInWithOAuth({
+        provider:'google',options:{
+          redirectTo:window.location.origin+window.location.pathname,
+          queryParams:{prompt:'select_account'}
+        }
+      });
+      if(error)throw error;
+    }catch(error){
+      notice('Google prisijungimo klaida: '+(error?.message||'bandykite dar kartą'),true);
+      button.disabled=false;
+    }
+  });
   function selectAuthMode(mode){
     if(!['signup','login'].includes(mode))return;
     authMode=mode;
@@ -390,32 +406,32 @@
     $('emailConfirm').required=signup;
     $('emailHelp').hidden=!signup;
     $('authIntro').textContent=signup
-      ?'Užpildykite anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.'
-      :'Prisijunkite vienkartine nuoroda į savo el. paštą. Slaptažodis neprivalomas.';
+      ?'Užpildykite anketą, pasirinkite slaptažodį ir patvirtinkite el. paštą.'
+      :'Prisijunkite su Google paskyra arba el. paštu ir slaptažodžiu.';
     $('membershipIntent').required=signup;
-    passwordLoginOpen=false;
-    updatePasswordLoginUI();
-    $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
+    $('loginPasswordField').hidden=signup;
+    $('password').required=!signup;
+    $('signupPasswordField').hidden=!signup;
+    $('signupPasswordConfirmField').hidden=!signup;
+    $('signupPassword').required=signup;
+    $('signupPasswordConfirm').required=signup;
+    $('authSubmit').hidden=false;
+    $('authSubmit').disabled=false;
+    $('authSubmit').textContent=signup?'Registruotis':'Prisijungti';
     updateOtpButton();
     $('showSignup').className=signup?'':'outline';
     $('showLogin').className=signup?'outline':'';
     $('showSignup').setAttribute('aria-pressed',String(signup));
     $('showLogin').setAttribute('aria-pressed',String(!signup));
     $('forgotPassword').hidden=signup;
-    $('loginLinkStatus').hidden=true;
-    $('loginLinkStatus').textContent='';
     $('password').value='';
     showSignupWaiting();
     notice('');
   }
-  selectAuthMode('signup');
+  selectAuthMode('login');
+  refreshGoogleProvider();
   $('showSignup').addEventListener('click',()=>selectAuthMode('signup'));
   $('showLogin').addEventListener('click',()=>selectAuthMode('login'));
-  $('togglePasswordLogin').addEventListener('click',()=>{
-    passwordLoginOpen=!passwordLoginOpen;
-    updatePasswordLoginUI();
-    if(passwordLoginOpen)$('password').focus();
-  });
   window.setInterval(updateOtpButton,1000);
   window.addEventListener('storage',event=>{
     if(event.key===OTP_COOLDOWN_KEY)updateOtpButton();
@@ -491,13 +507,24 @@
     } finally {button.disabled=false;}
   }
   $('checkSignupStatus').addEventListener('click',checkSignedInAfterEmail);
-  $('resendSignupEmail').addEventListener('click',()=>{
+  $('resendSignupEmail').addEventListener('click',async()=>{
     if(otpRequestInFlight||otpRemainingSeconds()>0)return;
-    const email=signupWaiting?.email||'';
-    clearSignupWaiting(); showSignupWaiting();
-    $('email').value=email; $('emailConfirm').value='';
-    updateEmailHint(); $('email').focus();
-    notice('Patikrinkite anketą, pakartokite el. paštą ir spauskite „Gauti patvirtinimo laišką“.');
+    if(!client||!signupWaiting?.email)return;
+    otpRequestInFlight=true;
+    const until=setOtpCooldown();
+    try{
+      const {error}=await client.auth.resend({
+        type:'signup',email:signupWaiting.email,
+        options:{emailRedirectTo:window.location.origin+window.location.pathname}
+      });
+      if(error)throw error;
+      $('signupWaitingStatus').textContent='Patvirtinimo laiškas užsakytas dar kartą. Patikrinkite el. paštą.';
+      notice('');
+    }catch(error){
+      if(!['over_email_send_rate_limit','over_request_rate_limit'].includes(error?.code))
+        clearOtpCooldownIfOwned(until);
+      notice(authError(error),true);
+    }finally{otpRequestInFlight=false;updateOtpButton();}
   });
   $('editSignupEmail').addEventListener('click',()=>{
     const email=signupWaiting?.email||'';
@@ -514,14 +541,12 @@
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
-    if(authMode==='login'&&!passwordLoginOpen){
-      $('loginEmailLink').click();
-      return;
-    }
     const signup=authMode==='signup';
     const email=$('email').value.trim().toLowerCase();
     const name=$('fullName').value.trim();
     const password=$('password').value;
+    const signupPassword=$('signupPassword').value;
+    const signupPasswordConfirm=$('signupPasswordConfirm').value;
     const suggestedEmail=likelyEmailTypo(email);
     if(signup&&suggestedEmail){
       $('email').focus();
@@ -534,6 +559,8 @@
       return notice('El. pašto adresai nesutampa. Pakartokite teisingą adresą.',true);
     }
     if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
+    if(signup&&signupPassword.length<8)return notice('Slaptažodžiui reikia bent 8 simbolių.',true);
+    if(signup&&signupPassword!==signupPasswordConfirm)return notice('Slaptažodžiai nesutampa.',true);
     const membershipIntent=$('membershipIntent').value;
     if(signup&&!['new_candidate','existing_volunteer'].includes(membershipIntent))
       return notice('Pasirinkite, ar esate naujas kandidatas, ar jau savanoriaujate.',true);
@@ -548,9 +575,9 @@
     } else $('authSubmit').disabled=true;
     try{
       if(signup){
-        const {error}=await client.auth.signInWithOtp({
-          email,options:{
-            shouldCreateUser:true,
+        const {data,error}=await client.auth.signUp({
+          email,password:signupPassword,
+          options:{
             emailRedirectTo:window.location.origin+window.location.pathname,
             data:{
               full_name:name,membership_intent:membershipIntent,
@@ -560,9 +587,10 @@
           }
         });
         if(error)throw error;
-        rememberSignupWaiting(email);
-        showSignupWaiting();
-        notice('');
+        $('signupPassword').value='';
+        $('signupPasswordConfirm').value='';
+        if(data?.session)await onSignIn();
+        else {rememberSignupWaiting(email);showSignupWaiting();notice('');}
       }else{
         const result=await client.auth.signInWithPassword({email,password});
         if(result.error)throw result.error;
@@ -602,38 +630,6 @@
     finally{btn.disabled=false;}
   });
 
-  $('loginEmailLink').addEventListener('click',async()=>{
-    if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
-    const email=$('email').value.trim().toLowerCase();
-    if(!email||!$('email').checkValidity()){
-      $('email').focus();
-      return notice('Pirmiausia įrašykite savo el. pašto adresą.',true);
-    }
-    if(otpRequestInFlight||otpRemainingSeconds()>0){
-      updateOtpButton();
-      return notice('Dar galioja siuntimo pertrauka. Patikrinkite el. paštą.',true);
-    }
-    otpRequestInFlight=true;
-    const reservedUntil=setOtpCooldown();
-    try{
-      const {error}=await client.auth.signInWithOtp({
-        email,
-        options:{shouldCreateUser:false,emailRedirectTo:window.location.origin+window.location.pathname}
-      });
-      if(error)throw error;
-      $('loginLinkStatus').hidden=false;
-      $('loginLinkStatus').textContent='Jei paskyra registruota, adresu '+email+' gausite vienkartinę prisijungimo nuorodą. Atidarykite ją tame pačiame įrenginyje. Slaptažodžio nereikia.';
-      notice('');
-    }catch(error){
-      if(!['over_email_send_rate_limit','over_request_rate_limit'].includes(error?.code)){
-        clearOtpCooldownIfOwned(reservedUntil);
-      }
-      notice(authError(error),true);
-    }finally{
-      otpRequestInFlight=false;
-      updateOtpButton();
-    }
-  });
   $('forgotPassword').addEventListener('click',async()=>{
     if(!client)return notice('Prisijungimo biblioteka nepasiekiama.',true);
     const email = $('email').value.trim();
@@ -661,9 +657,11 @@
     if(!passwordRecovery || !client)return;
     const newPassword=$('newPassword').value;
     if(newPassword.length<8)return notice('Slaptažodžiui reikia bent 8 simbolių.',true);
+    if(newPassword!==$('newPasswordConfirm').value)return notice('Slaptažodžiai nesutampa.',true);
     try{
       const {error}=await client.auth.updateUser({password:newPassword});
       if(error)throw error;
+      $('passwordResetForm').reset();
       passwordRecovery=false;
       await client.auth.signOut({scope:'local'});
       showLoggedOut();

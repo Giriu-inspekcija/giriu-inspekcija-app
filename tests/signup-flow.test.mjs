@@ -5,13 +5,13 @@ const js=readFileSync(new URL('../pilot/app.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../pilot/index.html',import.meta.url),'utf8');
 const sw=readFileSync(new URL('../pilot/sw.js',import.meta.url),'utf8');
 
-test('signup requires second email entry; common .con typos blocked before OTP',()=>{
+test('signup requires second email entry and chosen password; common typos blocked',()=>{
   assert.match(html,/<input id="emailConfirm" type="email"[^>]+required/);
   assert.match(js,/\$\('emailConfirm'\)\.required=signup/);
   assert.match(js,/if\(signup&&email!==\$\('emailConfirm'\)\.value\.trim\(\)\.toLowerCase\(\)\)/);
-  assert.ok(js.indexOf("if(signup&&email!==$('emailConfirm')")<js.indexOf("client.auth.signInWithOtp("));
+  assert.ok(js.indexOf("if(signup&&email!==$('emailConfirm')")<js.indexOf("client.auth.signUp("));
   assert.match(js,/'gmail.con':'gmail.com'/);
-  assert.ok(js.indexOf('if(signup&&suggestedEmail)')<js.indexOf("client.auth.signInWithOtp("));
+  assert.ok(js.indexOf('if(signup&&suggestedEmail)')<js.indexOf("client.auth.signUp("));
 });
 
 test('waiting UI shows actual address and steps without exposing accounts',()=>{
@@ -60,13 +60,22 @@ test('user can switch account from any authentication screen without global sign
 });
 
 
-test('existing users can request passwordless email sign-in without creating another account',()=>{
-  for(const id of ['loginOptions','loginEmailLink','togglePasswordLogin','loginLinkStatus']){
+test('password login, registration password and secure reset have expected controls',()=>{
+  for(const id of ['loginPasswordField','signupPasswordField','signupPasswordConfirmField','newPasswordConfirm','forgotPassword'])
     assert.match(html,new RegExp('id="'+id+'"'));
-  }
-  assert.match(js,/client\.auth\.signInWithOtp\(\{[\s\S]*?shouldCreateUser:false/);
-  assert.match(js,/passwordLoginOpen=false/);
-  assert.match(js,/\$\('authSubmit'\)\.hidden=login && !passwordLoginOpen/);
-  assert.match(js,/Atidarykite ją tame pačiame įrenginyje/);
-  assert.match(sw,/v8-passwordless-login/);
+  assert.match(js,/client\.auth\.signInWithPassword/);
+  assert.match(js,/client\.auth\.signUp/);
+  assert.match(js,/client\.auth\.resend/);
+  assert.match(js,/client\.auth\.resetPasswordForEmail/);
+  assert.match(js,/newPassword!==\$\('newPasswordConfirm'\)\.value/);
+  assert.doesNotMatch(html,/Prisijungti be slaptažodžio/);
+});
+test('Google sign-in is hidden unless enabled on Supabase and never grants GI roles',()=>{
+  assert.match(html,/id="googleLoginPanel" hidden/);
+  assert.match(html,/id="googleLogin"/);
+  assert.match(js,/settings\?\.external\?\.google===true/);
+  assert.match(js,/client\.auth\.signInWithOAuth\(\{/);
+  assert.match(js,/provider:'google'/);
+  assert.match(js,/client\.rpc\('gi_password_needed'\)/);
+  assert.match(sw,/v9-google-password/);
 });
