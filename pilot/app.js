@@ -539,24 +539,58 @@
       +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Užduotys jau yra fonde.'),!!failures.length);
   });
   $('pendingMembers').addEventListener('click',event=>{
-    const approve=event.target.closest('[data-approve-volunteer]');
-    if(approve&&staff()){
-      const id=approve.dataset.approveVolunteer;
-      if(!confirm('Patvirtinti šį žmogų GI savanoriu?'))return;
+    const btn=event.target.closest('button');
+    if(!btn || !staff())return;
+    const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
+      ||btn.dataset.promoteCandidate||btn.dataset.changeRole
+      ||btn.dataset.rankChange||btn.dataset.docPermission;
+    if(!id || id===currentUser?.id)return;
+    if(btn.dataset.approveCandidate) {
+      if(!confirm('Patvirtinti šį žmogų kandidatu? Jis matys tik specialiai leistas užduotis.'))return;
+      return run(()=>client.rpc('gi_approve_candidate',{p_user:id}));
+    }
+    if(btn.dataset.approveVolunteer){
+      if(!confirm('Patvirtinti, kad šis žmogus yra GI savanoris?'))return;
       return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}));
     }
-    const b=event.target.closest('[data-change-role]');
-    if(!b||!admin())return;
-    const id=b.dataset.changeRole;
-    const role=[...document.querySelectorAll('[data-role-select]')].find(e=>e.dataset.roleSelect===id)?.value;
-    if(!['pending','volunteer','coordinator'].includes(role))return;
-    if(!confirm('Pakeisti naudotojo teises į „'+roleNames[role]+'“?'))return;
-    run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}));
+    if(btn.dataset.promoteCandidate){
+      if(!confirm('Po darbo peržiūros pakelti kandidatą į patvirtintą savanorį?'))return;
+      return run(()=>client.rpc('gi_promote_candidate',{p_user:id}));
+    }
+    if(!admin())return;
+    if(btn.dataset.changeRole){
+      const role=[...document.querySelectorAll('[data-role-select]')].find(e=>e.dataset.roleSelect===id)?.value;
+      if(!['pending','candidate','volunteer','coordinator'].includes(role))return;
+      if(!confirm('Pakeisti šio nario vaidmenį į „'+roleNames[role]+'“?'))return;
+      return run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}));
+    }
+    if(btn.dataset.rankChange){
+      const rank=[...document.querySelectorAll('[data-rank-select]')].find(e=>e.dataset.rankSelect===id)?.value;
+      if(!['pradedantysis','patyres','vyriausias','regiono_vadas'].includes(rank))return;
+      if(!confirm('Patvirtinti savanorio patirties laipsnį?'))return;
+      return run(()=>client.rpc('gi_set_volunteer_rank',{p_user:id,p_rank:rank}));
+    }
+    if(btn.dataset.docPermission){
+      const person=members.find(m=>m.id===id);
+      if(!person||person.role!=='volunteer')return;
+      const allowed=!person.can_prepare_documents;
+      if(!confirm((allowed?'Leisti':'Atšaukti')+' šio savanorio raštų projektų rengimo teisę? DI dar neprijungta.'))return;
+      return run(()=>client.rpc('gi_set_document_permission',{p_user:id,p_allowed:allowed}));
+    }
   });
   $('taskList').addEventListener('click',event=>{
     const b=event.target.closest('button');
     if(!b||loading)return;
-    const id=b.dataset.id || b.dataset.assign;
+    const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask;
+    if(b.dataset.candidateTask && staff()){
+      const task=tasks.find(t=>t.id===id);
+      if(!task || task.assigned_to)return;
+      const mark=!task.candidate_safe;
+      if(mark && !confirm('Ar tai išgalvota, neskelbtina išvykos / mokymo užduotis, saugi kandidatui?'))return;
+      return run(()=>client.rpc('gi_set_candidate_task',{
+        p_id:id,p_safe:mark,p_kind:mark?'field_visit':(task.task_kind||'other')
+      }));
+    }
     if(b.dataset.assign && staff()) {
       const choice=[...document.querySelectorAll('[data-person]')].find(e=>e.dataset.person===id)?.value;
       if(!choice)return notice('Pasirink savanorį.',true);
