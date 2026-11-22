@@ -101,6 +101,15 @@
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
   let nomination=null;
+  let refreshFinished=Promise.resolve();
+  const expiredSession=error=>['PGRST301','PGRST303','session_not_found'].includes(error?.code)
+    || /JWT expired|token has expired|invalid JWT/i.test(error?.message||'');
+  function endExpiredSession(){
+    showLoggedOut();
+    selectAuthMode('login');
+    notice('Prisijungimo laikas baigėsi. Prisijunkite iš naujo.',true);
+    client.auth.signOut({scope:'local'}).catch(()=>{});
+  }
   let feedbackGroups=[],cases=[],documents=[],documentRequest=null,caseRequest=new Map();
   const canWriteDocuments=()=>staff() || (profile?.role==='volunteer' && profile.can_prepare_documents);
   let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
@@ -144,6 +153,10 @@
     $('manualTimeForm').reset();
     $('taskList').replaceChildren();
     $('workLogsList').replaceChildren();
+    for(const id of ['staffTimeLogs','feedbackQueue','feedbackList','pendingMembers','batchReview','taskSummary','dueReminderButtons']){
+      $(id).replaceChildren();
+    }
+    $('workspace').hidden=true;$('batchJson').value='';reviewedBatch=null;$('batchImport').disabled=true;
     document.body.classList.remove('signed-in');
     timeOwnTasks=[];
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
@@ -156,16 +169,22 @@
 
   async function fetchProfile() {
     if(!currentUser) return;
+    const owner=currentUser.id;
     const {data,error} = await client.from('gi_profiles').select('id,display_name,role,registration_state,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
       .eq('id',currentUser.id).maybeSingle();
     if(error) throw error;
+    if(currentUser?.id!==owner)return;
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
   }
   async function refreshWorkspace({appendTasks = false} = {}) {
     if(!currentUser || loading) return false;
     loading = true;
+    const actor=currentUser.id;
+    let finish;
+    refreshFinished=new Promise(resolve=>{finish=resolve;});
     try {
       await fetchProfile();
+      if(currentUser?.id!==actor)return false;
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
       $('roleName').textContent = (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
       $('pendingView').hidden = approved();
@@ -184,7 +203,7 @@
         const candidate=await client.rpc('gi_is_bootstrap_candidate');
         if(!candidate.error && candidate.data===true && regState==='active') $('activateMaster').hidden=false;
       }
-      $('workspace').hidden = !approved();
+      if(!approved())$('workspace').hidden=true;
       $('staffPanel').hidden = !staff();
       $('adminPanel').hidden = !staff();
       $('tasksHeading').textContent = staff() ? 'Organizacijos užduotys' : 'Mano užduotys';
@@ -287,17 +306,21 @@
       const docs=canWriteDocuments()?await client.from('gi_documents').select('id,title,body,phase,revision,author_id,task_id,case_id').order('updated_at',{ascending:false}).limit(50):{data:[]};
       if(docs.error)throw docs.error;
       documents=docs.data||[];
+      if(currentUser?.id!==actor)return false;
       renderDocuments();
       renderTasks();
       renderWorkLogs();
       renderIncidents();
       renderPendingMembers();
       renderFeedback();
+      $('workspace').hidden=false;
       return true;
     } catch(error) {
+      if(currentUser?.id!==actor)return false;
+      if(expiredSession(error)){endExpiredSession();return false;}
       notice('Nepavyko atnaujinti: ' + (error?.message || String(error)), true);
       return false;
-    } finally {loading=false;}
+    } finally {loading=false;finish();}
   }
 
   function openPanel(name) {
@@ -602,6 +625,7 @@
       toast(msg);
       return true;
     } catch(error) {
+      if(expiredSession(error)){endExpiredSession();return false;}
       const message='Nepavyko atlikti veiksmo: '+(error?.message||'Nežinoma klaida');
       notice(message,true);
       toast(message,true);
@@ -615,6 +639,7 @@
     if(!client){notice('Nepavyko įkelti prisijungimo bibliotekos. Patikrinkite ryšį.',true);return;}
     const {data,error}=await client.auth.getUser();
     if(error || !data.user){showLoggedOut();return;}
+    if(loading)await refreshFinished;
     currentUser=data.user;
     updateAccountSwitcher();
     clearSignupWaiting();
