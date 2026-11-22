@@ -75,6 +75,13 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
  <div id="pendingView" class="card" hidden><h2>Paskyra sukurta – laukia patvirtinimo</h2><p>El. paštas patvirtintas, paskyra aktyvi. Administratorius dar turi patvirtinti savanorio arba koordinatoriaus teises. Iki tol vidinių užduočių nematysite.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
+  <div class="card" id="taskFilterPanel" hidden>
+   <label class="field">Užduočių filtras<select id="taskStatusFilter">
+     <option value="all">Visos būsenos</option><option value="pool">Laukia paskirstymo</option>
+     <option value="assigned">Paskirtos / vykdomos</option><option value="submitted">Rezultatas pateiktas</option>
+     <option value="approved">Patvirtintos</option>
+   </select></label>
+  </div>
   <div id="staffPanel" hidden>
    <div class="card"><h2>Užduočių fondas</h2><p class="small">Kurti pasiūlymus, patvirtinti ir paskirstyti. ChatGPT importą prijungsime per atskirą saugų etapą.</p>
     <form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
@@ -88,9 +95,15 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
     <div class="actions"><button type="button" class="outline" id="batchPreview">Peržiūrėti sąrašą</button><button type="button" id="batchImport" disabled>Patvirtinti ir įkelti į fondą</button></div>
     <div id="batchReview" class="small" aria-live="polite"></div>
     </div>
+   <div class="card" id="memberSearchPanel" hidden>
+    <h3>Surasti savanorį</h3>
+    <p class="small">Kai savanorių bus daugiau, ieškokite pagal vardą. Paieška padeda ir priskirti užduotis, ir patvirtinti registraciją.</p>
+    <form id="memberSearchForm" class="form-inline"><input id="memberSearch" type="search" maxlength="80" placeholder="Ieškoti pagal vardą" aria-label="Savanorio paieška"><button type="submit">Ieškoti</button><button type="button" class="outline" id="clearMemberSearch">Valyti</button></form>
+   </div>
    <div id="adminPanel" class="card" hidden><h2>Komandos nariai</h2><p class="small">Koordinatorius gali patvirtinti naują savanorį. Tik administratorius gali suteikti ar pakeisti koordinatoriaus teises.</p><div id="pendingMembers"></div></div>
   </div>
   <div id="taskList" class="tasks"></div>
+  <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
   <div class="card" id="feedbackPanel">
    <h2>Pastabos apie programėlę</h2>
    <p class="small">Pastabos čia bus siunčiamos į bendrą testinio projekto duomenų bazę. Koordinatoriai jas matys, bet jos automatiškai netaps viešais GitHub įrašais. Nerašykite asmens duomenų.</p>
