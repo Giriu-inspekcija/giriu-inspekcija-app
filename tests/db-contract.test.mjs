@@ -85,7 +85,7 @@ test('email-first onboarding is verified before password setup', () => {
   const sql = readFileSync(new URL('../supabase/migrations/20261122175000_gi_email_onboarding_bootstrap.sql', import.meta.url),'utf8');
   assert.match(html,/id="passwordSetupForm"/);
   assert.match(html,/id="activateMaster"/);
-  assert.match(js,/auth\.signInWithOtp/);
+  assert.match(js,/auth\.signUp/);
   assert.match(js,/auth\.updateUser\(\{password:p\}\)/);
   assert.match(js,/client\.rpc\('gi_password_needed'\)/);
   assert.match(js,/client\.rpc\('gi_claim_first_admin'\)/);
