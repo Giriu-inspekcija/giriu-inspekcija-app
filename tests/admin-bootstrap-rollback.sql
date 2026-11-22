@@ -1,7 +1,9 @@
 BEGIN;
+DELETE FROM private.gi_admin_bootstrap;
+INSERT INTO private.gi_admin_bootstrap(email) VALUES('gi-master-test@example.invalid');
 INSERT INTO auth.users (id,aud,role,email,email_confirmed_at,created_at,updated_at,raw_user_meta_data)
 VALUES
-('11111111-ffff-4111-8111-111111111111','authenticated','authenticated','zelaurynas@gmail.com',now(),now(),now(),'{"full_name":"Test master"}'::jsonb),
+('11111111-ffff-4111-8111-111111111111','authenticated','authenticated','gi-master-test@example.invalid',now(),now(),now(),'{"full_name":"Test master"}'::jsonb),
 ('22222222-ffff-4222-8222-222222222222','authenticated','authenticated','laurynas@giriuinspekcija.lt',now(),now(),now(),'{"full_name":"Test volunteer"}'::jsonb),
 ('33333333-ffff-4333-8333-333333333333','authenticated','authenticated','unverified@example.invalid',null,now(),now(),'{"full_name":"Test unverified"}'::jsonb);
 SET LOCAL ROLE authenticated;
