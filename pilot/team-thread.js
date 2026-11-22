@@ -16,6 +16,23 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
     const params=new URLSearchParams(location.search);
     for(const k of Object.keys(kindName)){const id=params.get(k);if(uuid.test(id||''))return {kind:k,id};}
   }
+  const returnKey='gi-thread-login-return';
+  function rememberRoute(){
+    try{
+      const target=route();
+      if(target)sessionStorage.setItem(returnKey,JSON.stringify({...target,expires:Date.now()+900000}));
+      else sessionStorage.removeItem(returnKey);
+    }catch{}
+  }
+  function afterLogin(){
+    let saved=null;
+    try{
+      saved=JSON.parse(sessionStorage.getItem(returnKey)||'null');
+      sessionStorage.removeItem(returnKey);
+    }catch{}
+    if(route()||!saved||!Object.hasOwn(kindName,saved.kind)||!uuid.test(saved.id)||!(saved.expires>Date.now()))return;
+    history.replaceState(null,'',link(saved.kind,saved.id));
+  }
   function clear(){
     revision++;active=null;working=false;
     if(dialog.open)dialog.close();
@@ -188,7 +205,7 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
     const a=e.target.closest('[data-thread]');if(!a||e.metaKey||e.ctrlKey||e.shiftKey)return;
     e.preventDefault();if(!working&&(!dialog.open||await mayLeave()))void open(a.dataset.thread,a.dataset.key);
   });
-  return {clear,link:threadLink,restore(){
+  return {clear,rememberRoute,afterLogin,link:threadLink,restore(){
     const r=route();if(r&&user()&&!active)void open(r.kind,r.id,false);
     if(active?.row&&!working){
       const view=active;

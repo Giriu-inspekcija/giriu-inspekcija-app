@@ -120,17 +120,17 @@ def test_forms(page):
     from xml.etree import ElementTree
     expect(page.locator('#documentsNav')).to_be_visible()
     page.get_by_text('Užduotys iš ChatGPT arba pokalbio',exact=True).click()
-    page.locator('#batchJson').fill('Patikrinti vietą – sutikrinti žemėlapį')
+    page.locator('#batchJson').fill('Palyginti išvykos schemas – sutikrinti žemėlapį')
     page.locator('#batchPreview').click()
-    expect(page.locator('#batchReview')).to_contain_text('Patikrinti vietą')
+    expect(page.locator('#batchReview')).to_contain_text('Palyginti išvykos schemas')
     expect(page.locator('#batchImport')).to_be_enabled()
     for attempt in range(2):
         if attempt:
-            page.locator('#batchJson').fill('Patikrinti vietą – sutikrinti žemėlapį')
+            page.locator('#batchJson').fill('Palyginti išvykos schemas – sutikrinti žemėlapį')
             page.locator('#batchPreview').click()
         page.locator('#batchImport').click()
         expect(page.locator('#notice')).to_contain_text('Užduotys jau yra fonde.')
-        expect(page.locator('#taskList h3').filter(has_text='Patikrinti vietą')).to_have_count(1)
+        expect(page.locator('#taskList h3').filter(has_text='Palyginti išvykos schemas')).to_have_count(1)
     page.locator('#captureIncident').click()
     page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
     page.locator('#incidentCoords').fill('0.0, 0.0')
@@ -160,6 +160,12 @@ def test_forms(page):
     expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
     page.reload()
     expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    # The identity provider returns to the allowlisted path without query parameters.
+    page.evaluate("""() => sessionStorage.setItem('gi-thread-login-return',JSON.stringify({
+        kind:'incident',id:new URL(location.href).searchParams.get('incident'),expires:Date.now()+60000}))""")
+    page.goto(page.url.split('?')[0])
+    expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    assert '?incident=' in page.url
     thread.get_by_role('button',name='Uždaryti').click()
     page.locator('#documentsNav').click()
     page.get_by_text('Sukurti paprastą bandomąjį juodraštį',exact=True).click()

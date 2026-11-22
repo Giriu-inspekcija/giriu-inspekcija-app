@@ -774,7 +774,7 @@
     const {data,error}=await client.auth.getUser();
     if(error || !data.user){showLoggedOut();return;}
     if(loading)await refreshFinished;
-    currentUser=data.user;
+    currentUser=data.user;thread.afterLogin();
     updateAccountSwitcher();
     clearSignupWaiting();
     showSignupWaiting();
@@ -821,9 +821,10 @@
     button.disabled=true;
     try{
       if(!client)throw new Error('Prisijungimas nepasiekiamas.');
+      thread.rememberRoute();
       const {error}=await client.auth.signInWithOAuth({
         provider:'google',options:{
-          redirectTo:window.location.origin+window.location.pathname+window.location.search,
+          redirectTo:window.location.origin+window.location.pathname,
           queryParams:{prompt:'select_account'}
         }
       });
