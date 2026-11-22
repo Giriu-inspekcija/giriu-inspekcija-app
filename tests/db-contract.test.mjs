@@ -78,3 +78,18 @@ test('feedback creation is only available to approved pilot members', () => {
   assert.match(approval, /IN \('volunteer','coordinator','admin'\)/);
   assert.match(approval, /reporter_id = \(select auth\.uid\(\)\)/);
 });
+
+test('email-first onboarding is verified before password setup', () => {
+  const html = readFileSync(new URL('../pilot/index.html', import.meta.url),'utf8');
+  const js = readFileSync(new URL('../pilot/app.js', import.meta.url),'utf8');
+  const sql = readFileSync(new URL('../supabase/migrations/20261122175000_gi_email_onboarding_bootstrap.sql', import.meta.url),'utf8');
+  assert.match(html,/id="passwordSetupForm"/);
+  assert.match(html,/id="activateMaster"/);
+  assert.match(js,/auth\.signInWithOtp/);
+  assert.match(js,/auth\.updateUser\(\{password:p\}\)/);
+  assert.match(js,/client\.rpc\('gi_password_needed'\)/);
+  assert.match(js,/client\.rpc\('gi_claim_first_admin'\)/);
+  assert.match(js,/client\.rpc\('gi_is_bootstrap_candidate'\)/);
+  assert.doesNotMatch(js,/zelaurynas@gmail\.com/i);
+  assert.doesNotMatch(sql,/zelaurynas@gmail\.com/i);
+});
