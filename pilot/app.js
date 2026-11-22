@@ -60,7 +60,7 @@
       }
       $('workspace').hidden = !approved();
       $('staffPanel').hidden = !staff();
-      $('adminPanel').hidden = !admin();
+      $('adminPanel').hidden = !staff();
       $('tasksHeading').textContent = staff() ? 'Organizacijos užduotys' : 'Mano užduotys';
 
       if(!approved()) return;
@@ -88,15 +88,25 @@
   }
 
   function renderPendingMembers() {
-    if(!admin()) return;
-    const others = members.filter(p => p.id !== currentUser.id);
-    $('pendingMembers').innerHTML = others.length
-      ? others.map(p=>'<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
-        +'<p class="small">Dabartinė teisė: '+escapeHTML(roleNames[p.role]||p.role)+'</p></div>'
-        +'<div class="form-inline"><select aria-label="Nauja naudotojo teisė" data-role-select="'+escapeHTML(p.id)+'">'
-        +['pending','volunteer','coordinator'].map(role=>'<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
-        +'</select><button type="button" data-change-role="'+escapeHTML(p.id)+'">Išsaugoti</button></div></div>').join('')
-      : '<p class="small">Kitų paskyrų dar nėra.</p>';
+    if(!staff())return;
+    const others=members.filter(p=>p.id!==currentUser.id);
+    const pending=others.filter(p=>p.role==='pending');
+    const pendingRows=pending.map(p=>
+      '<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
+      +'<p class="small">Laukia patvirtinimo</p></div>'
+      +'<button type="button" data-approve-volunteer="'+escapeHTML(p.id)+'">Patvirtinti savanorį</button></div>').join('');
+    const managed=admin()
+      ? others.filter(p=>p.role!=='pending').map(p=>
+         '<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
+         +'<p class="small">Dabartinė teisė: '+escapeHTML(roleNames[p.role]||p.role)+'</p></div>'
+         +'<div class="form-inline"><select aria-label="Nauja naudotojo teisė" data-role-select="'+escapeHTML(p.id)+'">'
+         +['pending','volunteer','coordinator'].map(role=>'<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
+         +'</select><button type="button" data-change-role="'+escapeHTML(p.id)+'">Išsaugoti</button></div></div>').join('')
+      : '';
+    $('pendingMembers').innerHTML =
+      '<h3>Nauji savanoriai ('+pending.length+')</h3>'
+      +(pendingRows||'<p class="small">Naujų registracijų nėra.</p>')
+      +(admin()?'<hr><h3>Kitų narių teisės</h3>'+ (managed||'<p class="small">Nėra kitų patvirtintų narių.</p>'):'');
   }
 
   function renderFeedback() {
@@ -439,6 +449,12 @@
       +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Užduotys jau yra fonde.'),!!failures.length);
   });
   $('pendingMembers').addEventListener('click',event=>{
+    const approve=event.target.closest('[data-approve-volunteer]');
+    if(approve&&staff()){
+      const id=approve.dataset.approveVolunteer;
+      if(!confirm('Patvirtinti šį žmogų GI savanoriu?'))return;
+      return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}));
+    }
     const b=event.target.closest('[data-change-role]');
     if(!b||!admin())return;
     const id=b.dataset.changeRole;
