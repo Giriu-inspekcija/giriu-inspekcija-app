@@ -62,7 +62,8 @@ test('observation form is demo-only and supports drafts without public photo sto
   assert.match(html,/id="incidentForm"/);
   assert.match(html,/id="incidentDescription"/);
   assert.match(html,/Tik demonstracija/);
-  assert.doesNotMatch(app,/storage\.from\(/);
+  assert.match(app,/storage\.from\('gi-pilot-incident-photos'\)/);
+  assert.doesNotMatch(app,/getPublicUrl/);
 });
 test('mobile navigation and professional Google button remain accessible',()=>{
   for(const section of ['tasksSection','timeSection','incidentsSection','teamSection','feedbackSection']){
@@ -71,7 +72,7 @@ test('mobile navigation and professional Google button remain accessible',()=>{
   assert.match(html,/aria-label="Darbo vietos skiltys"/);
   assert.match(html,/aria-label="Google"/);
   assert.match(html,/Bandomoji GI sistema/);
-  assert.match(sw,/v12-vilnius-reviews/);
+  assert.match(sw,/v13-case-docs/);
   assert.match(html,/#EA4335/);
   assert.doesNotMatch(html,/<span class="google-mark" aria-hidden="true">G<\/span>/);
   assert.match(html,/id="switchAccount"/);

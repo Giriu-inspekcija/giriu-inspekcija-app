@@ -151,6 +151,8 @@ def main():
     assert rows('gi_tasks',chief,'select=due_at&id=eq.'+own)==[{'due_at':None}]
     assert rpc('gi_my_time_totals',{},vol)[0]['approved']==180
     print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
+    from workflows import case_and_document
+    case_and_document(chief,coord,vol,other,uid)
     return chief_email
 
 if __name__=='__main__':
