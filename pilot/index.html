@@ -74,7 +74,38 @@ header{padding:10px 16px 9px}
 .action-toast.error{background:#9b342b}
 #manualTimeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:540px){header{padding:8px 11px 7px}.brand img{width:36px;height:36px}.brand b{font-size:15px}.brand small{display:none}.pilot{font-size:9px;padding:2px 5px}.account-switch{flex-direction:row;align-items:center}.account-switch .account-label{display:none}.account-switch button{padding:7px 8px;font-size:11px}#manualTimeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
+@media(max-width:540px){.account-switch{align-items:center;flex-direction:row}.account-switch button{align-self:center}main{padding:13px 12px 92px}header{padding:9px 12px}.grid{grid-template-columns:1fr}.brand b{font-size:15px}.brand img{width:36px;height:36px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 140px}input,select,textarea{font-size:16px}}
+/* GI 3.1 interface: tidy cards, accessible multi-row navigation, mobile feedback */
+:root{--green:#205742;--muted:#597369;--line:#e2e9e2;--paper:#fff}
+.shell{background:#f8faf8;max-width:980px}
+main{max-width:960px;margin:0 auto}
+.card,.task{box-shadow:0 2px 10px #163f2810;border-color:#dde6dd}
+.task{padding:16px 16px 13px}
+.task .task-description{line-height:1.5;color:#395246}
+.task summary{font-size:13px}
+.workspace-nav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;overflow:visible;padding:2px 0 10px;margin-bottom:10px}
+.workspace-nav button{white-space:normal;min-width:0;min-height:48px;padding:10px 8px;font-size:12px;line-height:1.3;background:#edf2ee;border:1px solid #d4dfd6;border-radius:11px}
+.workspace-nav button[aria-current="page"]{background:#205742;color:white;border-color:#205742;box-shadow:0 3px 10px #20574220}
+.workspace-nav button:hover:not([aria-current="page"]){background:#e2ece5}
+.workspace-nav button:focus-visible{outline:3px solid #8cc49a;outline-offset:2px}
+.workspace-section{min-height:initial}
+.task-summary{display:flex;flex-wrap:wrap;gap:6px 14px;border:0;padding:3px 0 9px}
+.task-summary span{margin:0}
+#appView>.row{margin:0 0 5px}
+#greeting{font-size:18px;font-weight:750}
+#roleName{font-size:12px}
+.task details{margin-top:8px;padding-top:8px}
+.task .task-actions-more{border-top:1px solid #edf1ed}
+.feedback-fast{position:fixed;z-index:60;right:max(18px,calc((100vw - 970px)/2));bottom:calc(18px + env(safe-area-inset-bottom));background:#1c5c42;color:white;padding:12px 16px;box-shadow:0 7px 24px #1c3d2e55;border-radius:999px;font-size:14px}
+.feedback-fast:hover{background:#124831}
+body:not(.signed-in) .feedback-fast{display:none!important}
+body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:95;max-width:min(92vw,720px);box-shadow:0 8px 24px #12391c38}
+.doc-help{background:#eff5f0;border:1px solid #d7e7db;border-radius:12px;padding:13px;margin:10px 0 15px}
+.doc-help a{display:inline-block;margin:5px 12px 5px 0;color:#145239;font-weight:700}
+.doc-help .small{margin:7px 0 0}
+.feedback-form-description{margin-bottom:8px}
+@media(max-width:720px){.workspace-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.workspace-nav button{min-height:48px;font-size:12px}#roleName{line-height:1.3}.task{padding:14px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 #printDocument{display:none}
 @media print{body>*{display:none!important}body>#printDocument{display:block!important;background:white;color:#171717;white-space:pre-wrap;font:12pt/1.5 Georgia,serif}#printDocument h1{font-size:17pt}@page{size:A4;margin:22mm}}
@@ -173,9 +204,9 @@ header{padding:10px 16px 9px}
  <div id="pendingView" class="card" hidden><h2 id="pendingHeading">Laukiama koordinatoriaus patvirtinimo</h2><p id="pendingDescription">Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="withdrawRegistration" class="outline" type="button">Atšaukti savo registraciją</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <nav id="workspaceNav" class="workspace-nav" aria-label="Darbo vietos skiltys">
-    <button type="button" data-nav="tasks" aria-current="page">Užduotys</button>
-    <button type="button" data-nav="time">Mano valandos</button>
-    <button type="button" data-nav="incidents">Pranešti apie įvykį</button>
+    <button type="button" data-nav="tasks" aria-current="page">Darbai</button>
+    <button type="button" data-nav="time">Valandos</button>
+    <button type="button" data-nav="incidents">Įvykiai</button>
     <button type="button" data-nav="documents" id="documentsNav" hidden>Dokumentai</button>
     <button type="button" data-nav="team" id="teamNav" hidden>Komanda</button>
     <button type="button" data-nav="feedback">Pastabos</button>
@@ -264,12 +295,20 @@ header{padding:10px 16px 9px}
   </section>
   <section id="documentsSection" class="workspace-section" hidden>
     <h2>Dokumentai</h2>
-    <details class="card"><summary>Rengti bandomąjį dokumentą</summary>
+    <div class="doc-help"><b>GI dokumentų šablonai</b>
+      <div><a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/document/d/1UplisHnkyUJ5qVytzW1C4nYxvKg5bXb4FJjHwI1_UUM/edit">GI rašto šablonas „Drive“</a>
+      <a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/document/d/1WBfjuFBLWWHK51_aNHVmUThmaOvNWjHRTBG8zpsAm7Y/edit">TAIS / ChatGPT užklausos šablonas</a></div>
+      <p class="small">Šablonai saugomi „Google Drive“; prieiga priklauso nuo organizacijos leidimų. Šiame pilote DI jų automatiškai neskaito, o bandomasis juodraštis nėra oficialus GI raštas.</p>
+    </div>
+    <details class="card"><summary>Sukurti paprastą bandomąjį juodraštį</summary>
     <form id="documentCreate">
       <label class="field">Šablonas<select name="template"><option value="request">Informacijos prašymas</option><option value="observation">Patikros pažyma</option></select></label>
       <label class="field">Pavadinimas<input name="title" required minlength="3" maxlength="160"></label>
       <label class="field">Susieta užduotis<select id="documentTask" name="task"><option value="">Savarankiškas dokumentas</option></select></label>
+      <label class="field" id="documentCaseField">Susietas atvejis (nebūtina)<select id="documentCase" name="case"><option value="">Be atskiro atvejo</option></select></label>
       <button type="submit">Sukurti juodraštį</button>
+      <button type="button" class="outline" id="documentAiPrompt">Kopijuoti užklausą ChatGPT (demo)</button>
+      <p class="small">Užklausa tik nukopijuojama; joks dokumentas automatiškai nesiunčiamas į DI.</p>
     </form></details>
     <div id="documentList"></div>
   </section>
@@ -284,20 +323,22 @@ header{padding:10px 16px 9px}
   </section>
   <section id="feedbackSection" class="workspace-section" hidden>
   <div class="card" id="feedbackPanel">
-   <h2>Pastabos apie programėlę</h2>
-   <p class="small">Pastabos čia bus siunčiamos į bendrą testinio projekto duomenų bazę. Koordinatoriai jas matys, bet jos automatiškai netaps viešais GitHub įrašais. Nerašykite asmens duomenų.</p>
+   <h2>Pastebėjai problemą ar turi idėją?</h2>
+   <p class="small feedback-form-description">Parašyk trumpai, kas nepatogu arba ko trūksta. Pastabą matys tavo paskyra ir GI koordinatoriai.</p>
    <form id="feedbackForm">
-    <label class="field">Tipas<select name="category"><option value="klaida">Klaida</option><option value="pasiulymas">Pasiūlymas</option><option value="klausimas">Klausimas</option></select></label>
-    <label class="field">Pastaba<textarea name="message" minlength="5" maxlength="1500" required></textarea></label>
-    <button type="submit">Išsiųsti pastabą</button>
+    <p class="small" id="feedbackContext" aria-live="polite">Skiltis: Pastabos</p>
+    <label class="field">Pastabos tipas<select name="category"><option value="klaida">Neveikia / klaida</option><option value="pasiulymas">Siūlau pagerinti</option><option value="klausimas">Klausimas</option></select></label>
+    <label class="field">Kas nutiko arba ką siūlai?<textarea name="message" minlength="5" maxlength="1500" required placeholder="Pvz., spaudžiant „Išsaugoti“ niekas nepasikeitė. Tikėjausi..."></textarea></label>
+    <button type="submit">Pateikti pastabą</button>
    </form>
-   <p class="small">Pastabą matote jūs ir GI koordinatoriai bei administratoriai.</p>
-   <div id="feedbackQueuePanel" hidden><h3>Pastabų nagrinėjimas</h3><div id="feedbackQueue"></div></div>
-   <hr><h3 id="feedbackTitle">Mano pastabos</h3><div id="feedbackList"></div>
+   <p class="small">Nerašyk asmens duomenų. Pastaba nepublikuojama viešai.</p>
+   <details id="feedbackQueuePanel" hidden><summary><b>Koordinatoriaus pastabų eilė</b></summary><div id="feedbackQueue"></div></details>
+   <hr><details id="feedbackArchive"><summary><b id="feedbackTitle">Mano pastabos</b></summary><div id="feedbackList"></div></details>
   </div>
   </section>
  </div>
 </section>
+<button type="button" id="quickFeedback" class="feedback-fast" aria-label="Greitai parašyti pastabą">✎ Parašyti pastabą</button>
 </main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>

@@ -73,7 +73,7 @@ test('own time entries remain visible to admin separately from other volunteer a
   assert.match(js,/\.eq\('review_status','submitted'\)\.neq\('volunteer_id',currentUser\.id\)/);
   assert.match(js,/\$\('staffTimeLogs'\)\.addEventListener\('click',handleTimeReviewClick\)/);
   assert.match(js,/\$\('workLogsList'\)\.innerHTML=mine\.length/);
-  assert.match(sw,/v13-case-docs/);
+  assert.match(sw,/v14-usability/);
 });
 test('all directly referenced input elements still exist',()=>{
   const ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
