@@ -18,6 +18,8 @@
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
   let authMode = 'signup', passwordRecovery = false;
+  const TASK_PAGE_SIZE = 50;
+  let taskPage = 1, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
   function notice(msg, error = false) {
     const el = $('notice');
@@ -32,6 +34,7 @@
   const personName = p => (p?.display_name || 'Naudotojas ' + String(p?.id || '').slice(0,8)).trim();
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = [];
+    taskPage = 1; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
     $('passwordResetView').hidden = true;
@@ -62,19 +65,35 @@
       $('staffPanel').hidden = !staff();
       $('adminPanel').hidden = !staff();
       $('tasksHeading').textContent = staff() ? 'Organizacijos užduotys' : 'Mano užduotys';
+      $('taskFilterPanel').hidden = !staff();
+      $('memberSearchPanel').hidden = !staff();
 
       if(!approved()) return;
-      const {data,error} = await client.from('gi_tasks')
+      const taskLimit = Math.min(taskPage * TASK_PAGE_SIZE, 1000);
+      let taskQuery = client.from('gi_tasks')
         .select('id,title,details,status,priority,assigned_to,source_ref,result_text,feedback_text,created_at')
-        .order('created_at',{ascending:false}).limit(150);
+        .order('created_at',{ascending:false}).order('id',{ascending:false})
+        .range(0,taskLimit);
+      if(staff()){
+        if(taskFilter === 'pool') taskQuery=taskQuery.in('status',['proposed','pool']);
+        if(taskFilter === 'assigned') taskQuery=taskQuery.in('status',['assigned','accepted','in_progress','returned']);
+        if(taskFilter === 'submitted') taskQuery=taskQuery.eq('status','submitted');
+        if(taskFilter === 'approved') taskQuery=taskQuery.eq('status','approved');
+      }
+      const {data,error} = await taskQuery;
       if(error) throw error;
-      tasks = data || [];
-      if(staff()) {
-        const {data:people,error:e2} = await client.from('gi_profiles')
-          .select('id,display_name,role').order('display_name',{ascending:true}).limit(200);
+      tasks = (data||[]).slice(0,taskLimit);
+      hasMoreTasks=(data||[]).length>taskLimit;
+      $('taskLoadMore').hidden = !hasMoreTasks;
+      $('taskPageInfo').textContent = 'Rodoma: ' + tasks.length + ' užduočių';
+      if(staff()){
+        let peopleQuery=client.from('gi_profiles')
+          .select('id,display_name,role,created_at').order('created_at',{ascending:false}).limit(100);
+        if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
+        const {data:people,error:e2}=await peopleQuery;
         if(e2) throw e2;
-        members = people || [];
-      } else members = [];
+        members=people||[];
+      } else members=[];
       const feedbackResult = await client.from('gi_feedback')
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
@@ -155,7 +174,7 @@
   }
   function renderTasks() {
     const list = $('taskList');
-    if(!tasks.length){list.innerHTML='<div class="card"><p>Kol kas užduočių nėra.</p></div>';return;}
+    if(!tasks.length){list.innerHTML='<div class="card"><p>Pagal šį filtrą užduočių nėra.</p></div>';return;}
     const sorted = [...tasks].sort((a,b) => {
       const priority = {proposed:0,pool:1,submitted:2,assigned:3,accepted:4,in_progress:5,returned:6,approved:7};
       return (priority[a.status]??9) - (priority[b.status]??9);
@@ -166,7 +185,7 @@
         +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'+escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
         +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):'Nepaskirta')+'</p>':'')
+        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris (ieškok pagal vardą)':'Nepaskirta')+'</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +buttonsFor(t)+timeEntry(t)
@@ -345,6 +364,29 @@
 
   $('logout').addEventListener('click',async()=>{if(client) await client.auth.signOut();showLoggedOut();notice('Atsijungta.');});
   $('refresh').addEventListener('click',refreshWorkspace);
+  $('taskStatusFilter').addEventListener('change',event=>{
+    if(!staff())return;
+    taskFilter=String(event.target.value||'all');
+    taskPage=1;
+    refreshWorkspace();
+  });
+  $('taskLoadMore').addEventListener('click',()=>{
+    if(loading||!hasMoreTasks)return;
+    taskPage=Math.min(taskPage+1,20);
+    refreshWorkspace();
+  });
+  $('memberSearchForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!staff())return;
+    memberSearchTerm=$('memberSearch').value.trim().slice(0,80);
+    refreshWorkspace();
+  });
+  $('clearMemberSearch').addEventListener('click',()=>{
+    if(!staff())return;
+    memberSearchTerm='';
+    $('memberSearch').value='';
+    refreshWorkspace();
+  });
   $('pendingRefresh').addEventListener('click',refreshWorkspace);
   $('activateMaster').addEventListener('click',async()=>{
     if(!client||!currentUser||profile?.role!=='pending')return;
