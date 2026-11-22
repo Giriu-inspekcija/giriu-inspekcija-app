@@ -28,9 +28,9 @@ test('volunteers can follow the entire synthetic task cycle, including time logg
   assert.match(app,/data-step="claim"/);
   assert.match(app,/data-step="decline"/);
   assert.match(app,/gi_set_task_due/);
-  assert.match(app,/data-log-time/);
-  assert.match(app,/name="hours"/);
-  assert.match(app,/name="minutes"/);
+  assert.match(app,/data-time-for-task/);
+  assert.match(html,/id="manualTimeHours"/);
+  assert.match(html,/id="manualTimeMinutes"/);
   assert.match(app,/p_minutes:total/);
 });
 test('registration withdrawal and staff rejection do not delete auth identities or grant roles',()=>{
