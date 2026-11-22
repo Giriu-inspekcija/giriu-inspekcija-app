@@ -40,10 +40,21 @@ test('signup text is concise, no Workspace mailbox demand, mobile fields fit',()
   assert.match(html,/Tik bandomosios užduotys/);
   assert.match(html,/width:100%;max-width:100%/);
   assert.match(html,/overflow-wrap:anywhere/);
-  assert.match(sw,/v6-signup-status/);
+  assert.match(sw,/const CACHE='gi-pilot-shell-\d{8}-v\d+-[a-z-]+'/);
 });
 
 test('registered pending volunteer receives explicit coordinator-status feedback',()=>{
   assert.match(js,/Būsena nepasikeitė: laukiate koordinatoriaus patvirtinimo/);
   assert.match(html,/Laukiama koordinatoriaus patvirtinimo/);
+});
+
+
+test('user can switch account from any authentication screen without global sign out',()=>{
+  assert.match(html,/id="accountSwitchBar"/);
+  assert.match(html,/id="switchAccount"/);
+  assert.match(js,/\$\('switchAccount'\)\.addEventListener\('click',switchAccount\)/);
+  assert.match(js,/client\.auth\.signOut\(\{scope:'local'\}\)/);
+  assert.doesNotMatch(js,/client\.auth\.signOut\(\)/);
+  assert.match(js,/clearSignupWaiting\(\);[\s\S]*?\$\('authForm'\)\.reset\(\)/);
+  assert.match(js,/selectAuthMode\('login'\)/);
 });
