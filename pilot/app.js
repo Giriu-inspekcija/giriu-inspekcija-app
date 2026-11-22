@@ -634,8 +634,12 @@
         +'<p>'+escapeHTML(full)+'</p>'
         +(g.resolved_at?'<p class="small">Sprendimas: '+escapeHTML(g.resolution||'Išspręsta')+'</p>':'<div class="actions">'
           +(g.task_id?'<span class="small">Užduotis '+escapeHTML(g.task_id.slice(0,8))+'</span>'
-            :'<button type="button" data-feedback-task="'+escapeHTML(g.id)+'">Sukurti užduotį</button>')
+            :'<button type="button" class="outline" data-feedback-start="'+escapeHTML(g.id)+'">Sukurti užduotį</button>')
           +'<button type="button" class="outline" data-feedback-resolve="'+escapeHTML(g.id)+'">Užrašyti sprendimą</button></div>')
+        +(!g.resolved_at&&!g.task_id?'<form class="feedback-create" data-feedback-create="'+escapeHTML(g.id)+'" hidden>'
+          +'<label class="field">Užduoties pavadinimas<input name="title" required minlength="3" maxlength="140" placeholder="Ką konkrečiai pataisyti?"></label>'
+          +'<label class="field">Ką reikės padaryti<textarea name="note" required minlength="5" maxlength="6000" rows="4" placeholder="Aiškus rezultatas ir patikros kriterijus"></textarea></label>'
+          +'<button type="submit">Įkelti užduotį peržiūrai</button></form>':'')
         +'</details>';
     }).join('')||'<p class="small">Šiuo metu neišnagrinėtų pastabų nėra.</p>';
     $('feedbackTitle').textContent=(staff()?'Pastabų istorija':'Mano pastabos')+' ('+feedback.length+')';
@@ -1216,14 +1220,33 @@
     $('taskOwnerFilter').value='mine';$('taskSearchForm').requestSubmit();
   });
   $('feedbackQueue').addEventListener('click',async e=>{
-    const b=e.target.closest('button');if(!b||!staff())return;
-    const create=!!b.dataset.feedbackTask, id=b.dataset.feedbackTask||b.dataset.feedbackResolve;
-    const title=create?await ask('Koks užduoties pavadinimas?',{input:true}):null;
-    if(create&&(!title||title.trim().length<3))return;
-    const note=await ask(create?'Aprašykite darbą vykdytojui be asmens duomenų.':'Kaip išspręsta pastaba?',{input:true});
-    if(!note||note.trim().length<(create?5:3))return;
-    return run(()=>client.rpc('gi_review_feedback_group',{p_id:id,p_action:create?'task':'resolve',p_title:title,p_note:note,p_priority:'normal'}),
-      create?'Sukurta susieta užduotis.':'Sprendimas išsaugotas.');
+    const b=e.target.closest('button');if(!b||!staff()||mutationInFlight)return;
+    if(b.dataset.feedbackStart){
+      const form=b.closest('details')?.querySelector('[data-feedback-create]');
+      if(!form)return;
+      form.hidden=!form.hidden;
+      if(!form.hidden)form.querySelector('input[name="title"]').focus({preventScroll:true});
+      return;
+    }
+    if(!b.dataset.feedbackResolve)return;
+    const note=await ask('Koks šios pastabos sprendimas?',{input:true,action:'Išsaugoti sprendimą'});
+    if(!note||note.trim().length<3)return;
+    return run(()=>client.rpc('gi_review_feedback_group',{
+      p_id:b.dataset.feedbackResolve,p_action:'resolve',p_title:null,p_note:note.trim(),p_priority:'normal'
+    }),'Sprendimas išsaugotas.');
+  });
+  $('feedbackQueue').addEventListener('submit',event=>{
+    const form=event.target.closest('[data-feedback-create]');
+    if(!form||!staff())return;
+    event.preventDefault();
+    if(mutationInFlight)return;
+    const data=new FormData(form),title=String(data.get('title')||'').trim();
+    const note=String(data.get('note')||'').trim();
+    if(title.length<3||title.length>140||note.length<5||note.length>6000)
+      return toast('Įveskite pavadinimą ir aiškų aprašymą.',true);
+    return run(()=>client.rpc('gi_review_feedback_group',{
+      p_id:form.dataset.feedbackCreate,p_action:'task',p_title:title,p_note:note,p_priority:'normal'
+    }),'Sukurta užduotis koordinatoriaus peržiūrai.');
   });
   $('taskSearchForm').addEventListener('submit',event=>{
     event.preventDefault();
