@@ -16,7 +16,7 @@
   const client = window.supabase && window.supabase.createClient(URL, KEY, {
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
-  let currentUser = null, profile = null, members = [], tasks = [], loading = false;
+  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
 
   function notice(msg, error = false) {
     const el = $('notice');
@@ -30,7 +30,7 @@
   const approved = () => ['volunteer','coordinator','admin'].includes(profile?.role);
   const personName = p => (p?.display_name || 'Naudotojas ' + String(p?.id || '').slice(0,8)).trim();
   function showLoggedOut() {
-    currentUser = null; profile = null; tasks = []; members = [];
+    currentUser = null; profile = null; tasks = []; members = []; feedback = [];
     $('authView').hidden = false;
     $('appView').hidden = true;
   }
@@ -67,8 +67,13 @@
         if(e2) throw e2;
         members = people || [];
       } else members = [];
+      const feedbackResult = await client.from('gi_feedback')
+        .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
+      if(feedbackResult.error) throw feedbackResult.error;
+      feedback = feedbackResult.data || [];
       renderTasks();
       renderPendingMembers();
+      renderFeedback();
     } catch(error) {
       notice('Nepavyko atnaujinti: ' + (error?.message || String(error)), true);
     } finally {loading=false;}
@@ -81,6 +86,20 @@
       ? pending.map(p=>'<div class="row card"><span>'+escapeHTML(personName(p))+'</span>'
         +'<button type="button" data-promote="'+escapeHTML(p.id)+'">Patvirtinti savanorį</button></div>').join('')
       : '<p class="small">Šiuo metu naujų prašymų nėra.</p>';
+  }
+
+  function renderFeedback() {
+    $('feedbackTitle').textContent = staff() ? 'Visos bandymo pastabos' : 'Mano pastabos';
+    $('feedbackList').innerHTML = feedback.length
+      ? feedback.map(item => {
+          const who = members.find(m=>m.id===item.reporter_id);
+          return '<div class="card"><div class="row"><b>'+escapeHTML(item.category)+'</b>'
+            +'<span class="small">'+escapeHTML(new Date(item.created_at).toLocaleDateString('lt-LT'))+'</span></div>'
+            +'<p>'+escapeHTML(item.message)+'</p>'
+            +(staff()?'<p class="small">Pateikė: '+escapeHTML(who?personName(who):'Testuotojas')+'</p>':'')
+            +'</div>';
+        }).join('')
+      : '<p class="small">Pastabų dar nėra.</p>';
   }
 
   function buttonsFor(task) {
@@ -184,6 +203,20 @@
         p_title:String(fd.get('title')||''),p_details:String(fd.get('details')||''),
         p_priority:String(fd.get('priority')||'normal'),
         p_source_ref:'web-'+crypto.randomUUID()
+      });
+      if(!result.error) form.reset();
+      return result;
+    });
+  });
+  $('feedbackForm').addEventListener('submit',event => {
+    event.preventDefault();
+    if(!currentUser || !approved()) return;
+    const form=event.currentTarget, data=new FormData(form);
+    run(async()=>{
+      const result=await client.from('gi_feedback').insert({
+        reporter_id:currentUser.id,
+        category:String(data.get('category')||'pasiulymas'),
+        message:String(data.get('message')||'').trim()
       });
       if(!result.error) form.reset();
       return result;
