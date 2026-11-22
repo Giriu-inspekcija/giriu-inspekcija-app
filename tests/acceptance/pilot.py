@@ -100,11 +100,17 @@ def review(token,log,expected=None):
 
 def main():
     chief_id,chief_email,chief=fixture('chief')
-    coord_id,_,coord=fixture('coordinator')
+    coord_id,coord_email,coord=fixture('coordinator')
     other_id,_,other=fixture('other-staff')
     sql(f"UPDATE public.gi_profiles SET role='admin' WHERE id='{chief_id}';"
         f"UPDATE public.gi_profiles SET role='coordinator' WHERE id IN ('{coord_id}','{other_id}');"
-        f"INSERT INTO private.gi_time_reviewers VALUES ('chief','{chief_id}'),('coordinator','{coord_id}')")
+        f"INSERT INTO private.gi_time_reviewers VALUES ('chief','{chief_id}');"
+        f"INSERT INTO private.gi_reviewer_nomination(appointment,email) VALUES ('coordinator','{coord_email}')")
+    assert rpc('gi_reviewer_candidate',{},chief)==coord_id
+    rpc('gi_appoint_reviewer',{'p_user':coord_id},other,{400,403})
+    rpc('gi_appoint_reviewer',{'p_user':other_id},chief,{400,403})
+    rpc('gi_appoint_reviewer',{'p_user':coord_id},chief)
+    assert rpc('gi_reviewer_candidate',{},chief) is None
     uid,email,vol=register(chief)
     print('PASS A registration, local email, confirmation, approval, login and RLS',flush=True)
     due=(datetime.now(timezone.utc)+timedelta(days=7)).replace(second=0,microsecond=0).isoformat()

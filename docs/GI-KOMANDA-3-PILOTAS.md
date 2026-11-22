@@ -34,7 +34,7 @@ Skiltyje „Pastabos“ vienodo teksto bei kategorijos pranešimai grupuojami au
 | Paskirta darbo laiko koordinatorė | Koordinatoriaus teisės | Savanorių ir kandidatų laikas | Koordinatoriaus teisės |
 | Vyriausias administratorius | Administratoriaus teisės | Kitų laikas ir savo bendroji savanorystė | Administratoriaus teisės |
 
-Paskyrimai laikomi privačioje lentelėje ir susieti su patikrintu Auth UUID. Keičiantis pareigoms patikrinkite darbo teisę, aktyvų profilį ir pašalintino paskyrimo ID. Prisijungimo forma ir naudotojo redaguojami metaduomenys tokio paskyrimo nesukuria. Savo patvirtinimą žurnalas pažymi atskirai. Projekto ir senesniems neklasifikuotiems įrašams savęs patvirtinimas uždarytas. Finansavimo sutarties vertinimas turi būti atliktas prieš oficialią projekto apskaitą.
+Vyriausias administratorius skiltyje „Komanda“ patikrina koordinatorės tapatybę ir vaidmenį. Patvirtintos organizacijos paskyros kortelėje jis gali pasirinkti „Suteikti valandų tvirtinimo teisę“. Paskyrimai laikomi privačioje lentelėje ir susieti su patikrintu Auth UUID. Keičiantis pareigoms patikrinkite darbo teisę, aktyvų profilį ir pašalintino paskyrimo ID. Prisijungimo forma ir naudotojo redaguojami metaduomenys tokio paskyrimo nesukuria. Savo patvirtinimą žurnalas pažymi atskirai. Projekto ir senesniems neklasifikuotiems įrašams savęs patvirtinimas uždarytas. Finansavimo sutarties vertinimas turi būti atliktas prieš oficialią projekto apskaitą.
 
 ## Architektūra ir duomenų modelis
 

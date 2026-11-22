@@ -100,6 +100,7 @@
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
+  let nomination=null;
   let feedbackGroups=[],cases=[],documents=[],documentRequest=null,caseRequest=new Map();
   const canWriteDocuments=()=>staff() || (profile?.role==='volunteer' && profile.can_prepare_documents);
   let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
@@ -133,7 +134,7 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
-    feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
+    nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
     $('incidentForm').reset();$('incidentId').value='';$('incidentsList').replaceChildren();
     reviewableLogs.clear();
@@ -277,6 +278,9 @@
       if(incidentResult.error)throw incidentResult.error;
       incidents=incidentResult.data||[];
       if(!$('incidentObserved').value)$('incidentObserved').value=window.giDeadlines.inputValue(new Date());
+      const reviewer=admin()?await client.rpc('gi_reviewer_candidate'):{data:null};
+      if(reviewer.error)throw reviewer.error;
+      nomination=reviewer.data;
       const caseResult=staff() && incidents.length?await client.from('gi_cases').select('id,incident_id').in('incident_id',incidents.map(i=>i.id)):{data:[]};
       if(caseResult.error)throw caseResult.error;
       cases=caseResult.data||[];
@@ -424,6 +428,7 @@
       return '<article class="card">'+person(p)
         +'<p class="small">Dabartinis vaidmuo: '+escapeHTML(roleNames[p.role]||p.role)
         +(p.volunteer_rank?' · '+escapeHTML(rankNames[p.volunteer_rank]||p.volunteer_rank):'')+'</p>'
+        +(p.id===nomination?'<button type="button" data-appoint-reviewer="'+id+'">Suteikti valandų tvirtinimo teisę</button>':'')
         +'<div class="form-inline"><select aria-label="Keisti vaidmenį" data-role-select="'+id+'">'
         +['pending','candidate','volunteer','coordinator'].map(role=>
           '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role]||role)+'</option>').join('')
@@ -1143,11 +1148,15 @@
     if(!btn || !staff() || mutationInFlight)return;
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
-      ||btn.dataset.rankChange||btn.dataset.docPermission
+      ||btn.dataset.rankChange||btn.dataset.docPermission||btn.dataset.appointReviewer
       ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration||btn.dataset.purgeInvalid;
     if(!id || id===currentUser?.id)return;
     const person=members.find(p=>p.id===id);
     const email=memberEmails[id]?.email||'';
+    if(btn.dataset.appointReviewer){
+      if(id!==nomination || !confirm('Ar patikrinote asmens tapatybę? Suteikti '+email+' savanorių laiko tvirtinimo teisę?'))return;
+      return run(()=>client.rpc('gi_appoint_reviewer',{p_user:id}),'Valandų tvirtinimo teisė suteikta.');
+    }
     if(btn.dataset.purgeInvalid){
       if(!admin()||person?.role!=='pending'||memberEmails[id]?.verified!==false
         ||!['rejected','withdrawn'].includes(person.registration_state))return;
