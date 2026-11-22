@@ -17,7 +17,7 @@
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
-  let authMode = 'login', passwordRecovery = false;
+  let authMode = 'login', passwordRecovery = false, mutationInFlight=false, toastTimer=null, timeOwnTasks=[];
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
   const SIGNUP_WAITING_KEY = 'gi-pilot-signup-waiting-v1';
@@ -107,6 +107,14 @@
     el.classList.toggle('error', !!error);
     el.hidden = false;
   }
+  function toast(msg,error=false){
+    const el=$('actionToast');
+    if(toastTimer)clearTimeout(toastTimer);
+    el.textContent=msg;
+    el.classList.toggle('error',!!error);
+    el.hidden=false;
+    toastTimer=setTimeout(()=>{el.hidden=true;toastTimer=null;},6500);
+  }
   const staff = () => ['coordinator','admin'].includes(profile?.role);
   const admin = () => profile?.role === 'admin';
   const approved = () => ['candidate','volunteer','coordinator','admin'].includes(profile?.role);
@@ -120,6 +128,8 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
+    document.body.classList.remove('signed-in');
+    timeOwnTasks=[];
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
@@ -136,7 +146,7 @@
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
   }
   async function refreshWorkspace({appendTasks = false} = {}) {
-    if(!currentUser || loading) return;
+    if(!currentUser || loading) return false;
     loading = true;
     try {
       await fetchProfile();
@@ -164,7 +174,7 @@
       $('taskFilterPanel').hidden = !staff();
       $('memberSearchPanel').hidden = !staff();
 
-      if(!approved()) return;
+      if(!approved()) return true;
       const {data,error}=await client.rpc('gi_list_tasks_page',{
         p_before_created_at:appendTasks && taskCursor ? taskCursor.created_at : null,
         p_before_id:appendTasks && taskCursor ? taskCursor.id : null,
@@ -212,8 +222,10 @@
       renderIncidents();
       renderPendingMembers();
       renderFeedback();
+      return true;
     } catch(error) {
       notice('Nepavyko atnaujinti: ' + (error?.message || String(error)), true);
+      return false;
     } finally {loading=false;}
   }
 
@@ -490,6 +502,7 @@
     $('passwordResetView').hidden=true;
     $('authView').hidden=true;
     $('appView').hidden=false;
+    document.body.classList.add('signed-in');
     await refreshWorkspace();
   }
 
