@@ -38,6 +38,12 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
 .signup-steps{padding-left:22px;margin:10px 0 16px}.signup-steps li{margin-bottom:8px}
 .recipient{font-size:18px;font-weight:750;color:#154636;overflow-wrap:anywhere;margin:9px 0 16px}
 #emailHelp.invalid{color:#a12727;font-weight:650}
+.google-signin{width:100%;background:#fff;border:1px solid #c9d7ce;color:#203b30;font-weight:750;display:flex;align-items:center;justify-content:center;gap:12px;padding:13px}
+.google-mark{font-size:21px;font-weight:850;color:#4285f4}
+.auth-separator{display:flex;gap:12px;align-items:center;margin:17px 0;color:#617568;font-size:12px}
+.auth-separator:before,.auth-separator:after{content:"";height:1px;flex:1;background:#dbe5db}
+.auth-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:12px 0}
+.auth-controls .forgot-link{background:transparent;color:#205742;text-decoration:underline;padding:8px 2px}
 .account-switch{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #ffffff44}
 .account-switch .account-label{font-size:12px;opacity:.9;overflow-wrap:anywhere;min-width:0}
 .account-switch button{background:#eef6ef;color:#205742;padding:9px 12px;flex-shrink:0}
@@ -52,12 +58,14 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
 <div class="alert"><b>Tik bandomosios užduotys.</b> Nekelkite tikrų miškų koordinačių, žmonių duomenų, nuotraukų ar oficialių dokumentų.</div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
- <h1 id="authTitle">Tapkite „Girių inspekcijos“ savanoriu</h1>
- <p class="muted" id="authIntro">Užpildykite trumpą anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.</p>
+ <h1 id="authTitle">Prisijungimas</h1>
+ <p class="muted" id="authIntro">Prisijunkite su Google paskyra arba el. paštu ir slaptažodžiu.</p>
  <div class="card">
+  <div id="googleLoginPanel" hidden><button type="button" id="googleLogin" class="google-signin"><span class="google-mark" aria-hidden="true">G</span>Tęsti su Google</button></div>
+  <div id="googleSeparator" class="auth-separator" hidden>arba el. paštu</div>
   <div class="actions" role="group" aria-label="Registracija arba prisijungimas">
-   <button type="button" id="showSignup" aria-pressed="true">Registruotis</button>
-   <button type="button" class="outline" id="showLogin" aria-pressed="false">Jau turiu paskyrą</button>
+   <button type="button" class="outline" id="showSignup" aria-pressed="false">Registruotis</button>
+   <button type="button" id="showLogin" aria-pressed="true">Prisijungti</button>
   </div>
   <form id="authForm">
    <label id="fullNameField" class="field">Jūsų vardas<input id="fullName" autocomplete="name" maxlength="100" required placeholder="Vardas"></label>
@@ -83,13 +91,10 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
    <label class="field">El. paštas<input id="email" type="email" autocomplete="email" inputmode="email" required placeholder="jusu.pastas@gmail.com" maxlength="254"></label>
    <label class="field" id="emailConfirmField">Pakartokite el. paštą<input id="emailConfirm" type="email" inputmode="email" autocomplete="off" spellcheck="false" required placeholder="Patvirtinkite adresą" maxlength="254"></label>
    <p class="small" id="emailHelp" role="status" aria-live="polite">Prieš siųsdami patikrinkite, kad abu adresai sutaptų.</p>
-   <div class="actions" id="loginOptions" hidden>
-    <button type="button" id="loginEmailLink">Prisijungti be slaptažodžio</button>
-    <button type="button" class="outline" id="togglePasswordLogin">Turiu slaptažodį</button>
-   </div>
-   <p class="small" id="loginLinkStatus" role="status" aria-live="polite" hidden></p>
-   <label class="field" id="loginPasswordField" hidden>Programėlės slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8"></label>
-   <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Susikurti / atkurti slaptažodį</button></div>
+   <label class="field" id="loginPasswordField">Slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8" required></label>
+   <label class="field" id="signupPasswordField" hidden>Sukurkite slaptažodį<input id="signupPassword" type="password" autocomplete="new-password" minlength="8"></label>
+   <label class="field" id="signupPasswordConfirmField" hidden>Pakartokite slaptažodį<input id="signupPasswordConfirm" type="password" autocomplete="new-password" minlength="8"></label>
+   <div class="auth-controls"><button type="submit" id="authSubmit">Prisijungti</button><button type="button" class="forgot-link" id="forgotPassword">Pamiršau slaptažodį</button></div>
    <p class="small" id="signupSendStatus" role="status" aria-live="polite" hidden></p>
   </form>
   <section id="signupWaiting" class="signup-progress" aria-labelledby="signupWaitingTitle" hidden>
@@ -99,7 +104,7 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
    <ol class="signup-steps">
     <li>Atidarykite „Girių inspekcijos“ laišką (patikrinkite ir šlamštą).</li>
     <li>Paspauskite <b>Patvirtinti el. paštą</b>.</li>
-    <li>Grįžę į programėlę susikurkite slaptažodį.</li>
+    <li>Patvirtinę el. paštą prisijunkite su registruojantis pasirinktu slaptažodžiu.</li>
    </ol>
    <p id="signupWaitingStatus" class="small" role="status" aria-live="polite">Laukiama, kol patvirtinsite el. paštą.</p>
    <div class="actions">
@@ -108,7 +113,7 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
     <button type="button" id="editSignupEmail" class="ghost">Pataisyti adresą</button>
     <button type="button" id="stopSignup" class="ghost">Nebetęsti</button>
    </div>
-   <p class="small">Patvirtinimo nuoroda gali atsidaryti naujame lange. Jei patvirtinote kitame įrenginyje, ten baikite kurti slaptažodį, o čia pasirinkite „Jau turiu paskyrą“.</p>
+   <p class="small">Patvirtinimo nuoroda gali atsidaryti naujame lange. Jei patvirtinote kitame įrenginyje, grįžkite ir pasirinkite „Prisijungti“.</p>
   </section>
  </div>
 </section>
@@ -126,6 +131,7 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
  <p class="muted">Nustatykite naują „Girių inspekcijos“ slaptažodį.</p>
  <form id="passwordResetForm" class="card">
   <label class="field">Naujas slaptažodis<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+   <label class="field">Pakartokite naują slaptažodį<input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
   <button type="submit">Išsaugoti naują slaptažodį</button>
  </form>
 </section>
