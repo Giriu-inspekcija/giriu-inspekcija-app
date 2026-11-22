@@ -353,63 +353,98 @@
 
   function buttonsFor(task) {
     const id=escapeHTML(task.id);
-    if(staff()) {
+    let markup='';
+    const eligible=staff() && ['proposed','pool','assigned'].includes(task.status);
+    if(eligible){
       const safeButton=(!task.assigned_to && ['proposed','pool'].includes(task.status))
-        ? '<button type="button" class="outline" data-candidate-task="'+id+'">'
-          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Pažymėti saugia kandidato užduotimi')+'</button>' : '';
-      if(task.status==='proposed') return '<div class="actions">'
-        +'<button type="button" data-step="publish" data-id="'+id+'">Patvirtinti į fondą</button>'
-        +safeButton+'</div>';
-      if(['pool','assigned'].includes(task.status)) {
-        const selectable=members.filter(m=>
-          ['volunteer','coordinator','admin'].includes(m.role)
-          || (m.role==='candidate' && task.candidate_safe));
-        return '<div class="actions form-inline">'
-          +'<select aria-label="Pasirinkti savanorį" data-person="'+id+'"><option value="">Pasirinkti savanorį</option>'
+        ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
+          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
+      if(task.status==='proposed'){
+        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'+safeButton+'</div>';
+      }else{
+        const selectable=members.filter(m=>{
+          const isAllowed=['volunteer','coordinator','admin'].includes(m.role)
+            || (m.role==='candidate'&&task.candidate_safe);
+          return isAllowed && memberEmails[m.id]?.verified;
+        });
+        markup+='<div class="actions form-inline"><select aria-label="Pasirinkti vykdytoją" data-person="'+id+'">'
+          +'<option value="">Pasirinkite savanorį</option>'
           +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
-            +escapeHTML(personName(m))+' ('+escapeHTML(roleNames[m.role]||m.role)+')</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">Paskirti</button>'
+            +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
+          +'</select><button type="button" data-assign="'+id+'">'
+          +(task.assigned_to?'Perduoti kitam':'Paskirti užduotį')+'</button>'
+          +(task.status==='assigned'?'<button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button>':'')
           +safeButton+'</div>';
       }
-      if(task.status==='submitted') return '<div class="actions">'
-        +'<button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
-        +'<button class="outline" type="button" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
-      return '';
+      markup+='<div class="form-inline"><label class="field">Terminas (nebūtina)'
+        +'<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
+        +(task.due_at?' value="'+escapeHTML(new Date(task.due_at).toLocaleString('sv-SE').replace(' ','T').slice(0,16))+'"':'')
+        +'></label><button type="button" class="outline" data-set-due="'+id+'">Išsaugoti terminą</button></div>';
     }
-    if(task.status==='assigned') return '<div class="actions"><button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button></div>';
-    if(['accepted','returned'].includes(task.status)) return '<div class="actions"><button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
-    if(task.status==='in_progress')return '<div><form data-submit-result="'+id+'">'
-      +'<label class="field">Darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Ką užfiksavai? (kol kas tik išgalvotas turinys)"></textarea></label>'
-      +'<button type="submit">Pateikti rezultatą</button></form></div>';
-    return '';
+    if(!task.assigned_to && task.status==='pool' &&
+      (profile?.role!=='candidate'||task.candidate_safe)){
+      markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Pasiimti užduotį</button></div>';
+    }
+    if(task.assigned_to===currentUser?.id){
+      if(task.status==='assigned')markup+='<div class="actions">'
+        +'<button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button>'
+        +'<button type="button" class="outline" data-step="decline" data-id="'+id+'">Atsisakyti užduoties</button></div>';
+      if(['accepted','returned'].includes(task.status))markup+='<div class="actions">'
+        +'<button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
+      if(task.status==='in_progress')markup+='<form data-submit-result="'+id+'">'
+        +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
+        +'<button type="submit">Pateikti rezultatą</button></form>';
+    }
+    if(staff() && task.status==='submitted'){
+      markup+='<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
+        +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
+    }
+    return markup;
   }
-  function timeEntry(task) {
-    if(staff() && task.assigned_to !== currentUser.id) return '';
-    if(!['accepted','in_progress','submitted','returned','approved'].includes(task.status)) return '';
-    return '<hr><form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
-      +'<label class="field">Savanorystės minutės<input type="number" name="minutes" min="1" max="720" required placeholder="30"></label>'
-      +'<label class="field">Aprašymas (demo)<input type="text" name="note" maxlength="1000" placeholder="Bandomoji veikla"></label>'
-      +'<button type="submit">Įrašyti laiką</button></form>';
+  function timeEntry(task){
+    if(task.assigned_to!==currentUser?.id ||
+      !['accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
+    return '<hr><details><summary><b>Pridėti savo savanorystės laiką</b></summary>'
+      +'<form class="form-inline" data-log-time="'+escapeHTML(task.id)+'">'
+      +'<label class="field">Valandos<input type="number" name="hours" min="0" max="12" value="0" required></label>'
+      +'<label class="field">Minutės<input type="number" name="minutes" min="0" max="59" value="30" required></label>'
+      +'<label class="field">Ką atlikai? <input type="text" name="note" maxlength="1000" placeholder="Bandomasis darbas"></label>'
+      +'<button type="submit">Pateikti laiką</button></form></details>';
   }
-  function renderTasks() {
-    const list = $('taskList');
-    if(!tasks.length){list.innerHTML='<div class="card"><p>Pagal šį filtrą užduočių nėra.</p></div>';return;}
-    const sorted = [...tasks].sort((a,b) => {
-      const priority = {proposed:0,pool:1,submitted:2,assigned:3,accepted:4,in_progress:5,returned:6,approved:7};
-      return (priority[a.status]??9) - (priority[b.status]??9);
-    });
-    list.innerHTML = sorted.map(t => {
-      const owner = members.find(p=>p.id===t.assigned_to);
+  function renderTasks(){
+    const list=$('taskList');
+    const mine=tasks.filter(t=>t.assigned_to===currentUser?.id);
+    const pool=tasks.filter(t=>t.status==='pool'&&!t.assigned_to).length;
+    const active=mine.filter(t=>['assigned','accepted','in_progress','returned'].includes(t.status)).length;
+    const submitted=staff()?tasks.filter(t=>t.status==='submitted').length
+      :mine.filter(t=>t.status==='submitted').length;
+    $('taskSummary').innerHTML='<span><b>Mano aktyvios:</b> '+active+'</span>'
+      +'<span><b>Užduočių fonde:</b> '+pool+'</span>'
+      +'<span><b>Rezultatų peržiūra:</b> '+submitted+'</span>';
+    if(!tasks.length){
+      list.innerHTML='<div class="card"><p>Užduočių pagal pasirinktą filtrą nėra.</p></div>';return;
+    }
+    const order={proposed:0,pool:1,assigned:2,accepted:3,in_progress:4,returned:5,submitted:6,approved:7};
+    const sorted=[...tasks].sort((a,b)=>(order[a.status]??9)-(order[b.status]??9));
+    list.innerHTML=sorted.map(t=>{
+      const owner=members.find(p=>p.id===t.assigned_to);
+      let due='';
+      if(t.due_at){
+        const end=new Date(t.due_at),late=end.getTime()<Date.now()&&!['approved'].includes(t.status);
+        due='<p class="small"><b>Terminas:</b> '+escapeHTML(end.toLocaleString('lt-LT',{dateStyle:'medium',timeStyle:'short'}))
+          +(late?' · Terminas praėjęs':'')+'</p>';
+      }
       return '<article class="task">'
-        +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'+escapeHTML(statusNames[t.status]||t.status)+'</span>'
+        +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
+          +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
-        +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris (ieškok pagal vardą)':'Nepaskirta')+'</p>':'')
-        +(t.candidate_safe?'<p class="small">Pažymėta kaip saugi kandidato užduotis (tik sintetinė)</p>':'')
+        +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'+due
+        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
+        +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
+        +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
-        +buttonsFor(t)+timeEntry(t)
-        +'</article>';
+        +buttonsFor(t)+timeEntry(t)+'</article>';
     }).join('');
   }
   async function run(call) {
