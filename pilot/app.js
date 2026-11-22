@@ -16,7 +16,7 @@
   const client = window.supabase && window.supabase.createClient(URL, KEY, {
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
-  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
+  let currentUser = null, profile = null, members = [], tasks = [], agentProposals = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
   let authMode = 'login', passwordRecovery = false, mutationInFlight=false, toastTimer=null, timeOwnTasks=[];
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
@@ -186,7 +186,7 @@
     when:value=>window.giDeadlines.display(value),statuses:statusNames,actions:taskEventLabels,
     categories:incidentCategoryLabel,busy,ask,copyText,refresh:refreshWorkspace});
   function showLoggedOut() {
-    currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
+    currentUser = null; profile = null; tasks = []; agentProposals = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     thread.clear();if($('decision').open)$('decision').close('cancel');
     activePanel='tasks';
     nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
@@ -342,6 +342,16 @@
       $('taskLoadMore').hidden=!hasMoreTasks;
       $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
       if(staff()){
+        // The ChatGPT inbox is independent from task pagination and search filters.
+        // Only approved staff can see it through the existing gi_tasks RLS policy.
+        const inbox = await client.from('gi_tasks')
+          .select('id,source_ref,title,details,priority,due_at,created_at')
+          .eq('status','proposed').like('source_ref','agent:%')
+          .order('created_at',{ascending:false}).limit(30);
+        if(inbox.error)throw inbox.error;
+        agentProposals=inbox.data||[];
+      }else agentProposals=[];
+      if(staff()){
         let peopleQuery=client.from('gi_profiles')
           .select('id,display_name,role,registration_state,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
         if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
@@ -416,6 +426,7 @@
       documents=docs.data||[];
       if(currentUser?.id!==actor)return false;
       renderDocuments();
+      renderAiProposals();
       renderTasks();
       renderWorkLogs();
       renderIncidents();
@@ -692,6 +703,27 @@
        !['assigned','accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
     return '<div class="actions"><button type="button" class="outline" data-time-for-task="'+escapeHTML(task.id)+'">'
       +'Pridėti darbo laiką</button></div>';
+  }
+  // ChatGPT suggestions remain proposed until staff explicitly publishes them.
+  // Escaping is mandatory: proposal bodies originate outside the application.
+  function renderAiProposals(){
+    if(!staff())return;
+    const list=$('aiProposalList');
+    $('aiProposalCount').textContent=agentProposals.length
+      ?agentProposals.length+(agentProposals.length===30?' pirmųjų':' laukia'):'0 laukia';
+    list.innerHTML=agentProposals.length
+      ?agentProposals.map(t=>{
+        const importance=t.priority==='high'?'Svarbi':t.priority==='low'?'Mažesnė':'Įprasta';
+        const due=t.due_at?'<p class="small"><b>Terminas:</b> '
+          +escapeHTML(window.giDeadlines.display(t.due_at)+' (Vilniaus laiku)')+'</p>':'';
+        return '<article class="task" data-ai-task="'+escapeHTML(t.id)+'">'
+          +'<div class="row"><span class="tag proposed">ChatGPT pasiūlymas</span>'
+          +'<span class="small">'+escapeHTML(importance)+'</span></div>'
+          +'<h3>'+escapeHTML(t.title)+'</h3>'
+          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+due
+          +'<div class="actions"><button type="button" data-ai-approve="'+escapeHTML(t.id)+'">Patvirtinti į fondą</button></div></article>';
+      }).join('')
+      :'<p class="small">Kol kas nėra naujų ChatGPT pasiūlymų. Paprašykite ChatGPT pateikti užduotis GI komandai ir atnaujinkite šį sąrašą.</p>';
   }
   function renderTasks(){
     const list=$('taskList');
@@ -1238,6 +1270,22 @@
       if(!result.error){form.reset();feedbackOrigin='feedback';}
       return result;
     },'Pastaba užregistruota. Ačiū!');
+  });
+  $('aiRefresh').addEventListener('click',async()=>{
+    if(!staff()||loading)return;
+    const restore=busy($('aiRefresh'),'Tikrinama…');
+    try{if(await refreshWorkspace())toast('ChatGPT pasiūlymų sąrašas atnaujintas.');}
+    finally{restore();}
+  });
+  $('aiProposalList').addEventListener('click',async event=>{
+    const button=event.target.closest('[data-ai-approve]');
+    if(!button||!staff()||loading||mutationInFlight)return;
+    const task=agentProposals.find(t=>t.id===button.dataset.aiApprove);
+    if(!task)return;
+    const confirm=await ask('Patvirtinti „'+task.title+'“? Užduotis atsiras bandomajame GI užduočių fonde, bet savanoriui automatiškai nebus paskirta.',{action:'Patvirtinti į fondą'});
+    if(!confirm)return;
+    await run(()=>client.rpc('gi_task_action',{p_id:task.id,p_action:'publish',p_note:null}),
+      'ChatGPT pasiūlymas patvirtintas ir perkeltas į užduočių fondą.');
   });
   // ChatGPT-generated proposals must be reviewed by a coordinator; never assign automatically.
   let reviewedBatch = null;
