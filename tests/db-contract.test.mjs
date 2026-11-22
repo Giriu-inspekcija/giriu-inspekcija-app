@@ -111,3 +111,32 @@ test('both coordinator and admin can assign tasks but volunteers cannot',()=>{
   assert.match(sql,/function public\.gi_assign_task/);
   assert.match(sql,/coalesce\(\(select private\.gi_role\(\)\), 'pending'\) not in \('coordinator','admin'\)/);
 });
+
+test('new candidate is self-declared only, staff grants verified roles', () => {
+  const sql=readFileSync(new URL('../supabase/migrations/20261122213000_candidate_roles_rank_and_document_permission.sql',import.meta.url),'utf8');
+  const html=readFileSync(new URL('../pilot/index.html',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../pilot/app.js',import.meta.url),'utf8');
+  assert.match(html,/value="new_candidate"/);
+  assert.match(html,/value="existing_volunteer"/);
+  assert.match(app,/membership_intent:membershipIntent/);
+  assert.match(sql,/new\.raw_user_meta_data->>'membership_intent'/);
+  assert.match(sql,/values?\(/i);
+  assert.match(sql,/'pending'/);
+  assert.match(sql,/candidate_safe/);
+  assert.match(sql,/NOT v_task\.candidate_safe/);
+  assert.match(sql,/gi_approve_candidate/);
+  assert.match(sql,/gi_promote_candidate/);
+  assert.match(sql,/gi_can_prepare_documents/);
+  assert.match(sql,/GI staff permission required/);
+  assert.doesNotMatch(app,/sb_secret_|service_role/);
+});
+test('ranks are distinct from document permissions', () => {
+  const sql=readFileSync(new URL('../supabase/migrations/20261122213000_candidate_roles_rank_and_document_permission.sql',import.meta.url),'utf8');
+  assert.match(sql,/volunteer_rank/);
+  assert.match(sql,/can_prepare_documents/);
+  assert.match(sql,/p\.role='volunteer' AND p\.can_prepare_documents/);
+  assert.match(sql,/private\.gi_set_document_permission/);
+  assert.match(sql,/GI admin approval required/);
+  assert.match(sql,/public\.gi_member_events/);
+  assert.doesNotMatch(sql,/GRANT (?:UPDATE|INSERT) ON public\.gi_profiles TO authenticated/i);
+});
