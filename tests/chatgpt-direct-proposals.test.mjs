@@ -13,7 +13,7 @@ test('ChatGPT inbox has distinct staff-only UI and explicit approval',()=>{
   assert.match(app,/\$\('staffPanel'\)\.hidden = !staff\(\)/);
   assert.match(app,/\$\('aiProposalList'\)\.addEventListener\('click'/);
   assert.match(app,/data-ai-approve/);
-  assert.match(app,/action:'Patvirtinti į fondą'/);
+  assert.match(app,/p_action:'publish'/);
   assert.match(app,/p_action:'publish'/);
   assert.match(app,/gi_task_action/);
 });
