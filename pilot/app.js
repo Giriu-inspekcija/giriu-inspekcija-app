@@ -457,13 +457,9 @@
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
     if(staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
-      const attached=workLogs.filter(w=>w.task_id===task.id &&
-        w.volunteer_id===task.assigned_to && w.review_status==='submitted');
-      const count=attached.length,mins=attached.reduce((sum,w)=>sum+w.minutes,0);
-      markup+='<p class="small">Su rezultatu tvirtinama: '+count+' laiko įrašų'
-        +(count?' ('+escapeHTML(clockDuration(mins))+')':' – naujų laiko įrašų nėra')+'</p>'
+      markup+='<p class="small">Vienu veiksmu patvirtinsite rezultatą ir visus prie jo pateiktus laiko įrašus.</p>'
         +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
-        +(count?'Patvirtinti rezultatą ir laiką':'Patvirtinti rezultatą')+'</button>'
+        +'Patvirtinti rezultatą ir laiką</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
     if(staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
@@ -1143,10 +1139,7 @@
     if(b.dataset.jointApprove && staff()){
       const task=tasks.find(t=>t.id===id);
       if(!task||task.assigned_to===currentUser?.id)return;
-      const pending=workLogs.filter(w=>w.task_id===id && w.volunteer_id===task.assigned_to
-        && w.review_status==='submitted');
-      if(!confirm('Patvirtinti šį darbo rezultatą'
-        +(pending.length?' ir '+pending.length+' pateiktus laiko įrašus?':' (naujų laiko įrašų nėra)?')))return;
+      if(!confirm('Patvirtinti rezultatą ir visus dar nepatvirtintus šios užduoties laiko įrašus?'))return;
       return run(()=>client.rpc('gi_approve_result_with_time',{p_task_id:id}),
         rows=>'Patvirtintas darbo rezultatas ir '+Number(rows||0)+' laiko įrašų.');
     }
