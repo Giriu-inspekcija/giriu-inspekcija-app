@@ -545,7 +545,15 @@
       if(event==='SIGNED_IN'&&session?.user&&!currentUser&&!passwordRecovery)setTimeout(onSignIn,0);
     });
     onSignIn().catch(e=>notice('Prisijungimo klaida: '+e.message,true));
-    setInterval(()=>{if(currentUser&&!document.hidden)refreshWorkspace()},30000);
+    // Avoid expensive all-table polling at larger volunteer counts.
+    // Refresh on return to the app, plus a conservative 3-minute visible-session fallback.
+    document.addEventListener('visibilitychange',()=>{
+      if(currentUser && !document.hidden) refreshWorkspace();
+    });
+    window.addEventListener('focus',()=>{
+      if(currentUser && !document.hidden) refreshWorkspace();
+    });
+    setInterval(()=>{if(currentUser&&!document.hidden)refreshWorkspace()},180000);
   }else{
     notice('Nepavyko įkelti Supabase prisijungimo bibliotekos. Patikrink tinklą.',true);
   }
