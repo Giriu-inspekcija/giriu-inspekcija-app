@@ -35,6 +35,14 @@ create table if not exists public.gi_task_events (
   note text,
   created_at timestamptz not null default now()
 );
+create table if not exists public.gi_role_events (
+  id bigint generated always as identity primary key,
+  actor_id uuid references public.gi_profiles(id) on delete set null,
+  target_id uuid references public.gi_profiles(id) on delete set null,
+  former_role text not null,
+  new_role text not null,
+  created_at timestamptz not null default now()
+);
 create table if not exists public.gi_work_logs (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.gi_tasks(id) on delete cascade,
@@ -52,10 +60,11 @@ alter table public.gi_profiles enable row level security;
 alter table public.gi_tasks enable row level security;
 alter table public.gi_task_events enable row level security;
 alter table public.gi_work_logs enable row level security;
+alter table public.gi_role_events enable row level security;
 
 -- Default deny writes to public tables: only audited, permission-checked RPC functions can change data.
-revoke all on public.gi_profiles, public.gi_tasks, public.gi_task_events, public.gi_work_logs from public, anon, authenticated;
-grant select on public.gi_profiles, public.gi_tasks, public.gi_task_events, public.gi_work_logs to authenticated;
+revoke all on public.gi_profiles, public.gi_tasks, public.gi_task_events, public.gi_work_logs, public.gi_role_events from public, anon, authenticated;
+grant select on public.gi_profiles, public.gi_tasks, public.gi_task_events, public.gi_work_logs, public.gi_role_events to authenticated;
 
 create or replace function private.gi_role()
 returns text language sql stable security definer set search_path = ''
@@ -74,6 +83,8 @@ using (exists (
     and ((select private.gi_role()) in ('coordinator','admin')
       or (t.assigned_to = (select auth.uid()) and (select private.gi_role()) = 'volunteer'))
 ));
+create policy "gi_role_events_admin_only" on public.gi_role_events for select to authenticated
+using ((select private.gi_role()) = 'admin');
 create policy "gi_logs_owner_or_staff" on public.gi_work_logs for select to authenticated
 using (volunteer_id = (select auth.uid())
   or (select private.gi_role()) in ('coordinator','admin'));
@@ -194,14 +205,18 @@ $$;
 -- Only an existing administrator may approve members; bootstrap first admin manually.
 create or replace function public.gi_set_user_role(p_user uuid, p_role text)
 returns void language plpgsql security definer set search_path = ''
-as $$
+as $
+declare v_prior text;
 begin
   if (select private.gi_role()) <> 'admin' or p_user=auth.uid()
     or p_role not in ('pending','volunteer','coordinator','admin') then
     raise exception 'GI admin approval required';
   end if;
+  select role into v_prior from public.gi_profiles where id=p_user for update;
+  if v_prior is null then raise exception 'Unknown GI user'; end if;
   update public.gi_profiles set role=p_role where id=p_user;
-  if not found then raise exception 'Unknown GI user'; end if;
+  insert into public.gi_role_events(actor_id,target_id,former_role,new_role)
+    values (auth.uid(),p_user,v_prior,p_role);
 end;
 $$;
 
