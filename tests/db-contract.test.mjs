@@ -154,3 +154,18 @@ test('signup email button enforces 2-minute cooldown across reloads', () => {
   assert.match(js,/window\.addEventListener\('storage'/);
   assert.match(js,/clearOtpCooldownIfOwned\(reservedUntil\)/);
 });
+
+test('branded Lithuanian auth emails keep Supabase confirmation tokens', () => {
+  for (const [name,button] of [
+    ['confirm-signup','Patvirtinti el. paštą'],
+    ['magic-link','Prisijungti prie programėlės']
+  ]) {
+    const html=readFileSync(new URL('../supabase/email-templates/'+name+'.html',import.meta.url),'utf8');
+    assert.match(html,/lang="lt"/);
+    assert.match(html,/Girių inspekcija/);
+    assert.ok(html.includes('href="{{ .ConfirmationURL }}"'));
+    assert.ok(html.includes(button));
+    assert.ok(!html.includes('sb_secret_'));
+    assert.ok(!html.includes('service_role'));
+  }
+});
