@@ -37,21 +37,30 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 <div class="alert"><b>Bandymo aplinka.</b> Prisijungimui reikalingas el. paštas ir pasirinktinai vardas. Į užduočių aprašymus bei pastabas nekelkite realių miškų koordinačių, kitų asmenų duomenų, pranešėjų informacijos, nuotraukų ar oficialių dokumentų.</div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
- <h1 id="authTitle">Registruotis</h1>
- <p class="muted">Pirmą kartą kuriate paskyrą? Rinkitės „Registruotis“. Vėliau prisijunkite tuo pačiu el. paštu ir pasirinktu programėlės slaptažodžiu.</p>
+ <h1 id="authTitle">Tapkite „Girių inspekcijos“ savanoriu</h1>
+ <p class="muted">Pirmą kartą? Įrašykite savo vardą ir el. paštą. Patvirtinę el. laiško nuorodą galėsite susikurti programėlės slaptažodį.</p>
  <div class="card">
-  <div class="actions" role="group" aria-label="Paskyros pasirinkimas">
-   <button type="button" id="showSignup" aria-pressed="true">Naujas naudotojas – registruotis</button>
+  <div class="actions" role="group" aria-label="Registracija arba prisijungimas">
+   <button type="button" id="showSignup" aria-pressed="true">Registruotis</button>
    <button type="button" class="outline" id="showLogin" aria-pressed="false">Jau turiu paskyrą</button>
   </div>
   <form id="authForm">
-   <label id="fullNameField" class="field">Vardas<input id="fullName" autocomplete="name" maxlength="100" required placeholder="Vardas"></label>
-   <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="vardas@gmail.com"></label>
-   <label class="field"><span id="passwordLabel">Susikurkite programėlės slaptažodį</span><input id="password" type="password" autocomplete="new-password" minlength="6" required></label>
-   <div class="actions"><button type="submit" id="authSubmit">Sukurti paskyrą</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
+   <label id="fullNameField" class="field">Jūsų vardas<input id="fullName" autocomplete="name" maxlength="100" required placeholder="Vardas"></label>
+   <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="jusu.pastas@gmail.com"></label>
+   <label class="field" id="loginPasswordField" hidden>Programėlės slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8"></label>
+   <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
   </form>
-  <p class="small"><b>Nenaudokite Google Workspace slaptažodžio vien dėl to, kad turite organizacijos el. paštą.</b> Čia atskira programėlės paskyra. Po registracijos patvirtinkite el. pašto laišką; tada GI administratorius suteiks vidines teises.</p>
+  <p class="small"><b>Savanoriams nereikia organizacijos Google Workspace paskyros.</b> Patvirtinę el. paštą ir susikūrę slaptažodį galėsite prisijungti. Užduotis administratorius arba koordinatorius pateiks, kai patvirtins jūsų dalyvavimą.</p>
  </div>
+</section>
+<section id="passwordSetupView" hidden>
+ <h1>El. paštas patvirtintas!</h1>
+ <p class="muted">Dar vienas žingsnis: susikurkite slaptažodį savo „Girių inspekcija“ paskyrai.</p>
+ <form id="passwordSetupForm" class="card">
+  <label class="field">Naujas slaptažodis<input id="initialPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+  <label class="field">Pakartokite slaptažodį<input id="initialPasswordConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
+  <button type="submit">Išsaugoti slaptažodį ir tęsti</button>
+ </form>
 </section>
 <section id="passwordResetView" hidden>
  <h1>Naujas slaptažodis</h1>
@@ -63,7 +72,7 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 </section>
 <section id="appView" hidden>
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
- <div id="pendingView" class="card" hidden><h2>Paskyra laukia patvirtinimo</h2><p>Prisijungei sėkmingai. Vidines savanorio arba koordinatoriaus teises turi patvirtinti administratorius. Kol kas užduočių nematysi.</p><button id="pendingRefresh" class="outline">Patikrinti būseną</button></div>
+ <div id="pendingView" class="card" hidden><h2>Paskyra sukurta – laukia patvirtinimo</h2><p>El. paštas patvirtintas, paskyra aktyvi. Administratorius dar turi patvirtinti savanorio arba koordinatoriaus teises. Iki tol vidinių užduočių nematysite.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
   <div id="staffPanel" hidden>
