@@ -1,0 +1,12 @@
+{
+  "name": "giriu-inspekcija-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Girių inspekcija – synthetic PWA pilot (no real GI cases)",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
