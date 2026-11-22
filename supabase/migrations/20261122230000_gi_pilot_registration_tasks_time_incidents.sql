@@ -86,7 +86,7 @@ BEGIN
   IF (SELECT private.gi_role()) NOT IN ('coordinator','admin') THEN
     RAISE EXCEPTION 'Staff permission required';
   END IF;
-  IF p_ids IS NULL OR pg_catalog.coalesce(pg_catalog.array_length(p_ids,1),0)>100 THEN
+  IF p_ids IS NULL OR coalesce(array_length(p_ids,1),0)>100 THEN
     RAISE EXCEPTION 'Invalid member lookup';
   END IF;
   RETURN QUERY
