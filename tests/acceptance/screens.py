@@ -129,7 +129,8 @@ def test_forms(page):
     page.locator('#incidentCoords').fill('0.0, 0.0')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
-    page.get_by_role('button',name='Pateikti bandomąjį pranešimą').click()
+    send=page.get_by_role('button',name='Pateikti bandomąjį pranešimą')
+    assert send.evaluate("(b)=>{b.click();return b.disabled && b.getAttribute('aria-busy')==='true' && b.textContent==='Pateikiama…'}")
     incident=page.locator('#incidentsList article').filter(has_text='Naršyklės demonstracinė patikra')
     expect(incident).to_contain_text('Pateikta')
     incident.get_by_role('button',name='Nuotraukos').click()

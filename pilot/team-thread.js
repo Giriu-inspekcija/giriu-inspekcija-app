@@ -21,8 +21,14 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
     if(dialog.open)dialog.close();
     el('threadTitle').textContent='';content.replaceChildren();el('threadStatus').textContent='';
   }
-  function close(){
-    if(working)return;
+  function hasDraft(){
+    return Array.from(content.querySelectorAll('textarea,input')).some(e=>e.type==='file'?e.files.length>0:e.value.trim()!=='');
+  }
+  async function mayLeave(){
+    return !hasDraft()||await ask('Kortelėje yra nepaskelbtas tekstas arba priedas.',{action:'Išeiti neišsaugojus'});
+  }
+  async function close(){
+    if(working||!await mayLeave())return;
     const url=new URL(location.href);
     url.searchParams.delete('incident');url.searchParams.delete('task');history.replaceState(null,'',url);clear();
   }
@@ -59,6 +65,7 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         incident?read(client.from('gi_cases').select('id,opened_at').eq('incident_id',id).maybeSingle()):null
       ]);
       if(!current())return;
+      const parent=!incident&&row.case_id?await read(client.from('gi_cases').select('incident_id').eq('id',row.case_id).maybeSingle()):null;
       const related=caseRow?await allPages(()=>client.from('gi_tasks').select('id,title,created_at,status').eq('case_id',caseRow.id).order('id')):[];
       const docs=caseRow||!incident?await allPages(()=>client.from('gi_documents').select('id,title,phase,updated_at').eq(caseRow?'case_id':'task_id',caseRow?.id||id).order('id')):[];
       const originals=incident?await read(client.storage.from('gi-pilot-incident-photos').list(id,{limit:10})):[];
@@ -83,9 +90,11 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         +(incident&&row.latitude!==null?'<p>Koordinatės · '+html(row.latitude)+', '+html(row.longitude)+'</p>':'')
         +(!incident&&row.due_at?'<p>Terminas · '+html(when(row.due_at))+'</p>':'')
         +(!incident&&row.result_text?'<p>Rezultatas · '+html(row.result_text)+'</p>':'')
+        +(parent?'<p>'+threadLink('incident',parent.incident_id,'Atverti susietą atvejį')+'</p>':'')
         +originals.map(f=>'<button type="button" class="outline" data-original="'+html(f.name)+'">Pradinė nuotrauka '+html(f.name)+'</button>').join(' ')
         +'<p class="small">'+(row.team_visible?'Kortelę gali atverti patvirtinti GI savanoriai.':'Nuorodą gali atverti turintys prieigą prie šio įrašo.')+'</p>'
         +'<div class="actions"><button type="button" class="outline" data-do="copy">Kopijuoti nuorodą</button>'
+        +(navigator.share?'<button type="button" class="outline" data-do="share">Dalintis…</button>':'')
         +(isStaff()&&participate?'<button type="button" class="outline" data-do="visibility">'+(row.team_visible?'Riboti prieigą':'Atverti komandai')+'</button>':'')
         +(participate&&!contributors.some(e=>e.actor_id===view.actor)?'<button type="button" data-do="help">Prisijungti padėti</button>':'')
         +(canClaim?'<button type="button" data-do="claim">Prisiimti užduotį</button>':'')+'</div>'
@@ -114,6 +123,9 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
     const {kind,id,row}=active;
     if(b.dataset.do==='copy'){
       if(await copyText(link(kind,id),'Užverti'))el('threadStatus').textContent='Nuoroda nukopijuota. Galite ją įklijuoti į komandos pokalbį.';
+    }else if(b.dataset.do==='share'){
+      try{await navigator.share({title:'GI komanda',url:link(kind,id)});}
+      catch(e){if(e.name!=='AbortError')el('threadStatus').textContent='Pasirinkite „Kopijuoti nuorodą“ ir įklijuokite ją pokalbyje.';}
     }else if(b.dataset.do==='visibility'){
       const action=row.team_visible?'Riboti prieigą':'Atverti komandai';
       if(await ask(row.team_visible?'Bus taikomos įprastos įrašo prieigos teisės.':'Patvirtinti savanoriai galės matyti šios kortelės turinį, istoriją ir priedus.',{action}))
@@ -134,7 +146,14 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         const path=b.dataset.original?id+'/'+b.dataset.original:b.dataset.file;
         const blob=await read(store.download(path));
         if(active?.id!==id)return;
-        const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=b.dataset.original?'nuotrauka-'+b.dataset.original:b.textContent;
+        const url=URL.createObjectURL(blob);
+        if(b.dataset.original||/\.(jpg|png|webp)$/i.test(path)){
+          const img=new Image();img.alt=active.updates.find(u=>u.attachment===path)?.filename||'Pranešimo nuotrauka';
+          img.style.cssText='display:block;max-width:100%;max-height:65vh;margin:.7em 0;object-fit:contain';
+          img.onload=img.onerror=()=>URL.revokeObjectURL(url);img.src=url;b.after(img);b.hidden=true;
+          return;
+        }
+        const a=document.createElement('a');a.href=url;a.download=b.dataset.original?'nuotrauka-'+b.dataset.original:b.textContent;
         if(b.dataset.file)a.download=active.updates.find(u=>u.attachment===path)?.filename||'Priedas';
         a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
       }catch(e){el('threadStatus').textContent=e.message;}finally{restore();}
@@ -165,9 +184,19 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
       if(result.error&&result.error.code!=='23505')throw result.error;
     },'Papildymas paskelbtas.');
   });
-  document.addEventListener('click',e=>{
+  document.addEventListener('click',async e=>{
     const a=e.target.closest('[data-thread]');if(!a||e.metaKey||e.ctrlKey||e.shiftKey)return;
-    e.preventDefault();if(!working)void open(a.dataset.thread,a.dataset.key);
+    e.preventDefault();if(!working&&(!dialog.open||await mayLeave()))void open(a.dataset.thread,a.dataset.key);
   });
-  return {clear,link:threadLink,restore(){const r=route();if(r&&user()&&!active)void open(r.kind,r.id,false);}};
+  return {clear,link:threadLink,restore(){
+    const r=route();if(r&&user()&&!active)void open(r.kind,r.id,false);
+    if(active?.row&&!working){
+      const view=active;
+      client.from(view.kind==='incident'?'gi_incidents':'gi_tasks').select('id,team_visible')
+        .eq('id',view.id).maybeSingle().then(({data,error})=>{
+          if(active!==view)return;
+          if((!error&&!data)||error?.code==='PGRST301')void open(view.kind,view.id,false);
+        });
+    }
+  }};
 };
