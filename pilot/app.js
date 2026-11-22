@@ -16,7 +16,7 @@
   const client = window.supabase && window.supabase.createClient(URL, KEY, {
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
-  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
+  let currentUser = null, profile = null, members = [], tasks = [], feedback = [], workLogs = [], incidents = [], memberEmails = {}, loading = false, activePanel = 'tasks';
   let authMode = 'login', passwordRecovery = false;
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
@@ -115,9 +115,11 @@
     const email=currentUser?.email || signupWaiting?.email || '';
     $('accountSwitchBar').hidden=!(email || passwordRecovery);
     $('accountSwitchLabel').textContent=email?'Paskyra: '+email:'Slaptažodžio keitimas';
+    $('switchAccount').textContent=currentUser?'Atsijungti':'Kita paskyra';
   }
   function showLoggedOut() {
-    currentUser = null; profile = null; tasks = []; members = []; feedback = [];
+    currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
+    activePanel='tasks';
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
     $('authView').hidden = false;
     $('appView').hidden = true;
@@ -128,7 +130,7 @@
 
   async function fetchProfile() {
     if(!currentUser) return;
-    const {data,error} = await client.from('gi_profiles').select('id,display_name,role,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
+    const {data,error} = await client.from('gi_profiles').select('id,display_name,role,registration_state,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
       .eq('id',currentUser.id).maybeSingle();
     if(error) throw error;
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
@@ -141,10 +143,19 @@
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
       $('roleName').textContent = (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
       $('pendingView').hidden = approved();
+      const regState=profile.registration_state||'active';
+      $('pendingHeading').textContent=regState==='rejected'?'Registracija atmesta':regState==='withdrawn'?'Registracija atšaukta':'Laukiama koordinatoriaus patvirtinimo';
+      $('pendingDescription').textContent=regState==='rejected'
+        ?'Koordinatorius atmetė bandomąją registraciją. Jei tai klaida, kreipkitės info@giriuinspekcija.lt.'
+        :regState==='withdrawn'?'Jūsų registracija sustabdyta. Norėdami ją atkurti, susisiekite su GI koordinatoriumi.'
+        :'Paskyra aktyvi. Po patikros koordinatorius suteiks tinkamą vaidmenį.';
+      $('withdrawRegistration').hidden=regState!=='active';
+      $('teamNav').hidden=!staff();
+      openPanel(activePanel);
       $('activateMaster').hidden = true;
       if(!approved()){
         const candidate=await client.rpc('gi_is_bootstrap_candidate');
-        if(!candidate.error && candidate.data===true) $('activateMaster').hidden=false;
+        if(!candidate.error && candidate.data===true && regState==='active') $('activateMaster').hidden=false;
       }
       $('workspace').hidden = !approved();
       $('staffPanel').hidden = !staff();
@@ -172,17 +183,33 @@
       $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
       if(staff()){
         let peopleQuery=client.from('gi_profiles')
-          .select('id,display_name,role,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
+          .select('id,display_name,role,registration_state,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
         if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
         const {data:people,error:e2}=await peopleQuery;
         if(e2) throw e2;
         members=people||[];
-      } else members=[];
+        const ids=members.map(p=>p.id);
+        const lookup=ids.length?await client.rpc('gi_member_emails',{p_ids:ids}):{data:[]};
+        if(lookup.error)throw lookup.error;
+        memberEmails=Object.fromEntries((lookup.data||[]).map(x=>[x.user_id,x]));
+      } else {members=[];memberEmails={};}
       const feedbackResult = await client.from('gi_feedback')
         .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
+      const logResult=await client.from('gi_work_logs')
+        .select('id,task_id,volunteer_id,minutes,note,review_status,review_note,created_at')
+        .order('created_at',{ascending:false}).limit(100);
+      if(logResult.error)throw logResult.error;
+      workLogs=logResult.data||[];
+      const incidentResult=await client.from('gi_incidents')
+        .select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at')
+        .order('created_at',{ascending:false}).limit(100);
+      if(incidentResult.error)throw incidentResult.error;
+      incidents=incidentResult.data||[];
       renderTasks();
+      renderWorkLogs();
+      renderIncidents();
       renderPendingMembers();
       renderFeedback();
     } catch(error) {
@@ -190,6 +217,58 @@
     } finally {loading=false;}
   }
 
+  function openPanel(name) {
+    if(!['tasks','time','incidents','team','feedback'].includes(name))name='tasks';
+    if(name==='team'&&!staff())name='tasks';
+    activePanel=name;
+    for(const panel of ['tasks','time','incidents','team','feedback']){
+      $(panel+'Section').hidden=panel!==name;
+      const button=document.querySelector('[data-nav="'+panel+'"]');
+      if(button) {
+        if(panel===name)button.setAttribute('aria-current','page');
+        else button.removeAttribute('aria-current');
+      }
+    }
+  }
+  $('workspaceNav').addEventListener('click',event=>{
+    const button=event.target.closest('[data-nav]');
+    if(!button)return;
+    openPanel(button.dataset.nav);
+  });
+  const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
+  function renderWorkLogs() {
+    const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
+    const pending=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
+    const approvedTime=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(pending)+' · Patvirtinta: '+clockDuration(approvedTime);
+    const shown=staff()?workLogs:mine;
+    $('workLogsList').innerHTML=shown.length?shown.map(w=>{
+      const task=tasks.find(t=>t.id===w.task_id),owner=members.find(p=>p.id===w.volunteer_id);
+      return '<article class="card"><b>'+escapeHTML(task?.title||'Bandomoji užduotis')+'</b>'
+        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):w.volunteer_id===currentUser.id?'Aš':'Savanoris')+'</p>':'')
+        +'<p>'+escapeHTML(clockDuration(w.minutes))+' · '+escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)+'</p>'
+        +(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
+        +(w.review_note?'<p class="small">Koordinatoriaus pastaba: '+escapeHTML(w.review_note)+'</p>':'')
+        +(staff()&&w.review_status==='submitted'&&w.volunteer_id!==currentUser.id
+          ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
+           +'<button class="outline" type="button" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
+        +'</article>';
+    }).join(''):'<p class="card">Savanorystės laiko įrašų dar nėra.</p>';
+  }
+  const incidentCategoryLabel={cutting:'Kirtimai',timber_truck:'Medienos vežimas',pollution:'Tarša',tree_damage:'Medžių pažeidimai',waste:'Atliekos',other:'Kita',unknown:'Nežinau'};
+  function renderIncidents() {
+    $('incidentsList').innerHTML=incidents.length?incidents.map(v=>{
+      const owner=members.find(m=>m.id===v.reporter_id);
+      return '<article class="card"><b>'+escapeHTML(incidentCategoryLabel[v.category]||v.category)+'</b>'
+        +' · '+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')
+        +(staff()?'<p class="small">Pateikė: '+escapeHTML(owner?personName(owner):v.reporter_id===currentUser?.id?'Aš':'Naudotojas')+'</p>':'')
+        +'<p>'+escapeHTML(v.description)+'</p>'
+        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Testinės koordinatės: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+'</p>':'')
+        +(v.status==='draft'&&v.reporter_id===currentUser?.id
+          ?'<button type="button" class="outline" data-edit-incident="'+escapeHTML(v.id)+'">Redaguoti juodraštį</button>':'')
+        +'</article>';
+    }).join(''):'<p class="card">Pranešimų dar nėra.</p>';
+  }
   function renderPendingMembers() {
     if(!staff())return;
     const others=members.filter(p=>p.id!==currentUser.id);
