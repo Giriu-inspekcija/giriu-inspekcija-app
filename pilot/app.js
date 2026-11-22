@@ -208,10 +208,17 @@
       if(feedbackResult.error) throw feedbackResult.error;
       feedback = feedbackResult.data || [];
       const logResult=await client.from('gi_work_logs')
-        .select('id,task_id,volunteer_id,minutes,note,review_status,review_note,created_at')
+        .select('id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at')
         .order('created_at',{ascending:false}).limit(100);
       if(logResult.error)throw logResult.error;
       workLogs=logResult.data||[];
+      const ownTaskResult=await client.from('gi_tasks')
+        .select('id,title,status,updated_at')
+        .eq('assigned_to',currentUser.id)
+        .order('updated_at',{ascending:false}).limit(25);
+      if(ownTaskResult.error)throw ownTaskResult.error;
+      timeOwnTasks=ownTaskResult.data||[];
+      renderManualTimeTaskOptions();
       const incidentResult=await client.from('gi_incidents')
         .select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at')
         .order('created_at',{ascending:false}).limit(100);
@@ -248,6 +255,21 @@
     openPanel(button.dataset.nav);
   });
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
+  function renderManualTimeTaskOptions(){
+    const select=$('manualTimeTask'),old=select.value;
+    select.innerHTML='<option value="">Kita savanorystės veikla (be užduoties)</option>'
+      +timeOwnTasks.map(t=>'<option value="'+escapeHTML(t.id)+'">'
+        +escapeHTML(t.title)+' ('+escapeHTML(statusNames[t.status]||t.status)+')</option>').join('');
+    if(timeOwnTasks.some(t=>t.id===old))select.value=old;
+    updateManualActivityMode();
+  }
+  function updateManualActivityMode(){
+    const independent=!$('manualTimeTask').value;
+    $('manualTimeActivityField').hidden=!independent;
+    $('manualTimeActivity').required=independent;
+    if(!independent)$('manualTimeActivity').value='';
+  }
+  $('manualTimeTask').addEventListener('change',updateManualActivityMode);
   function renderWorkLogs() {
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
     const pending=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
