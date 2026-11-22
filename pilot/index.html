@@ -305,7 +305,10 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
       <label class="field">Šablonas<select name="template"><option value="request">Informacijos prašymas</option><option value="observation">Patikros pažyma</option></select></label>
       <label class="field">Pavadinimas<input name="title" required minlength="3" maxlength="160"></label>
       <label class="field">Susieta užduotis<select id="documentTask" name="task"><option value="">Savarankiškas dokumentas</option></select></label>
+      <label class="field" id="documentCaseField">Susietas atvejis (nebūtina)<select id="documentCase" name="case"><option value="">Be atskiro atvejo</option></select></label>
       <button type="submit">Sukurti juodraštį</button>
+      <button type="button" class="outline" id="documentAiPrompt">Kopijuoti užklausą ChatGPT (demo)</button>
+      <p class="small">Užklausa tik nukopijuojama; joks dokumentas automatiškai nesiunčiamas į DI.</p>
     </form></details>
     <div id="documentList"></div>
   </section>
