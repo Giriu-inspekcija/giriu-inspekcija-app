@@ -395,10 +395,12 @@
         +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
-    if(staff() && task.status==='submitted'){
+    if(staff() && task.status==='submitted' && task.assigned_to!==currentUser?.id){
       markup+='<div class="actions"><button type="button" data-step="approve" data-id="'+id+'">Patvirtinti rezultatą</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
+    if(staff() && task.status==='submitted' && task.assigned_to===currentUser?.id)
+      markup+='<p class="small">Jūsų rezultato tvirtinimą turi atlikti kitas koordinatorius.</p>';
     return markup;
   }
   function timeEntry(task){
