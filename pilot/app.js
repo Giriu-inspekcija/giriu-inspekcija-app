@@ -856,6 +856,11 @@
     $('memberSearch').value='';
     refreshWorkspace();
   });
+  $('withdrawRegistration').addEventListener('click',async()=>{
+    if(!currentUser||profile?.role!=='pending'||profile?.registration_state!=='active')return;
+    if(!confirm('Atšaukti registracijos prašymą? Prieiga nebus suteikta. Paskyros duomenys nebus automatiškai ištrinti.'))return;
+    await run(()=>client.rpc('gi_review_registration',{p_user:currentUser.id,p_action:'withdraw'}));
+  });
   $('pendingRefresh').addEventListener('click',async()=>{
     await refreshWorkspace();
     if(profile?.role==='pending')notice('Būsena nepasikeitė: laukiate koordinatoriaus patvirtinimo.');
@@ -968,8 +973,20 @@
     if(!btn || !staff())return;
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
-      ||btn.dataset.rankChange||btn.dataset.docPermission;
+      ||btn.dataset.rankChange||btn.dataset.docPermission
+      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration;
     if(!id || id===currentUser?.id)return;
+    const person=members.find(p=>p.id===id);
+    if(btn.dataset.rejectRegistration){
+      if(!person||person.role!=='pending')return;
+      if(!confirm('Atmesti '+personName(person)+' registracijos prašymą? Tai neatlieka fizinio paskyros ištrynimo.'))return;
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}));
+    }
+    if(btn.dataset.restoreRegistration){
+      if(!person||person.role!=='pending')return;
+      if(!confirm('Atkurti '+personName(person)+' registracijos prašymą peržiūrai?'))return;
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}));
+    }
     if(btn.dataset.approveCandidate) {
       if(!confirm('Patvirtinti šį žmogų kandidatu? Jis matys tik specialiai leistas užduotis.'))return;
       return run(()=>client.rpc('gi_approve_candidate',{p_user:id}));
@@ -1019,15 +1036,25 @@
     if(b.dataset.assign && staff()) {
       const choice=[...document.querySelectorAll('[data-person]')].find(e=>e.dataset.person===id)?.value;
       if(!choice)return notice('Pasirink savanorį.',true);
+      const target=members.find(p=>p.id===choice);
+      if(!target)return notice('Savanoris nepasiekiamas. Atnaujinkite sąrašą.',true);
+      if(!confirm('Paskirti bandomąją užduotį žmogui „'+personName(target)+'“?'))return;
       return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}));
+    }
+    if(b.dataset.setDue && staff()){
+      const input=[...document.querySelectorAll('[data-due]')].find(e=>e.dataset.due===id);
+      const raw=input?.value||'',dt=raw?new Date(raw):null;
+      if(dt&&Number.isNaN(dt.getTime()))return notice('Neteisinga termino data.',true);
+      return run(()=>client.rpc('gi_set_task_due',{p_id:id,p_due:dt?dt.toISOString():null}));
     }
     const action=b.dataset.step;
     if(!action)return;
     let note=null;
-    if(action==='return'){
-      note=prompt('Kodėl grąžini užduotį taisyti?');
-      if(!note)return;
+    if(action==='return'||action==='decline'){
+      note=prompt(action==='return'?'Kodėl grąžini užduotį taisyti?':'Kodėl atsisakai bandomosios užduoties?');
+      if(!note||note.trim().length<3)return notice('Įrašykite bent 3 simbolių priežastį.',true);
     }
+    if(action==='unassign'&&!confirm('Atšaukti paskyrimą? Užduotis grįš į bendrą fondą.'))return;
     run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}));
   });
   $('taskList').addEventListener('submit',event=>{
@@ -1040,10 +1067,68 @@
     if(form.dataset.logTime){
       event.preventDefault();
       const fd=new FormData(form);
+      const hours=Number(fd.get('hours')),minutes=Number(fd.get('minutes'));
+      const total=hours*60+minutes;
+      if(!Number.isInteger(hours)||!Number.isInteger(minutes)||hours<0||hours>12
+        ||minutes<0||minutes>59||total<1||total>720)
+        return notice('Įveskite nuo 1 min. iki 12 val., naudodami valandas ir minutes.',true);
       return run(()=>client.rpc('gi_log_minutes',{
-        p_id:form.dataset.logTime,p_minutes:Number(fd.get('minutes')),p_note:String(fd.get('note')||'')
+        p_id:form.dataset.logTime,p_minutes:total,p_note:String(fd.get('note')||'')
       }));
     }
+  });
+  $('workLogsList').addEventListener('click',event=>{
+    const b=event.target.closest('button');
+    if(!b||!staff())return;
+    const id=b.dataset.timeApprove||b.dataset.timeReturn;
+    if(!id)return;
+    const row=workLogs.find(x=>x.id===id);
+    if(!row||row.volunteer_id===currentUser?.id)return;
+    const action=b.dataset.timeApprove?'approve':'return';
+    let note=null;
+    if(action==='return'){
+      note=prompt('Kodėl reikia patikslinti darbo laiko įrašą?');
+      if(!note||note.trim().length<3)return notice('Nurodykite priežastį.',true);
+    }else if(!confirm('Patvirtinti '+clockDuration(row.minutes)+' savanorystės laiką?'))return;
+    return run(()=>client.rpc('gi_review_work_log',{p_id:id,p_action:action,p_note:note}));
+  });
+  $('incidentClear').addEventListener('click',()=>{
+    $('incidentForm').reset();
+    $('incidentId').value='';
+    notice('Galite kurti naują demonstracinį pranešimą.');
+  });
+  $('incidentsList').addEventListener('click',event=>{
+    const b=event.target.closest('[data-edit-incident]');
+    if(!b)return;
+    const item=incidents.find(v=>v.id===b.dataset.editIncident);
+    if(!item||item.reporter_id!==currentUser?.id||item.status!=='draft')return;
+    $('incidentId').value=item.id;
+    $('incidentDescription').value=item.description;
+    $('incidentCategory').value=item.category;
+    $('incidentEventState').value=item.event_state;
+    $('incidentLat').value=item.latitude??'';
+    $('incidentLon').value=item.longitude??'';
+    $('incidentForm').scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  $('incidentForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    const button=event.submitter;
+    const submit=button?.value==='submit';
+    const desc=$('incidentDescription').value.trim();
+    if(desc.length<5)return notice('Aprašykite bent 5 simboliais.',true);
+    const lat=$('incidentLat').value.trim(),lon=$('incidentLon').value.trim();
+    if((lat==='')!==(lon===''))return notice('Koordinatėms reikia abiejų reikšmių arba nė vienos.',true);
+    const payload={
+      p_id:$('incidentId').value||null,p_description:desc,
+      p_category:$('incidentCategory').value,p_event_state:$('incidentEventState').value,
+      p_lat:lat===''?null:Number(lat),p_lon:lon===''?null:Number(lon),
+      p_submit:submit
+    };
+    run(async()=>{
+      const result=await client.rpc('gi_save_incident',payload);
+      if(!result.error){$('incidentForm').reset();$('incidentId').value='';}
+      return result;
+    });
   });
   if(client){
     client.auth.onAuthStateChange((event,session)=>{
