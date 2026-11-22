@@ -16,6 +16,6 @@ test('signup shows actual recipient and allows manual correction',()=>{
   assert.match(app,/rememberSignupWaiting\(email\)/);
   assert.match(app,/signupWaitingEmail'\)\.textContent/);
   assert.match(app,/Pataisykite el. paštą į/);
-  assert.match(html,/patikrinkite pašto adresą/i);
+  assert.match(html,/Prieš siųsdami patikrinkite, kad abu adresai sutaptų/);
   assert.match(sw,/v5-email-check/);
 });
