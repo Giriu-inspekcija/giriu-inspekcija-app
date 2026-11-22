@@ -60,7 +60,13 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
      <button type="submit">Pridėti siūlomą užduotį</button>
-    </form></div>
+    </form>
+    <hr><h3>Importuoti ChatGPT pasiūlytas užduotis</h3>
+    <p class="small">Įklijuok JSON masyvą su laukais <code>source_ref</code>, <code>title</code>, <code>details</code> ir <code>priority</code>. Parodysime peržiūrą. Užduotys bus tik siūlomos, jos nebus automatiškai paskirtos.</p>
+    <label class="field">JSON iš ChatGPT<textarea id="batchJson" spellcheck="false" placeholder='[{"source_ref":"SYNTH-CG-01","title":"Bandomoji užduotis","details":"Tik išgalvotas aprašymas","priority":"normal"}]'></textarea></label>
+    <div class="actions"><button type="button" class="outline" id="batchPreview">Peržiūrėti sąrašą</button><button type="button" id="batchImport" disabled>Patvirtinti ir įkelti į fondą</button></div>
+    <div id="batchReview" class="small" aria-live="polite"></div>
+    </div>
    <div id="adminPanel" class="card" hidden><h2>Naujų savanorių patvirtinimas</h2><div id="pendingMembers"></div></div>
   </div>
   <div id="taskList" class="tasks"></div>
