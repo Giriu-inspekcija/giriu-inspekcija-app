@@ -391,7 +391,7 @@
     $('emailHelp').hidden=!signup;
     $('authIntro').textContent=signup
       ?'Užpildykite anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.'
-      :'Prisijunkite savo el. paštu ir programėlės slaptažodžiu.';
+      :'Prisijunkite vienkartine nuoroda į savo el. paštą. Slaptažodis neprivalomas.';
     $('membershipIntent').required=signup;
     passwordLoginOpen=false;
     updatePasswordLoginUI();
@@ -514,6 +514,10 @@
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
+    if(authMode==='login'&&!passwordLoginOpen){
+      $('loginEmailLink').click();
+      return;
+    }
     const signup=authMode==='signup';
     const email=$('email').value.trim().toLowerCase();
     const name=$('fullName').value.trim();
