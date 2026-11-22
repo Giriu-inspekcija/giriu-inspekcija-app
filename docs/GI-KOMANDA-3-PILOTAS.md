@@ -4,6 +4,14 @@
 
 [Atidaryti programėlę](https://starlit-shortbread-a38110.netlify.app/pilot/)
 
+## 3.1 patogumo atnaujinimai (2026-11-22)
+
+- Darbo vietoje neberodomas perteklinis pasisveikinimas; mobiliajame ekrane navigacija išdėstyta dviem eilėmis ir trumpais pavadinimais.
+- Mygtukas **„Parašyti pastabą“** pasiekiamas iš skirtingų skilčių. Pastaba automatiškai pažymima skilties pavadinimu; ją mato tik autorius ir GI koordinavimo teisę turintys naudotojai. Naudotojų pastabų eilė nėra viešas GitHub projektas.
+- Užduočių aprašymai, jei ilgi, yra suskleidžiami. Atnaujinant duomenis stengiamasi išsaugoti atvertą termino ir paskyrimo formą, juodraštį bei ekrano poziciją. **„Veiksmų istorija“** pagal pareikalavimą skaito autorizuoto naudotojo žurnalą.
+- Dokumento juodraštį koordinatorius gali tiesiogiai susieti su vienu iš jam prieinamų **bandomųjų atvejų**, arba su užduotimi. Dokumentų skiltyje pateiktos tikros GI „Google Drive“ šablonų nuorodos. **„Kopijuoti užklausą ChatGPT (demo)“** tik parengia tekstą iškarpinėje: nesikreipia į DI API, neimportuoja „Drive“ šablono ir automatiškai netvarko oficialios bylos.
+- Iki realių bylų migracijos tebenaudojami atskiri GI registrai. Dokumentų automatinis generavimas pagal tikrą „Drive“ šabloną, teisinis šaltinių tikrinimas, pasirašymas ir išsiuntimas lieka atskiri saugūs darbai (#7, #20).
+
 ## Savanoriui
 
 1. Užpildykite registracijos anketą ir atverkite patvirtinimo laišką. Prisijungus rodoma prieigos būsena. Koordinatorius įvertina anketą.
