@@ -153,6 +153,9 @@ def main():
     print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
     from workflows import case_and_document
     case_and_document(chief,coord,vol,other,uid)
+    if os.environ.get('QA_VOLUME'):
+        from volume import measure
+        measure(chief)
     return chief_email
 
 if __name__=='__main__':
