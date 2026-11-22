@@ -1,6 +1,6 @@
 # GI PWA: vykdymo perdavimas Work / Codex (2026-11-22)
 
-**Statusas:** šiame PR tik parengta migracija ir *statiniai* testai. Supabase projekto šiuo ChatGPT pokalbiu pasiekti nepavyko, todėl DB nekurta, migracija neįvykdyta, naudotojai neregistruoti. Esamas Netlify demo išlieka atskiras ir veikiantis. Nepainioti šios parengties su paleistu daugiavartotojišku pilotu.
+**Statusas (2026-11-22):** Supabase prijungtas, nemokamas testinis projektas **`mkhxokzuietqgjdpkcqq`** (`eu-central-1`) sukurtas. DB migracijos `gi_synthetic_pilot_initial` ir `gi_synthetic_feedback` sėkmingai pritaikytos. Sukurtos 6 lentelės su RLS ir 3 sintetinės pool užduotys. Netlify peržiūros aplinka (GitHub PR #5) su realios autentifikacijos UI: https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/ . **Dar nepatikrinta fiziniame telefone / su realiais kelių naudotojų prisijungimais; neviešinti kaip baigto piloto.** Pagrindinis Netlify demo išlieka nepakeistas.
 
 ## Tikslas
 Turime PWA pavadinimu „Girių inspekcija“. Norime asmeninių savanorių paskyrų ir bendro užduočių fondo su koordinatoriaus patvirtinimu. Jokio naujo Google Workspace pašto savanoriui. Visi bandomieji duomenys sintetiniai.
@@ -36,3 +36,24 @@ Turime PWA pavadinimu „Girių inspekcija“. Norime asmeninių savanorių pask
 
 ## Rankiniai vadovo sprendimai
 Tik: pasirinkti tikslų Supabase testinį projektą, patvirtinti pirmojo admin tapatybę, patvirtinti OAuth teises ir realaus piloto publikavimą. Jokio mokamo plano ar API kreditų pirkimo be patvirtinimo.
+
+## Nauja patikrinta informacija
+- Supabase projektas: `giriu-inspekcija-pilotas` (planas Free, regionas eu-central-1).
+- Supabase API: `https://mkhxokzuietqgjdpkcqq.supabase.co` (public URL, secret/service_role kodo saugykloje nėra).
+- Įvykdytos migracijos: `gi_synthetic_pilot_initial`, `gi_synthetic_feedback`.
+- Sintetinės užduotys: `SYNTH-001`, `SYNTH-002`, `SYNTH-003` (visos pool).
+- `pilot/index.html` ir `pilot/app.js` naudoja atskirą Supabase aplinką, neperrašo pagrindinio `index.html`. Vieša publishable key klientui leidžiama, RLS būtina.
+- `pilot` turi registraciją el. paštu, pending laukimą, koordinatoriaus pool/paskyrimus/rezultatų tvirtinimą, darbo laiką ir pastabų bazę.
+- GitHub Actions: statiniai SQL testai + `node --check pilot/app.js`; sėkminga. Šis testas **neįrodo veikiančio autentifikavimo per naršyklę**.
+- Tikrinant Supabase atmesti anonimo skaitymas, nepatvirtinto naudotojo kūrimas/paskyrimai/role grant ir non-demo įrašai.
+- Supabase Security Advisor įspėja dėl 5 viešų `SECURITY DEFINER` RPC. Tai projektuota su rolės tikrinimu kiekvienoje funkcijoje; prieš tikrus duomenis būtinas papildomas profesionalus teisių auditas (linter WARN nėra savaiminis leidimas naudoti tikrus duomenis).
+- Kol kas `auth.users` paskyrų / `gi_profiles` yra 0. Pirmasis administratorius dar nepatvirtintas, naujų savanorių prisijungimai dar neišbandyti.
+
+## Likę kritiniai veiksmai
+1. Supabase Authentication → URL Configuration: įrašyti tikslų Site URL ir leistinus Redirect URLs, įskaitant patvirtintą Netlify preview ir planuojamą `/pilot/` pagrindiniame domene. Tai atlikti per administravimo UI (šio Supabase įrankio nėra).
+2. Patikrinti el. pašto slaptažodžio autentifikaciją; nemokamo SMTP ribas. Didesniam savanorių testui sukonfigūruoti Google OAuth – su organizacijai valdomomis Google Cloud OAuth teisėmis.
+3. GI vadovas turi patvirtinti, koks **konkretus ir el. paštu patvirtintas** `auth.users.id` bus pirmasis admin. Tik tada vienkartiniu SQL pakelti jo `gi_profiles.role` į `admin`, netaikant saviregistracijos išimčių.
+4. Atlikti realius RLS ir RPC bandymus su vienu admin, vienu koordinatoriumi ir dviem savanoriais skirtinguose naršyklių kontekstuose. Neužtenka statinių CI testų.
+5. Patikrinti frontend CDN bibliotekos įkėlimą, login redirect, slaptažodžio srautą, valdymą telefone ir login session atnaujinimą.
+6. Tik po patvirtinimo ir realių testų iškelti `/pilot/` į pagrindinį Netlify `main`, nepažeidžiant senojo demo ir aiškiai atskyrus pilotą nuo produkcijos.
+7. Vėliau įdiegti DI JSON pasiūlymų importo patvirtinimą bei apsaugotą API. Kol kas automatinės ChatGPT užduočių sinchronizacijos nėra.
