@@ -242,6 +242,12 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
     </div><button type="submit" class="outline">Filtruoti</button></form>
   </details>
   <div id="staffPanel" hidden>
+   <div class="card" id="aiProposalPanel">
+     <h2>ChatGPT pasiūlymai <span id="aiProposalCount" class="tag">0 laukia</span></h2>
+     <p class="small">Pasakykite ChatGPT: „Pateik šias užduotis GI komandai“. Kai ChatGPT prijungtas prie GI duomenų bazės, pasiūlymai atsiras čia be kopijavimo. Jie nebus paskirstyti ar paskelbti, kol nepatvirtinsite.</p>
+     <div class="actions"><button id="aiRefresh" class="outline" type="button">Atnaujinti pasiūlymus</button></div>
+     <div id="aiProposalList" aria-live="polite"><p class="small">Pasiūlymai įkeliami prisijungus.</p></div>
+   </div>
    <div class="card"><h2>Užduočių fondas</h2><p class="small">Sukurkite užduotį arba peržiūrėkite parengtus pasiūlymus.</p>
     <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
@@ -249,8 +255,8 @@ dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45r
      <label class="field">Terminas Vilniaus laiku (nebūtina)<input name="due" type="datetime-local"></label>
      <button type="submit">Pridėti siūlomą užduotį</button>
     </form></details>
-    <details><summary><b>Užduotys iš ChatGPT arba pokalbio</b></summary>
-    <p>Jei „ChatGPT“ prijungtas prie GI sistemos, parašykite „Pateik šias užduotis GI komandai“. Jo įrašytus pasiūlymus rasite skiltyje „Darbai“, atnaujinę sąrašą.</p>
+    <details><summary><b>Atsarginis rankinis užduočių importas</b></summary>
+    <p class="small">Naudokite tik jei tiesioginis ChatGPT ryšys nepasiekiamas. Čia galima įklijuoti paprastą užduočių sąrašą be JSON.</p>
     <label class="field">Įklijuoti užduotis ranka<textarea id="batchJson" spellcheck="false" placeholder="Patikrinti išvykos vietą – palyginti du žemėlapius&#10;Parengti raštą – surinkti reikalingus priedus"></textarea></label>
     <p class="small">Viena užduotis eilutėje. Po brūkšnio galite pridėti aprašymą. Tinka ir ChatGPT parengtas JSON. Prieš įkeldami peržiūrėkite sąrašą.</p>
     <div class="actions"><button type="button" class="outline" id="batchPreview">Peržiūrėti sąrašą</button><button type="button" id="batchImport" disabled>Patvirtinti ir įkelti į fondą</button></div>
