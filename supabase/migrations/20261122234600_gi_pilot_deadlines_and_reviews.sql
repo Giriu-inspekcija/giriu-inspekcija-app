@@ -240,3 +240,10 @@ RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path='' AS $$
 $$;
 REVOKE ALL ON FUNCTION public.gi_change_task_due(uuid,timestamptz,timestamptz) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.gi_change_task_due(uuid,timestamptz,timestamptz) TO authenticated;
+
+-- All older RPCs also receive a concrete least-privileged value for an inactive/missing profile.
+CREATE OR REPLACE FUNCTION private.gi_role() RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+  SELECT coalesce((SELECT p.role FROM public.gi_profiles p JOIN auth.users u ON u.id=p.id
+    WHERE p.id=(SELECT auth.uid()) AND p.registration_state='active' AND u.email_confirmed_at IS NOT NULL),'pending')
+$$;
