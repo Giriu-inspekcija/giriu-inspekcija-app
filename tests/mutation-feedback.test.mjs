@@ -21,7 +21,7 @@ function harness({refresh=async()=>true,online=true}={}){
     refreshWorkspace:async()=>{refreshes++;return refresh();},
     expiredSession:()=>false,endExpiredSession:()=>{}
   };
-  const run=vm.runInNewContext(source+'\\nrun',context);
+  const run=vm.runInNewContext([source,'run'].join(String.fromCharCode(10)),context);
   const call=async()=>{writes++;return {data:{}};};
   return {run,call,messages,notices,counts:()=>({writes,refreshes})};
 }
