@@ -1,0 +1,40 @@
+name: Build official GI PWA icons
+on:
+  push:
+    branches:
+      - feature/synthetic-task-pool-backend-v1
+    paths:
+      - 'scripts/generate_brand_icons.py'
+      - 'logo.png'
+      - '.github/workflows/official-logo-icons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate icons from verified official GI logo
+        run: |
+          python -m pip install --disable-pip-version-check 'Pillow==11.3.0'
+          python scripts/generate_brand_icons.py
+      - name: Commit generated PNG files to the existing PR branch
+        run: |
+          git add icon-192.png icon-512.png icon-192-maskable.png icon-512-maskable.png apple-touch-icon.png favicon-64.png
+          if git diff --cached --quiet; then
+            echo "All official icons are up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Generate official Giriu inspekcija app icons from logo.png"
+          git push origin "HEAD:${{ github.ref_name }}"
