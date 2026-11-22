@@ -9,7 +9,7 @@
     returned:'Grąžinta', approved:'Patvirtinta'
   };
   const roleNames = {
-    pending:'Laukia patvirtinimo',volunteer:'Savanoris',coordinator:'Koordinatorius',admin:'Administratorius'
+    pending:'Laukia patvirtinimo',candidate:'Kandidatas',volunteer:'Savanoris',coordinator:'Koordinatorius',admin:'Administratorius'
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,7 +30,7 @@
   }
   const staff = () => ['coordinator','admin'].includes(profile?.role);
   const admin = () => profile?.role === 'admin';
-  const approved = () => ['volunteer','coordinator','admin'].includes(profile?.role);
+  const approved = () => ['candidate','volunteer','coordinator','admin'].includes(profile?.role);
   const personName = p => (p?.display_name || 'Naudotojas ' + String(p?.id || '').slice(0,8)).trim();
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = [];
@@ -43,7 +43,7 @@
 
   async function fetchProfile() {
     if(!currentUser) return;
-    const {data,error} = await client.from('gi_profiles').select('id,display_name,role')
+    const {data,error} = await client.from('gi_profiles').select('id,display_name,role,membership_intent,volunteer_rank,preferred_activity,region_label,can_prepare_documents')
       .eq('id',currentUser.id).maybeSingle();
     if(error) throw error;
     profile = data || {id:currentUser.id,role:'pending',display_name:null};
@@ -54,7 +54,7 @@
     try {
       await fetchProfile();
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
-      $('roleName').textContent = roleNames[profile.role] || 'Laukia patvirtinimo';
+      $('roleName').textContent = (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
       $('pendingView').hidden = approved();
       $('activateMaster').hidden = true;
       if(!approved()){
@@ -87,7 +87,7 @@
       $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
       if(staff()){
         let peopleQuery=client.from('gi_profiles')
-          .select('id,display_name,role,created_at').order('created_at',{ascending:false}).limit(100);
+          .select('id,display_name,role,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
         if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
         const {data:people,error:e2}=await peopleQuery;
         if(e2) throw e2;
@@ -239,6 +239,8 @@
     $('authTitle').textContent=signup?'Tapkite „Girių inspekcijos“ savanoriu':'Prisijungimas';
     $('fullNameField').hidden=!signup;
     $('fullName').required=signup;
+    $('signupDetails').hidden=!signup;
+    $('membershipIntent').required=signup;
     $('loginPasswordField').hidden=signup;
     $('password').required=!signup;
     $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
@@ -279,6 +281,8 @@
     const name=$('fullName').value.trim();
     const password=$('password').value;
     if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
+    const membershipIntent=$('membershipIntent').value;
+    if(signup&&!['new_candidate','existing_volunteer'].includes(membershipIntent))return notice('Pasirinkite, ar esate naujas kandidatas, ar jau savanoriaujate.',true);
     $('authSubmit').disabled=true;
     try{
       let result;
@@ -287,7 +291,7 @@
           email,options:{
             shouldCreateUser:true,
             emailRedirectTo:window.location.origin+window.location.pathname,
-            data:{full_name:name}
+            data:{full_name:name,membership_intent:membershipIntent,preferred_activity:$('preferredActivity').value,region_label:$('regionLabel').value.trim()}
           }
         });
         if(result.error)throw result.error;
