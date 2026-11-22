@@ -1057,37 +1057,56 @@
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
       ||btn.dataset.rankChange||btn.dataset.docPermission
-      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration;
+      ||btn.dataset.rejectRegistration||btn.dataset.restoreRegistration||btn.dataset.purgeInvalid;
     if(!id || id===currentUser?.id)return;
     const person=members.find(p=>p.id===id);
+    const email=memberEmails[id]?.email||'';
+    if(btn.dataset.purgeInvalid){
+      if(!admin()||person?.role!=='pending'||memberEmails[id]?.verified!==false
+        ||!['rejected','withdrawn'].includes(person.registration_state))return;
+      const typed=prompt('Negrįžtamai pašalinti nepatvirtintą registraciją. Patvirtinkite įvesdami tikslų el. paštą: '+email);
+      if(typed===null)return;
+      if(typed.trim().toLowerCase()!==email.toLowerCase()){
+        toast('Adresas nesutampa. Nieko nepašalinta.',true);return;
+      }
+      return run(()=>client.rpc('gi_purge_invalid_signup',{p_user:id,p_expected_email:email}),
+        'Klaidinga nepatvirtinta registracija išvalyta.');
+    }
     if(btn.dataset.rejectRegistration){
       if(!person||person.role!=='pending')return;
       if(!confirm('Atmesti '+personName(person)+' registracijos prašymą? Tai neatlieka fizinio paskyros ištrynimo.'))return;
-      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}));
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'reject'}),
+        'Registracija atmesta: '+email);
     }
     if(btn.dataset.restoreRegistration){
       if(!person||person.role!=='pending')return;
       if(!confirm('Atkurti '+personName(person)+' registracijos prašymą peržiūrai?'))return;
-      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}));
+      return run(()=>client.rpc('gi_review_registration',{p_user:id,p_action:'restore'}),
+        'Registracija grąžinta peržiūrai: '+email);
     }
     if(btn.dataset.approveCandidate) {
       if(!confirm('Patvirtinti šį žmogų kandidatu? Jis matys tik specialiai leistas užduotis.'))return;
-      return run(()=>client.rpc('gi_approve_candidate',{p_user:id}));
+      return run(()=>client.rpc('gi_approve_candidate',{p_user:id}),
+        'Kandidatas priimtas: '+email);
     }
     if(btn.dataset.approveVolunteer){
       if(!confirm('Patvirtinti, kad šis žmogus yra GI savanoris?'))return;
-      return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}));
+      return run(()=>client.rpc('gi_approve_volunteer',{p_user:id}),
+        'Savanoris patvirtintas: '+email);
     }
     if(btn.dataset.promoteCandidate){
       if(!confirm('Po darbo peržiūros pakelti kandidatą į patvirtintą savanorį?'))return;
-      return run(()=>client.rpc('gi_promote_candidate',{p_user:id}));
+      return run(()=>client.rpc('gi_promote_candidate',{p_user:id}),
+        'Kandidatas patvirtintas savanoriu: '+email);
     }
     if(!admin())return;
     if(btn.dataset.changeRole){
       const role=[...document.querySelectorAll('[data-role-select]')].find(e=>e.dataset.roleSelect===id)?.value;
       if(!['pending','candidate','volunteer','coordinator'].includes(role))return;
       if(!confirm('Pakeisti šio nario vaidmenį į „'+roleNames[role]+'“?'))return;
-      return run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}));
+      if(role===person?.role)return toast('Jokių pakeitimų: jau pasirinktas vaidmuo „'+roleNames[role]+'“.');
+      return run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}),
+        'Vaidmuo pakeistas į „'+roleNames[role]+'“: '+email);
     }
     if(btn.dataset.rankChange){
       const rank=[...document.querySelectorAll('[data-rank-select]')].find(e=>e.dataset.rankSelect===id)?.value;
