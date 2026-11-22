@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#153f33">
+<meta name="description" content="Girių inspekcija – testinė savanorių darbo vieta tik su sintetinėmis užduotimis.">
+<title>Girių inspekcija – savanorių pilotas</title>
+<link rel="icon" type="image/png" href="../logo.png">
+<style>
+:root{font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:#edf2ed;color:#203b30;--green:#205742;--muted:#687b70;--line:#dbe5db;--paper:#fff}
+*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #88bd9a;outline-offset:2px}
+.shell{min-height:100vh;max-width:900px;margin:auto;background:#f7faf6;box-shadow:0 8px 32px #12391c1a}
+header{background:linear-gradient(115deg,#0f342b,#265e49);color:#fff;padding:22px 22px 18px}
+.brand{display:flex;align-items:center;gap:13px}.brand img{width:56px;height:56px;object-fit:contain;background:#fff;border-radius:14px;padding:5px}.brand b{font-size:19px}.brand small{display:block;opacity:.83;letter-spacing:.8px;font-size:11px}.pilot{margin-left:auto;background:#f2e2b8;color:#5c481f;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:750}
+header p{margin:12px 0 0;font-size:13px;opacity:.87}
+main{padding:20px 18px 48px}h1{font-size:26px;line-height:1.2;margin:5px 0 13px}h2{font-size:19px;margin:0 0 10px}h3{font-size:16px;margin:0 0 7px}p{margin:5px 0 13px}.card{border:1px solid var(--line);border-radius:15px;background:var(--paper);padding:18px;margin:12px 0;box-shadow:0 2px 9px #10381708}
+.alert{background:#fff5df;color:#6d541e;border:1px solid #eed7a9;border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 17px}
+.notice{border-radius:10px;padding:10px 13px;background:#e1f2e8;color:#20533b;margin:12px 0;font-size:14px}.notice.error{background:#feece8;color:#972d2d}
+[hidden]{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px;margin:10px 0;font-size:13px;font-weight:650}
+input,textarea,select{border:1px solid #cbdacf;border-radius:9px;padding:11px;background:white;color:#243f31;min-width:0}textarea{min-height:90px;resize:vertical}
+button{border:0;background:var(--green);color:white;border-radius:10px;padding:11px 14px;font-size:13px;font-weight:730}
+button.outline{background:#eef5ef;color:#255b41;border:1px solid #cfe1d2}
+button.ghost{background:#f5f7f4;color:#385644;border:1px solid var(--line)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 3px;align-items:center}.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.small{font-size:12px;color:var(--muted)}.muted{color:var(--muted)}
+.tasks{display:grid;gap:12px}.task{border:1px solid #dce5d9;border-radius:13px;background:#fff;padding:16px}.task h3{font-size:17px;margin:8px 0}
+.tag{display:inline-block;background:#edf3ed;color:#345b45;font-size:11px;font-weight:800;padding:5px 9px;border-radius:999px}
+.tag.high{background:#fff0d9;color:#8f541c}.tag.submitted{background:#e3efff;color:#2e587e}
+.form-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.form-inline select{flex:1 1 170px}
+hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 30px;color:#829086;font-size:11px;text-align:center}
+@media(max-width:540px){main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.row{align-items:flex-start}}
+</style>
+</head>
+<body><div class="shell">
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Realus prisijungimas · tik sintetinės užduotys · jokios tikros GI bylos</p></header>
+<main>
+<div class="alert"><b>Bandymo aplinka.</b> Nekelkite realių miškų koordinačių, asmens duomenų, pranešėjų informacijos, nuotraukų ar oficialių dokumentų.</div>
+<div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+<section id="authView">
+ <h1>Prisijungimas</h1>
+ <p class="muted">Naudokite savo asmeninį el. paštą. Organizacijos Workspace dėžutės nereikia.</p>
+ <div class="card">
+  <form id="authForm">
+   <label class="field">Vardas (tik naujai registruojantis)<input id="fullName" autocomplete="name" maxlength="100" placeholder="Vardas"></label>
+   <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="vardas@gmail.com"></label>
+   <label class="field">Slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+   <div class="actions"><button type="submit" value="login" name="mode">Prisijungti</button><button type="submit" value="signup" name="mode" class="outline">Registruotis</button></div>
+  </form>
+  <p class="small">Po registracijos gali reikėti patvirtinti el. laišką. Naujai paskyrai vidines teises turi suteikti GI administratorius.</p>
+ </div>
+</section>
+<section id="appView" hidden>
+ <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
+ <div id="pendingView" class="card" hidden><h2>Paskyra laukia patvirtinimo</h2><p>Prisijungei sėkmingai. Vidines savanorio arba koordinatoriaus teises turi patvirtinti administratorius. Kol kas užduočių nematysi.</p><button id="pendingRefresh" class="outline">Patikrinti būseną</button></div>
+ <div id="workspace" hidden>
+  <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
+  <div id="staffPanel" hidden>
+   <div class="card"><h2>Užduočių fondas</h2><p class="small">Kurti pasiūlymus, patvirtinti ir paskirstyti. ChatGPT importą prijungsime per atskirą saugų etapą.</p>
+    <form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
+     <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
+     <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
+     <button type="submit">Pridėti siūlomą užduotį</button>
+    </form></div>
+   <div id="adminPanel" class="card" hidden><h2>Naujų savanorių patvirtinimas</h2><div id="pendingMembers"></div></div>
+  </div>
+  <div id="taskList" class="tasks"></div>
+ </div>
+</section>
+</main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
+<script defer src="./app.js"></script>
+</body></html>
