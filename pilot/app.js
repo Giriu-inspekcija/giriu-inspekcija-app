@@ -17,7 +17,7 @@
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
-  let authMode = 'signup', passwordRecovery = false;
+  let authMode = 'signup', passwordRecovery = false, passwordLoginOpen = false;
   // Only a short-lived, non-authoritative UI reminder in this browser tab.
   // Verification and access are ALWAYS decided by Supabase Auth and database roles.
   const SIGNUP_WAITING_KEY = 'gi-pilot-signup-waiting-v1';
@@ -82,10 +82,14 @@
     updateOtpButton();
   }
   function updateOtpButton() {
+    const remaining=otpRemainingSeconds();
+    const link=$('loginEmailLink');
+    link.disabled=otpRequestInFlight || remaining>0;
+    link.textContent=otpRequestInFlight?'Siunčiama...'
+      :remaining>0?'Prisijungimo nuoroda po '+remaining+' s':'Prisijungti be slaptažodžio';
     const status=$('signupSendStatus');
     status.hidden=authMode!=='signup'||!!signupWaiting;
     if(authMode!=='signup')return;
-    const remaining=otpRemainingSeconds();
     $('authSubmit').disabled=otpRequestInFlight||remaining>0;
     $('authSubmit').textContent=otpRequestInFlight?'Siunčiama...'
       :remaining>0?'Siųsti dar kartą po '+remaining+' s':'Gauti patvirtinimo laišką';
@@ -365,6 +369,15 @@
     await refreshWorkspace();
   }
 
+  function updatePasswordLoginUI() {
+    const login=authMode==='login';
+    $('loginOptions').hidden=!login;
+    $('loginPasswordField').hidden=!(login && passwordLoginOpen);
+    $('password').required=login && passwordLoginOpen;
+    $('authSubmit').hidden=login && !passwordLoginOpen;
+    $('togglePasswordLogin').textContent=passwordLoginOpen?'Slėpti slaptažodį':'Turiu slaptažodį';
+    if(!passwordLoginOpen)$('password').value='';
+  }
   function selectAuthMode(mode){
     if(!['signup','login'].includes(mode))return;
     authMode=mode;
@@ -378,10 +391,10 @@
     $('emailHelp').hidden=!signup;
     $('authIntro').textContent=signup
       ?'Užpildykite anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.'
-      :'Prisijunkite savo el. paštu ir programėlės slaptažodžiu.';
+      :'Prisijunkite vienkartine nuoroda į savo el. paštą. Slaptažodis neprivalomas.';
     $('membershipIntent').required=signup;
-    $('loginPasswordField').hidden=signup;
-    $('password').required=!signup;
+    passwordLoginOpen=false;
+    updatePasswordLoginUI();
     $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
     updateOtpButton();
     $('showSignup').className=signup?'':'outline';
@@ -389,6 +402,8 @@
     $('showSignup').setAttribute('aria-pressed',String(signup));
     $('showLogin').setAttribute('aria-pressed',String(!signup));
     $('forgotPassword').hidden=signup;
+    $('loginLinkStatus').hidden=true;
+    $('loginLinkStatus').textContent='';
     $('password').value='';
     showSignupWaiting();
     notice('');
@@ -396,7 +411,12 @@
   selectAuthMode('signup');
   $('showSignup').addEventListener('click',()=>selectAuthMode('signup'));
   $('showLogin').addEventListener('click',()=>selectAuthMode('login'));
-  window.setInterval(()=>{if(authMode==='signup')updateOtpButton();},1000);
+  $('togglePasswordLogin').addEventListener('click',()=>{
+    passwordLoginOpen=!passwordLoginOpen;
+    updatePasswordLoginUI();
+    if(passwordLoginOpen)$('password').focus();
+  });
+  window.setInterval(updateOtpButton,1000);
   window.addEventListener('storage',event=>{
     if(event.key===OTP_COOLDOWN_KEY)updateOtpButton();
   });
@@ -494,6 +514,10 @@
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
+    if(authMode==='login'&&!passwordLoginOpen){
+      $('loginEmailLink').click();
+      return;
+    }
     const signup=authMode==='signup';
     const email=$('email').value.trim().toLowerCase();
     const name=$('fullName').value.trim();
@@ -578,6 +602,38 @@
     finally{btn.disabled=false;}
   });
 
+  $('loginEmailLink').addEventListener('click',async()=>{
+    if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
+    const email=$('email').value.trim().toLowerCase();
+    if(!email||!$('email').checkValidity()){
+      $('email').focus();
+      return notice('Pirmiausia įrašykite savo el. pašto adresą.',true);
+    }
+    if(otpRequestInFlight||otpRemainingSeconds()>0){
+      updateOtpButton();
+      return notice('Dar galioja siuntimo pertrauka. Patikrinkite el. paštą.',true);
+    }
+    otpRequestInFlight=true;
+    const reservedUntil=setOtpCooldown();
+    try{
+      const {error}=await client.auth.signInWithOtp({
+        email,
+        options:{shouldCreateUser:false,emailRedirectTo:window.location.origin+window.location.pathname}
+      });
+      if(error)throw error;
+      $('loginLinkStatus').hidden=false;
+      $('loginLinkStatus').textContent='Jei paskyra registruota, adresu '+email+' gausite vienkartinę prisijungimo nuorodą. Atidarykite ją tame pačiame įrenginyje. Slaptažodžio nereikia.';
+      notice('');
+    }catch(error){
+      if(!['over_email_send_rate_limit','over_request_rate_limit'].includes(error?.code)){
+        clearOtpCooldownIfOwned(reservedUntil);
+      }
+      notice(authError(error),true);
+    }finally{
+      otpRequestInFlight=false;
+      updateOtpButton();
+    }
+  });
   $('forgotPassword').addEventListener('click',async()=>{
     if(!client)return notice('Prisijungimo biblioteka nepasiekiama.',true);
     const email = $('email').value.trim();

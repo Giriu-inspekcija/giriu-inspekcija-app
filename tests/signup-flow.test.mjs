@@ -58,3 +58,15 @@ test('user can switch account from any authentication screen without global sign
   assert.match(js,/clearSignupWaiting\(\);[\s\S]*?\$\('authForm'\)\.reset\(\)/);
   assert.match(js,/selectAuthMode\('login'\)/);
 });
+
+
+test('existing users can request passwordless email sign-in without creating another account',()=>{
+  for(const id of ['loginOptions','loginEmailLink','togglePasswordLogin','loginLinkStatus']){
+    assert.match(html,new RegExp('id="'+id+'"'));
+  }
+  assert.match(js,/client\.auth\.signInWithOtp\(\{[\s\S]*?shouldCreateUser:false/);
+  assert.match(js,/passwordLoginOpen=false/);
+  assert.match(js,/\$\('authSubmit'\)\.hidden=login && !passwordLoginOpen/);
+  assert.match(js,/Atidarykite ją tame pačiame įrenginyje/);
+  assert.match(sw,/v8-passwordless-login/);
+});
