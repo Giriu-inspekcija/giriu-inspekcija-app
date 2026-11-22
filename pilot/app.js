@@ -18,6 +18,35 @@
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
   let authMode = 'signup', passwordRecovery = false;
+  // Only a short-lived, non-authoritative UI reminder in this browser tab.
+  // Verification and access are ALWAYS decided by Supabase Auth and database roles.
+  const SIGNUP_WAITING_KEY = 'gi-pilot-signup-waiting-v1';
+  function loadSignupWaiting() {
+    try {
+      const item=JSON.parse(window.sessionStorage.getItem(SIGNUP_WAITING_KEY)||'null');
+      if(item && typeof item.email==='string' && Number.isFinite(item.at)
+        && Date.now()-item.at>=0 && Date.now()-item.at<3600000) return item;
+    } catch {}
+    try {window.sessionStorage.removeItem(SIGNUP_WAITING_KEY)} catch {}
+    return null;
+  }
+  let signupWaiting=loadSignupWaiting();
+  function rememberSignupWaiting(email) {
+    signupWaiting={email,at:Date.now()};
+    try {window.sessionStorage.setItem(SIGNUP_WAITING_KEY,JSON.stringify(signupWaiting))} catch {}
+  }
+  function clearSignupWaiting() {
+    signupWaiting=null;
+    try {window.sessionStorage.removeItem(SIGNUP_WAITING_KEY)} catch {}
+  }
+  function showSignupWaiting() {
+    const show=authMode==='signup' && !!signupWaiting;
+    $('signupWaiting').hidden=!show;
+    $('authForm').hidden=show;
+    $('signupWaitingEmail').textContent=show?signupWaiting.email:'';
+    if(show)$('signupWaitingStatus').textContent='Laiško užklausa priimta. Laukiama, kol atidarysite patvirtinimo nuorodą.';
+    updateOtpButton();
+  }
   // Browser-side convenience only; Supabase rate limits must also remain enabled.
   const OTP_COOLDOWN_MS = 120000;
   const OTP_COOLDOWN_KEY = 'gi-pilot-confirmation-email-until';
@@ -51,15 +80,18 @@
   }
   function updateOtpButton() {
     const status=$('signupSendStatus');
-    status.hidden=authMode!=='signup';
+    status.hidden=authMode!=='signup'||!!signupWaiting;
     if(authMode!=='signup')return;
     const remaining=otpRemainingSeconds();
     $('authSubmit').disabled=otpRequestInFlight||remaining>0;
     $('authSubmit').textContent=otpRequestInFlight?'Siunčiama...'
       :remaining>0?'Siųsti dar kartą po '+remaining+' s':'Gauti patvirtinimo laišką';
+    const resend=$('resendSignupEmail');
+    resend.disabled=otpRequestInFlight||remaining>0;
+    resend.textContent=remaining>0?'Siųsti naują laišką po '+remaining+' s':'Siųsti naują laišką';
     status.textContent=remaining>0
-      ?'Pakartotinai siųsti galėsite po 2 minučių nuo paskutinio bandymo. Patikrinkite el. paštą ir šlamšto aplanką.'
-      :'Vieną kartą paspauskite mygtuką ir patikrinkite savo el. paštą.';
+      ?'Pakartotinai siųsti galėsite po 2 minučių nuo paskutinio bandymo.'
+      :'Prieš siųsdami įsitikinkite, kad abu el. pašto adresai teisingi.';
   }
 
   const TASK_PAGE_SIZE = 50;
@@ -296,6 +328,8 @@
     const {data,error}=await client.auth.getUser();
     if(error || !data.user){showLoggedOut();return;}
     currentUser=data.user;
+    clearSignupWaiting();
+    showSignupWaiting();
     // Email-link registrations have no password until verified; Google OAuth does not require one.
     const providers = data.user.app_metadata?.providers || [];
     const googleLogin = providers.includes('google');
@@ -329,6 +363,12 @@
     $('fullNameField').hidden=!signup;
     $('fullName').required=signup;
     $('signupDetails').hidden=!signup;
+    $('emailConfirmField').hidden=!signup;
+    $('emailConfirm').required=signup;
+    $('emailHelp').hidden=!signup;
+    $('authIntro').textContent=signup
+      ?'Užpildykite anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.'
+      :'Prisijunkite savo el. paštu ir programėlės slaptažodžiu.';
     $('membershipIntent').required=signup;
     $('loginPasswordField').hidden=signup;
     $('password').required=!signup;
@@ -340,6 +380,7 @@
     $('showLogin').setAttribute('aria-pressed',String(!signup));
     $('forgotPassword').hidden=signup;
     $('password').value='';
+    showSignupWaiting();
     notice('');
   }
   selectAuthMode('signup');
@@ -359,7 +400,7 @@
       case 'email_address_not_authorized':
         return 'Registracijos laiškų siuntimas šiam adresui dar neįjungtas. GI administratorius turi sukonfigūruoti SMTP arba Google prisijungimą.';
       case 'over_email_send_rate_limit':
-        return 'Išnaudota bendra „Girių inspekcijos“ bandomojo pašto siuntimo riba (Supabase: 2 laiškai per valandą). Nespauskite pakartotinai. Jei jau patvirtinote el. paštą ir turite slaptažodį, rinkitės „Jau turiu paskyrą“. Masinei registracijai administratorius turi prijungti SMTP.';
+        return 'Pasiektas laiškų siuntimo limitas. Palaukite ir nebandykite pakartotinai kas kelias sekundes. Jei paskyra jau patvirtinta, rinkitės „Jau turiu paskyrą“.';
       case 'over_request_rate_limit':
         return 'Per daug prisijungimo užklausų. Nebandykite siųsti pakartotinai iškart. Jei jau turite paskyrą, rinkitės „Jau turiu paskyrą“.';
       case 'user_already_exists':
@@ -369,7 +410,8 @@
     }
   }
   function likelyEmailTypo(email) {
-    // Avoid sending disposable OTP links to obviously mistyped common mail domains.
+    // Catch known typos before the email provider accepts a request.
+    // Unknown real domains must stay allowed; existence is proven via confirmation link.
     // Do not silently correct addresses or reject unknown/legitimate mail domains.
     const at=email.lastIndexOf('@');
     if(at<1)return null;
@@ -385,6 +427,60 @@
     return fixes[domain]?email.slice(0,at+1)+fixes[domain]:null;
   }
 
+  function updateEmailHint() {
+    if(authMode!=='signup')return;
+    const email=$('email').value.trim().toLowerCase();
+    const confirmEmail=$('emailConfirm').value.trim().toLowerCase();
+    const typo=likelyEmailTypo(email);
+    let msg='Abu el. pašto adresai turi sutapti.';
+    if(typo)msg='Gal turėjote omenyje „'+typo+'“? Pataisykite prieš registruodamiesi.';
+    else if(email && !$('email').checkValidity()) msg='Įveskite taisyklingą el. pašto adresą.';
+    else if(confirmEmail && confirmEmail!==email)msg='Adresai nesutampa – patikrinkite abi eilutes.';
+    else if(email && confirmEmail && email===confirmEmail)msg='Adresai sutampa. Laišką gausite tik jei pašto dėžutė egzistuoja.';
+    $('emailHelp').textContent=msg;
+    $('emailHelp').classList.toggle('invalid',!!typo||!!(confirmEmail&&confirmEmail!==email));
+  }
+  $('email').addEventListener('input',updateEmailHint);
+  $('emailConfirm').addEventListener('input',updateEmailHint);
+
+  async function checkSignedInAfterEmail() {
+    if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
+    const button=$('checkSignupStatus');
+    button.disabled=true;
+    try {
+      const {data,error}=await client.auth.getSession();
+      if(error)throw error;
+      if(data?.session?.user) {
+        await onSignIn();
+        return;
+      }
+      $('signupWaitingStatus').textContent=
+        'Šioje naršyklėje prisijungimo dar nėra. Atidarykite laiško nuorodą. Jeigu ją atidarėte kitame telefone ar naršyklėje, ten užbaikite slaptažodžio kūrimą, o čia prisijunkite su slaptažodžiu.';
+    } catch(error) {
+      $('signupWaitingStatus').textContent='Nepavyko patikrinti šio įrenginio prisijungimo: '+(error?.message||'klaida')+'. Bandykite dar kartą.';
+    } finally {button.disabled=false;}
+  }
+  $('checkSignupStatus').addEventListener('click',checkSignedInAfterEmail);
+  $('resendSignupEmail').addEventListener('click',()=>{
+    if(otpRequestInFlight||otpRemainingSeconds()>0)return;
+    const email=signupWaiting?.email||'';
+    clearSignupWaiting(); showSignupWaiting();
+    $('email').value=email; $('emailConfirm').value='';
+    updateEmailHint(); $('email').focus();
+    notice('Patikrinkite anketą, pakartokite el. paštą ir spauskite „Gauti patvirtinimo laišką“.');
+  });
+  $('editSignupEmail').addEventListener('click',()=>{
+    const email=signupWaiting?.email||'';
+    clearSignupWaiting(); showSignupWaiting();
+    $('email').value=email; $('emailConfirm').value='';
+    updateEmailHint(); $('email').focus();
+    notice('Pataisykite el. paštą ir pakartokite jį antroje eilutėje. Nauja užklausa bus leidžiama pasibaigus siuntimo pertraukai.');
+  });
+  $('stopSignup').addEventListener('click',()=>{
+    clearSignupWaiting(); $('authForm').reset(); showSignupWaiting(); updateEmailHint();
+    notice('Pildymą sustabdėte. Jau išsiųsto laiško tai neatšaukia; paskyra gali likti sistemoje. Jei norite pašalinti paskyrą, rašykite info@giriuinspekcija.lt.');
+  });
+
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
@@ -395,7 +491,13 @@
     const suggestedEmail=likelyEmailTypo(email);
     if(signup&&suggestedEmail){
       $('email').focus();
-      return notice('Patikrinkite el. paštą: įrašyta „'+email+'“. Ar turėjote omenyje „'+suggestedEmail+'“? Pataisykite adresą prieš siunčiant laišką.',true);
+      updateEmailHint();
+      return notice('Pataisykite el. paštą į „'+suggestedEmail+'“ (jei tai jūsų adresas). Laiškas dar nesiųstas.',true);
+    }
+    if(signup&&email!==$('emailConfirm').value.trim().toLowerCase()){
+      $('emailConfirm').focus();
+      updateEmailHint();
+      return notice('El. pašto adresai nesutampa. Pakartokite teisingą adresą.',true);
     }
     if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
     const membershipIntent=$('membershipIntent').value;
@@ -424,7 +526,9 @@
           }
         });
         if(error)throw error;
-        notice('Registracijos laiško užklausa priimta adresu '+email+'. Patikrinkite tikslų adresą ir šlamšto aplanką. Pakartotinai siųsti galėsite po 2 minučių.');
+        rememberSignupWaiting(email);
+        showSignupWaiting();
+        notice('');
       }else{
         const result=await client.auth.signInWithPassword({email,password});
         if(result.error)throw result.error;
@@ -526,7 +630,11 @@
     $('memberSearch').value='';
     refreshWorkspace();
   });
-  $('pendingRefresh').addEventListener('click',refreshWorkspace);
+  $('pendingRefresh').addEventListener('click',async()=>{
+    await refreshWorkspace();
+    if(profile?.role==='pending')notice('Būsena nepasikeitė: laukiate koordinatoriaus patvirtinimo.');
+    else if(profile)notice('Jūsų būsena: '+(roleNames[profile.role]||profile.role)+'.');
+  });
   $('activateMaster').addEventListener('click',async()=>{
     if(!client||!currentUser||profile?.role!=='pending')return;
     if(!confirm('Aktyvuoti šios patvirtintos paskyros pagrindinio administratoriaus teises?'))return;
@@ -721,10 +829,14 @@
     // Avoid expensive all-table polling at larger volunteer counts.
     // Refresh on return to the app, plus a conservative 3-minute visible-session fallback.
     document.addEventListener('visibilitychange',()=>{
-      if(currentUser && !document.hidden) refreshWorkspace();
+      if(document.hidden)return;
+      if(currentUser)refreshWorkspace();
+      else if(signupWaiting)checkSignedInAfterEmail();
     });
     window.addEventListener('focus',()=>{
-      if(currentUser && !document.hidden) refreshWorkspace();
+      if(document.hidden)return;
+      if(currentUser)refreshWorkspace();
+      else if(signupWaiting)checkSignedInAfterEmail();
     });
     setInterval(()=>{if(currentUser&&!document.hidden)refreshWorkspace()},180000);
   }else{
