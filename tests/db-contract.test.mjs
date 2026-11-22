@@ -93,3 +93,21 @@ test('email-first onboarding is verified before password setup', () => {
   assert.doesNotMatch(js,/zelaurynas@gmail\.com/i);
   assert.doesNotMatch(sql,/zelaurynas@gmail\.com/i);
 });
+
+test('scalable task paging uses RLS-safe cursor, not 150-row hard caps', () => {
+  const app = readFileSync(new URL('../pilot/app.js', import.meta.url),'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20261122200000_gi_keyset_task_paging.sql',import.meta.url),'utf8');
+  assert.match(migration,/SECURITY INVOKER/i);
+  assert.match(migration,/RETURNS SETOF public\.gi_tasks/i);
+  assert.match(migration,/\(t\.created_at,t\.id\) < \(p_before_created_at,p_before_id\)/);
+  assert.match(migration,/GRANT EXECUTE ON FUNCTION public\.gi_list_tasks_page/);
+  assert.match(app,/client\.rpc\('gi_list_tasks_page'/);
+  assert.match(app,/const TASK_PAGE_SIZE = 50/);
+  assert.match(app,/refreshWorkspace\(\{appendTasks:true\}\)/);
+  assert.doesNotMatch(app,/\.limit\(150\)|\.limit\(200\)|\btaskPage\b/);
+});
+test('both coordinator and admin can assign tasks but volunteers cannot',()=>{
+  const sql=readFileSync(new URL('../supabase/migrations/20261122154000_gi_synthetic_pilot.sql',import.meta.url),'utf8');
+  assert.match(sql,/function public\.gi_assign_task/);
+  assert.match(sql,/coalesce\(\(select private\.gi_role\(\)\), 'pending'\) not in \('coordinator','admin'\)/);
+});
