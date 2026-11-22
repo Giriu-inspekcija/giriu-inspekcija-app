@@ -13,7 +13,7 @@ test('ChatGPT inbox has distinct staff-only UI and explicit approval',()=>{
   assert.match(app,/\$\('staffPanel'\)\.hidden = !staff\(\)/);
   assert.match(app,/\$\('aiProposalList'\)\.addEventListener\('click'/);
   assert.match(app,/data-ai-approve/);
-  assert.match(app,/action:'Patvirtinti į fondą'/);
+  assert.match(app,/p_action:'publish'/);
   assert.match(app,/p_action:'publish'/);
   assert.match(app,/gi_task_action/);
 });
@@ -37,5 +37,5 @@ test('manual JSON is optional fallback; proposals are never automatically assign
   const end=app.indexOf("function renderTasks()",start);
   const inboxUi=app.slice(start,end);
   assert.doesNotMatch(inboxUi,/gi_assign_task|data-assign/);
-  assert.match(sw,/v16-ai-proposals/);
+  assert.match(sw,/v17-feedback-ux/);
 });

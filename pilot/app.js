@@ -188,6 +188,8 @@
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; agentProposals = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     thread.clear();if($('decision').open)$('decision').close('cancel');
+    if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
+    feedbackVisibleCount=4;feedbackShowResolved=false;
     activePanel='tasks';
     nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
     taskHistoryCache.clear();
@@ -444,13 +446,13 @@
   }
 
   const panelTitles={tasks:'Darbai',time:'Valandos',incidents:'Įvykiai',documents:'Dokumentai',team:'Komanda',feedback:'Pastabos'};
-  let feedbackOrigin='feedback';
+  let feedbackOrigin='feedback', feedbackVisibleCount=4, feedbackShowResolved=false, feedbackQuickOrigin='tasks';
   function openPanel(name) {
     if(!['tasks','time','incidents','documents','team','feedback'].includes(name))name='tasks';
     if(name==='documents'&&!canWriteDocuments())name='tasks';
     if(name==='team'&&!staff())name='tasks';
     activePanel=name;
-    $('quickFeedback').hidden=name==='feedback'||!approved();
+    $('quickFeedback').hidden=!approved();
     for(const panel of ['tasks','time','incidents','documents','team','feedback']){
       $(panel+'Section').hidden=panel!==name;
       const button=document.querySelector('[data-nav="'+panel+'"]');
@@ -470,13 +472,17 @@
   $('captureIncident').addEventListener('click',()=>{
     openPanel('incidents');$('incidentEditor').open=true;$('incidentDescription').focus();$('incidentForm').scrollIntoView({block:'start'});
   });
-  $('quickFeedback').addEventListener('click',()=>{
-    feedbackOrigin=activePanel;
-    openPanel('feedback');
-    $('feedbackContext').textContent='Pastaba apie: '+(panelTitles[feedbackOrigin]||'Programėlė');
-    $('feedbackForm').querySelector('textarea[name="message"]').focus({preventScroll:true});
-    $('feedbackForm').scrollIntoView({block:'start',behavior:'auto'});
-  });
+  function openQuickFeedback(){
+    if(!approved()||!currentUser)return;
+    feedbackQuickOrigin=$('threadDialog').open?'Kortelė':(panelTitles[activePanel]||'Programėlė');
+    $('quickFeedbackContext').textContent='Pastaba apie: '+feedbackQuickOrigin;
+    const dialog=$('quickFeedbackDialog');
+    if(!dialog.open)dialog.showModal();
+    dialog.querySelector('textarea[name="message"]').focus({preventScroll:true});
+  }
+  $('quickFeedback').addEventListener('click',openQuickFeedback);
+  $('threadQuickFeedback').addEventListener('click',openQuickFeedback);
+  $('quickFeedbackClose').addEventListener('click',()=>$('quickFeedbackDialog').close());
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
   function renderManualTimeTaskOptions(){
     const select=$('manualTimeTask'),old=select.value;
@@ -615,24 +621,52 @@
   }
   function renderFeedback() {
     $('feedbackQueuePanel').hidden=!staff();
-    $('feedbackQueue').innerHTML=feedbackGroups.map(g=>'<article class="card"><b>'+escapeHTML(g.gi_feedback?.category)+'</b>'
-      +'<p>'+escapeHTML(g.gi_feedback?.message)+'</p><p class="small">Pranešimų: '+Number(g.reports)+'</p>'
-      +(g.resolved_at?'<p>Sprendimas: '+escapeHTML(g.resolution)+'</p>':'<div class="actions">'
-        +(g.task_id?'<span>Užduotis '+escapeHTML(g.task_id.slice(0,8))+'</span>':'<button type="button" data-feedback-task="'+escapeHTML(g.id)+'">Sukurti užduotį</button>')
-        +'<button type="button" class="outline" data-feedback-resolve="'+escapeHTML(g.id)+'">Užrašyti sprendimą</button></div>')+'</article>').join('')
-      ||'<p class="small">Pastabų dar nėra.</p>';
-    $('feedbackTitle').textContent = staff() ? 'Visos bandymo pastabos' : 'Mano pastabos';
-    $('feedbackList').innerHTML = feedback.length
-      ? feedback.map(item => {
-          const who = members.find(m=>m.id===item.reporter_id);
-          return '<div class="card"><div class="row"><b>'+escapeHTML(item.category)+'</b>'
-            +'<span class="small">'+escapeHTML(new Date(item.created_at).toLocaleDateString('lt-LT'))+'</span></div>'
-            +'<p>'+escapeHTML(item.message)+'</p>'
-            +(staff()?'<p class="small">Pateikė: '+escapeHTML(who?personName(who):'Testuotojas')+'</p>':'')
-            +'</div>';
-        }).join('')
-      : '<p class="small">Pastabų dar nėra.</p>';
+    const pending=feedbackGroups.filter(g=>!g.resolved_at);
+    const groups=feedbackShowResolved?feedbackGroups:pending;
+    $('feedbackQueueCount').textContent=pending.length?'('+pending.length+' naujos)':'(0 naujų)';
+    $('feedbackResolvedToggle').textContent=feedbackShowResolved?'Slėpti išspręstas':'Rodyti išspręstas ('+(feedbackGroups.length-pending.length)+')';
+    $('feedbackQueue').innerHTML=groups.map(g=>{
+      const full=String(g.gi_feedback?.message||'');
+      const preview=full.length>95?full.slice(0,95)+'…':full;
+      return '<details class="feedback-item"><summary><b class="feedback-tag">'+escapeHTML(g.gi_feedback?.category||'Pastaba')+'</b>'
+        +'<span class="feedback-snippet">'+escapeHTML(preview)+'</span>'
+        +'<span class="small">×'+Number(g.reports||1)+'</span></summary>'
+        +'<p>'+escapeHTML(full)+'</p>'
+        +(g.resolved_at?'<p class="small">Sprendimas: '+escapeHTML(g.resolution||'Išspręsta')+'</p>':'<div class="actions">'
+          +(g.task_id?'<span class="small">Užduotis '+escapeHTML(g.task_id.slice(0,8))+'</span>'
+            :'<button type="button" class="outline" data-feedback-start="'+escapeHTML(g.id)+'">Sukurti užduotį</button>')
+          +'<button type="button" class="outline" data-feedback-resolve="'+escapeHTML(g.id)+'">Užrašyti sprendimą</button></div>')
+        +(!g.resolved_at&&!g.task_id?'<form class="feedback-create" data-feedback-create="'+escapeHTML(g.id)+'" hidden>'
+          +'<label class="field">Užduoties pavadinimas<input name="title" required minlength="3" maxlength="140" placeholder="Ką konkrečiai pataisyti?"></label>'
+          +'<label class="field">Ką reikės padaryti<textarea name="note" required minlength="5" maxlength="6000" rows="4" placeholder="Aiškus rezultatas ir patikros kriterijus"></textarea></label>'
+          +'<button type="submit">Įkelti užduotį peržiūrai</button></form>':'')
+        +'</details>';
+    }).join('')||'<p class="small">Šiuo metu neišnagrinėtų pastabų nėra.</p>';
+    $('feedbackTitle').textContent=(staff()?'Pastabų istorija':'Mano pastabos')+' ('+feedback.length+')';
+    const shown=feedback.slice(0,feedbackVisibleCount);
+    $('feedbackList').innerHTML=shown.length?shown.map(item=>{
+      const who=members.find(m=>m.id===item.reporter_id);
+      const message=String(item.message||'');
+      const preview=message.length>105?message.slice(0,105)+'…':message;
+      return '<details class="feedback-item"><summary><b class="feedback-tag">'+escapeHTML(item.category)+'</b>'
+        +'<span class="feedback-snippet">'+escapeHTML(preview)+'</span>'
+        +'<span class="small">'+escapeHTML(new Date(item.created_at).toLocaleDateString('lt-LT'))+'</span></summary>'
+        +'<p>'+escapeHTML(message)+'</p>'
+        +(staff()?'<p class="small">Pateikė: '+escapeHTML(who?personName(who):'Testuotojas')+'</p>':'')
+        +'</details>';
+    }).join(''):'<p class="small">Pastabų dar nėra.</p>';
+    $('feedbackMore').hidden=feedback.length<=feedbackVisibleCount;
+    $('feedbackMore').textContent='Rodyti daugiau ('+Math.max(0,feedback.length-feedbackVisibleCount)+')';
   }
+  $('feedbackResolvedToggle').addEventListener('click',()=>{
+    if(!staff())return;
+    feedbackShowResolved=!feedbackShowResolved;
+    renderFeedback();
+  });
+  $('feedbackMore').addEventListener('click',()=>{
+    feedbackVisibleCount+=10;
+    renderFeedback();
+  });
 
   function buttonsFor(task){
     const id=escapeHTML(task.id);
@@ -1186,14 +1220,33 @@
     $('taskOwnerFilter').value='mine';$('taskSearchForm').requestSubmit();
   });
   $('feedbackQueue').addEventListener('click',async e=>{
-    const b=e.target.closest('button');if(!b||!staff())return;
-    const create=!!b.dataset.feedbackTask, id=b.dataset.feedbackTask||b.dataset.feedbackResolve;
-    const title=create?await ask('Koks užduoties pavadinimas?',{input:true}):null;
-    if(create&&(!title||title.trim().length<3))return;
-    const note=await ask(create?'Aprašykite darbą vykdytojui be asmens duomenų.':'Kaip išspręsta pastaba?',{input:true});
-    if(!note||note.trim().length<(create?5:3))return;
-    return run(()=>client.rpc('gi_review_feedback_group',{p_id:id,p_action:create?'task':'resolve',p_title:title,p_note:note,p_priority:'normal'}),
-      create?'Sukurta susieta užduotis.':'Sprendimas išsaugotas.');
+    const b=e.target.closest('button');if(!b||!staff()||mutationInFlight)return;
+    if(b.dataset.feedbackStart){
+      const form=b.closest('details')?.querySelector('[data-feedback-create]');
+      if(!form)return;
+      form.hidden=!form.hidden;
+      if(!form.hidden)form.querySelector('input[name="title"]').focus({preventScroll:true});
+      return;
+    }
+    if(!b.dataset.feedbackResolve)return;
+    const note=await ask('Koks šios pastabos sprendimas?',{input:true,action:'Išsaugoti sprendimą'});
+    if(!note||note.trim().length<3)return;
+    return run(()=>client.rpc('gi_review_feedback_group',{
+      p_id:b.dataset.feedbackResolve,p_action:'resolve',p_title:null,p_note:note.trim(),p_priority:'normal'
+    }),'Sprendimas išsaugotas.');
+  });
+  $('feedbackQueue').addEventListener('submit',event=>{
+    const form=event.target.closest('[data-feedback-create]');
+    if(!form||!staff())return;
+    event.preventDefault();
+    if(mutationInFlight)return;
+    const data=new FormData(form),title=String(data.get('title')||'').trim();
+    const note=String(data.get('note')||'').trim();
+    if(title.length<3||title.length>140||note.length<5||note.length>6000)
+      return toast('Įveskite pavadinimą ir aiškų aprašymą.',true);
+    return run(()=>client.rpc('gi_review_feedback_group',{
+      p_id:form.dataset.feedbackCreate,p_action:'task',p_title:title,p_note:note,p_priority:'normal'
+    }),'Sukurta užduotis koordinatoriaus peržiūrai.');
   });
   $('taskSearchForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -1253,23 +1306,43 @@
       return result;
     },'Užduotis sukurta.');
   });
-  $('feedbackForm').addEventListener('submit',event => {
-    event.preventDefault();
-    if(!currentUser || !approved()) return;
-    const form=event.currentTarget,data=new FormData(form);
-    const raw=String(data.get('message')||'').trim();
-    const origin=feedbackOrigin==='feedback'?'':(panelTitles[feedbackOrigin]||'');
+  async function submitFeedback(form,origin,button){
+    if(!currentUser||!approved()||mutationInFlight)return;
+    const data=new FormData(form),raw=String(data.get('message')||'').trim();
+    if(raw.length<5)return toast('Aprašykite problemą bent 5 simboliais.',true);
     const message=origin?'['+origin+'] '+raw:raw;
-    if(message.length>1500)return toast('Pastaba per ilga – sutrumpinkite iki 1500 simbolių.',true);
-    run(async()=>{
+    if(message.length>1500)return toast('Pastaba per ilga – sutrumpinkite tekstą.',true);
+    mutationInFlight=true;
+    const restore=busy(button,'Siunčiama…');
+    toast('Pastaba siunčiama…');
+    try{
       const result=await client.from('gi_feedback').insert({
         reporter_id:currentUser.id,
         category:String(data.get('category')||'pasiulymas'),
         message
       });
-      if(!result.error){form.reset();feedbackOrigin='feedback';}
-      return result;
-    },'Pastaba užregistruota. Ačiū!');
+      if(result.error)throw result.error;
+      form.reset();
+      if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
+      feedbackOrigin='feedback';
+      toast('Pastaba išsiųsta GI koordinatoriams.');
+      // Refresh only the currently visible feedback view; do not jump away
+      // from the task or document the author was reviewing.
+      if(activePanel==='feedback')await refreshWorkspace();
+    }catch(error){
+      toast('Nepavyko išsiųsti pastabos: '+(error?.message||'Patikrinkite ryšį.'),true);
+    }finally{restore();mutationInFlight=false;}
+  }
+  $('feedbackForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    submitFeedback(event.currentTarget,
+      feedbackOrigin==='feedback'?'':(panelTitles[feedbackOrigin]||''),
+      event.submitter||event.currentTarget.querySelector('button[type=submit]'));
+  });
+  $('quickFeedbackForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    submitFeedback(event.currentTarget,feedbackQuickOrigin,
+      $('quickFeedbackSend'));
   });
   $('aiRefresh').addEventListener('click',async()=>{
     if(!staff()||loading)return;
@@ -1282,8 +1355,7 @@
     if(!button||!staff()||loading||mutationInFlight)return;
     const task=agentProposals.find(t=>t.id===button.dataset.aiApprove);
     if(!task)return;
-    const confirm=await ask('Patvirtinti „'+task.title+'“? Užduotis atsiras bandomajame GI užduočių fonde, bet savanoriui automatiškai nebus paskirta.',{action:'Patvirtinti į fondą'});
-    if(!confirm)return;
+    // The button already states the action; avoid a redundant confirmation.
     await run(()=>client.rpc('gi_task_action',{p_id:task.id,p_action:'publish',p_note:null}),
       'ChatGPT pasiūlymas patvirtintas ir perkeltas į užduočių fondą.');
   });

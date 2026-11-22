@@ -73,7 +73,7 @@ test('own time entries remain visible to admin separately from other volunteer a
   assert.match(js,/client\.rpc\('gi_review_queue'\)/);
   assert.match(js,/\$\('staffTimeLogs'\)\.addEventListener\('click',handleTimeReviewClick\)/);
   assert.match(js,/\$\('workLogsList'\)\.innerHTML=mine\.length/);
-  assert.match(sw,/v16-ai-proposals/);
+  assert.match(sw,/v17-feedback-ux/);
 });
 test('all directly referenced input elements still exist',()=>{
   const ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
