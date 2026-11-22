@@ -329,3 +329,30 @@ RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path = ''
 AS $$ SELECT private.gi_set_document_permission(p_user,p_allowed) $$;
 REVOKE ALL ON FUNCTION public.gi_set_document_permission(uuid,boolean) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.gi_set_document_permission(uuid,boolean) TO authenticated;
+
+-- Master-only role changes must not leave a stale document permission after demotion.
+CREATE OR REPLACE FUNCTION private.gi_set_user_role(p_user uuid,p_role text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE v_prior text;
+BEGIN
+ IF coalesce((select private.gi_role()),'pending') <> 'admin'
+   OR p_user=auth.uid() OR p_user IS NULL
+   OR p_role NOT IN ('pending','candidate','volunteer','coordinator','admin') THEN
+   RAISE EXCEPTION 'GI admin approval required'; END IF;
+ SELECT role INTO v_prior FROM public.gi_profiles WHERE id=p_user FOR UPDATE;
+ IF v_prior IS NULL THEN RAISE EXCEPTION 'Unknown GI user'; END IF;
+ IF v_prior=p_role THEN RETURN; END IF;
+ UPDATE public.gi_profiles
+ SET role=p_role,
+   volunteer_rank=CASE
+     WHEN p_role='candidate' THEN 'pradedantysis'
+     WHEN p_role='volunteer' THEN coalesce(volunteer_rank,'pradedantysis')
+     ELSE NULL END,
+   can_prepare_documents=CASE WHEN p_role='volunteer' AND v_prior='volunteer'
+       THEN can_prepare_documents ELSE false END
+ WHERE id=p_user;
+ INSERT INTO public.gi_role_events(actor_id,target_id,former_role,new_role)
+ VALUES(auth.uid(),p_user,v_prior,p_role);
+END
+$$;
