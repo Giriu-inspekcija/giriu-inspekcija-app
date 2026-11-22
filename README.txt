@@ -1,9 +1,9 @@
 GIRIŲ INSPEKCIJA — SINTETINIS DEMO | 2026-11-22
 
 GREITAS BANDYMAS
-1. Atverkite paskelbtos demonstracijos HTTPS nuorodą telefone ar kompiuteryje.
+1. Atverkite https://starlit-shortbread-a38110.netlify.app/ telefone ar kompiuteryje.
 2. Viršuje pasirinkite "Koordinatorius (demo)"; per "Valdymas" sukurkite išgalvotą užduotį.
-3. Pasirinkite "Asta (demo)" ir atsidarykite "Darbai". Priimkite užduotį, pradėkite ir pateikite rezultatą.
+3. Pasirinkite "Asta (savanorė)" ir atsidarykite "Darbai". Priimkite užduotį, pradėkite ir pateikite rezultatą.
 4. Grįžę prie koordinatoriaus patvirtinkite rezultatą.
 5. Išbandykite "Pranešti", "Laikas" ir "Pastabos".
 
@@ -14,7 +14,7 @@ KĄ BŪTINA ŽINOTI
 - Tikras prisijungimas ir bendra duomenų bazė bus atskiras etapas.
 
 PWA ĮDIEGIMAS Į TELEFONĄ
-- Tam reikia HTTPS svetainės. Įkelkite ZIP išskleistą turinį į statinį HTTPS hostingą (pvz., Cloudflare Pages).
+- Pakeitimai, įkelti į GitHub „main“ šaką, automatiškai publikuojami esamame Netlify projekte.
 - Android Chrome: atverkite nuorodą > meniu > Įdiegti programą / Pridėti į pagrindinį ekraną.
 - iPhone Safari: atverkite nuorodą > Bendrinti > Įtraukti į pradžios ekraną.
 - Kai programa atsidaro pirmą kartą per HTTPS, joje įdiegtas service worker leidžia ją atidaryti ir be interneto (po sėkmingo talpyklos užpildymo).
