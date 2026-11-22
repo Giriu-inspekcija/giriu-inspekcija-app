@@ -272,6 +272,14 @@
           p_title:t.title,p_details:t.details,p_priority:t.priority,p_source_ref:t.source_ref
         });
         if(result.error) throw result.error;
+        const taskId = result.data;
+        if(!taskId) throw Error('Supabase negrąžino užduoties ID.');
+        const existing = await client.from('gi_tasks').select('status').eq('id',taskId).single();
+        if(existing.error) throw existing.error;
+        if(existing.data.status === 'proposed') {
+          const publish = await client.rpc('gi_task_action',{p_id:taskId,p_action:'publish',p_note:null});
+          if(publish.error) throw publish.error;
+        }
         imported++;
       } catch(err) {failures.push(t.source_ref+': '+(err?.message||String(err)));}
     }
@@ -280,7 +288,7 @@
     else $('batchReview').textContent='Klaidos: '+failures.slice(0,5).join(' | ');
     await refreshWorkspace();
     notice('Patvirtintų siūlomų užduočių: '+imported+' iš '+copy.length
-      +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Dabar jas gali paskelbti fonde.'),!!failures.length);
+      +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Užduotys jau yra fonde.'),!!failures.length);
   });
   $('pendingMembers').addEventListener('click',event=>{
     const b=event.target.closest('[data-promote]');
