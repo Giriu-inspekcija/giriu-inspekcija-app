@@ -87,6 +87,59 @@ def exercise(user,password):
                 expect(card.get_by_text('Nustatyti terminą',exact=True)).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
+                if name=='desktop':
+                    test_forms(page)
                 browser.close()
     finally:
         server.shutdown()
+
+def test_forms(page):
+    import base64
+    import io
+    import zipfile
+    from xml.etree import ElementTree
+    expect(page.locator('#documentsNav')).to_be_visible()
+    page.locator('[data-nav=incidents]').click()
+    page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
+    page.locator('#incidentCoords').fill('0.0, 0.0')
+    page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
+        'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
+    page.get_by_role('button',name='Pateikti bandomąjį pranešimą').click()
+    incident=page.locator('#incidentsList article').filter(has_text='Naršyklės demonstracinė patikra')
+    expect(incident).to_contain_text('Pateikta')
+    incident.get_by_role('button',name='Nuotraukos').click()
+    expect(incident.locator('img')).to_have_count(1)
+    incident.get_by_role('button',name='Pradėti atvejo patikrą').click()
+    incident.locator('summary').click()
+    form=incident.locator('form')
+    form.locator('[name=title]').fill('Naršyklės atvejo užduotis')
+    form.locator('[name=details]').fill('Peržiūrėti demonstracinį atvejį')
+    form.locator('button').click()
+    expect(page.locator('#actionToast')).to_contain_text('Užduotis sukurta')
+    page.locator('#documentsNav').click()
+    page.get_by_text('Rengti bandomąjį dokumentą',exact=True).click()
+    form=page.locator('#documentCreate')
+    form.locator('[name=title]').fill('Naršyklės pažyma')
+    form.locator('[name=task]').select_option(label='Naršyklės atvejo užduotis')
+    form.locator('button').click()
+    doc=page.locator('#documentList article').filter(has_text='Naršyklės pažyma')
+    expect(doc).to_contain_text('Juodraštis')
+    doc.locator('[data-body]').fill('Patikros rezultatas <patikrinta> & aprašymas.')
+    doc.get_by_role('button',name='Išsaugoti',exact=True).click()
+    expect(doc).to_contain_text('2 versija')
+    with page.expect_download() as download:
+        doc.get_by_role('button',name='Atsisiųsti DOCX').click()
+    path=download.value.path()
+    with zipfile.ZipFile(path) as file:
+        document=ElementTree.fromstring(file.read('word/document.xml'))
+        assert 'Patikros rezultatas <patikrinta> & aprašymas.' in ''.join(document.itertext())
+    page.evaluate('window.print=()=>{}')
+    doc.get_by_role('button',name='Spausdinti / PDF').click()
+    page.emulate_media(media='print')
+    expect(page.locator('#printDocument')).to_be_visible()
+    expect(page.locator('#printDocument')).to_contain_text('Patikros rezultatas')
+    assert page.pdf().startswith(b'%PDF-')
+    page.emulate_media(media='screen')
+    doc.get_by_role('button',name='Pateikti peržiūrai').click()
+    expect(doc).to_contain_text('Peržiūrima')
+    print('PASS browser incident, private photo, case task, document review submission, DOCX and print PDF',flush=True)

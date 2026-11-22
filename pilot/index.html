@@ -76,6 +76,8 @@ header{padding:10px 16px 9px}
 @media(max-width:540px){header{padding:8px 11px 7px}.brand img{width:36px;height:36px}.brand b{font-size:15px}.brand small{display:none}.pilot{font-size:9px;padding:2px 5px}.account-switch{flex-direction:row;align-items:center}.account-switch .account-label{display:none}.account-switch button{padding:7px 8px;font-size:11px}#manualTimeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
 
+#printDocument{display:none}
+@media print{body>*{display:none!important}body>#printDocument{display:block!important;background:white;color:#171717;white-space:pre-wrap;font:12pt/1.5 Georgia,serif}#printDocument h1{font-size:17pt}@page{size:A4;margin:22mm}}
 </style>
 </head>
 <body><div class="shell">
@@ -296,6 +298,9 @@ header{padding:10px 16px 9px}
 </main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
+<section id="printDocument" aria-hidden="true"></section>
+<script defer src="./vendor/fflate-0.8.2.js"></script>
+<script defer src="./document-export.js"></script>
 <script defer src="./deadlines.js"></script>
 <script defer src="./app.js"></script>
 <script>

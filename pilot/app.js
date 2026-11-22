@@ -1345,6 +1345,8 @@
           :'<p style="white-space:pre-wrap">'+escapeHTML(d.body)+'</p>')
         +(reviewer?'<div class="actions"><button data-doc-action="approve">Patvirtinti pasirašymui</button>'
           +'<button class="outline" data-doc-action="return">Grąžinti rengėjui</button></div>':'')
+        +'<div class="actions"><button class="outline" data-doc-export="docx">Atsisiųsti DOCX</button>'
+        +'<button class="outline" data-doc-export="print">Spausdinti / PDF</button></div>'
         +'<button class="outline" data-doc-history>Versijų istorija</button><div data-history></div></article>';
     }).join('')||'<p class="small">Dokumentų dar nėra.</p>';
   }
@@ -1365,6 +1367,12 @@
     if(!card)return;
     const doc=documents.find(d=>d.id===card.dataset.document);
     if(!doc)return;
+    if(button.dataset.docExport){
+      const body=card.querySelector('[data-body]')?.value??doc.body;
+      if(button.dataset.docExport==='docx')window.giDocumentExport.docx(doc.title,body);
+      else window.giDocumentExport.printDocument(doc.title,body);
+      return;
+    }
     if(button.hasAttribute('data-doc-history')){
       const box=card.querySelector('[data-history]');
       button.disabled=true;
