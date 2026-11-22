@@ -56,4 +56,8 @@ Tik: pasirinkti tikslų Supabase testinį projektą, patvirtinti pirmojo admin t
 4. Atlikti realius RLS ir RPC bandymus su vienu admin, vienu koordinatoriumi ir dviem savanoriais skirtinguose naršyklių kontekstuose. Neužtenka statinių CI testų.
 5. Patikrinti frontend CDN bibliotekos įkėlimą, login redirect, slaptažodžio srautą, valdymą telefone ir login session atnaujinimą.
 6. Tik po patvirtinimo ir realių testų iškelti `/pilot/` į pagrindinį Netlify `main`, nepažeidžiant senojo demo ir aiškiai atskyrus pilotą nuo produkcijos.
-7. Vėliau įdiegti DI JSON pasiūlymų importo patvirtinimą bei apsaugotą API. Kol kas automatinės ChatGPT užduočių sinchronizacijos nėra.
+7. Įdiegta ChatGPT JSON pasiūlymų peržiūros ir koordinatoriaus patvirtinto importo forma: iki 20 sintetinių užduočių, deduplikacija per source_ref, patvirtinus per Supabase RPC nukeliauja į pool. **Tiesioginės šio ChatGPT pokalbio API integracijos dar nėra.** Saugų automatizuotą įrašymo API palikti kitam etapui.
+
+## Pastabų funkcija
+- `gi_feedback` leidžia prisijungusiam testuotojui perduoti programėlės pastabas į bendrą testinę DB, RLS leidžia skaityti tik savas pastabas arba visas koordinatoriams.
+- **Nekurti GitHub Issues automatiškai** iš nepriklausomų naudotojų teksto, kol nėra moderavimo ir asmens duomenų filtravimo.
