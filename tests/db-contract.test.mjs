@@ -140,3 +140,17 @@ test('ranks are distinct from document permissions', () => {
   assert.match(sql,/public\.gi_member_events/);
   assert.doesNotMatch(sql,/GRANT (?:UPDATE|INSERT) ON public\.gi_profiles TO authenticated/i);
 });
+
+test('signup email button enforces 2-minute cooldown across reloads', () => {
+  const js=readFileSync(new URL('../pilot/app.js',import.meta.url),'utf8');
+  const html=readFileSync(new URL('../pilot/index.html',import.meta.url),'utf8');
+  assert.match(html,/id="signupSendStatus"/);
+  assert.match(html,/aria-live="polite"/);
+  assert.match(js,/const OTP_COOLDOWN_MS = 120000/);
+  assert.match(js,/window\.localStorage\.setItem\(OTP_COOLDOWN_KEY/);
+  assert.match(js,/window\.localStorage\.getItem\(OTP_COOLDOWN_KEY/);
+  assert.match(js,/otpRequestInFlight\|\|otpRemainingSeconds\(\)>0/);
+  assert.match(js,/reservedUntil=setOtpCooldown\(\)/);
+  assert.match(js,/window\.addEventListener\('storage'/);
+  assert.match(js,/clearOtpCooldownIfOwned\(reservedUntil\)/);
+});
