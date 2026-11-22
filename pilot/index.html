@@ -55,6 +55,8 @@ h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
 .task-summary span{display:inline-block;margin:3px 8px 3px 0}
 details{border-top:1px solid #dbe5db;margin-top:12px;padding-top:12px}
 details summary{cursor:pointer;color:#205742}
+.pilot-info{background:#eef4ed;color:#42634c;border:1px solid #d5e2d5;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+.pilot-info details{margin-top:6px;padding-top:4px;border:0}
 @media(max-width:540px){.account-switch{align-items:stretch;flex-direction:column}.account-switch button{align-self:flex-start}main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
 
 </style>
@@ -63,7 +65,7 @@ details summary{cursor:pointer;color:#205742}
 <header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p>
 <div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></header>
 <main>
-<div class="alert"><b>Tik bandomosios užduotys.</b> Nekelkite tikrų miškų koordinačių, žmonių duomenų, nuotraukų ar oficialių dokumentų.</div>
+<div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
  <h1 id="authTitle">Prisijungimas</h1>
@@ -242,7 +244,7 @@ details summary{cursor:pointer;color:#205742}
   </section>
  </div>
 </section>
-</main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai. Prisijungus saugomi vardas, el. paštas ir paskyros techniniai įrašai. Dėl duomenų tvarkymo kreipkitės: info@giriuinspekcija.lt. <a href="./privatumas.html">Plačiau apie testavimo duomenis</a></footer>
+</main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
 <script defer src="./app.js"></script>
