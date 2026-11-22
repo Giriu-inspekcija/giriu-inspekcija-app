@@ -1,5 +1,5 @@
 // Cache only public PWA shell. NEVER cache Supabase requests, user data or auth tokens.
-const CACHE='gi-pilot-shell-20261122-v1';
+const CACHE='gi-pilot-shell-20261122-v2-candidate-onboarding';
 const ASSETS=['./','./index.html','./app.js','./manifest.webmanifest','../logo.png','../icon-192.png','../icon-512.png'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
