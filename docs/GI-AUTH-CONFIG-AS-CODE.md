@@ -39,10 +39,10 @@ Po sujungimo `main` pakeitimai į Auth failus paleis GitHub workflow, kuris prae
 Jeigu automatinis paleidimas nepavyko arba buvo praleistas, atidarykite https://github.com/Giriu-inspekcija/giriu-inspekcija-app/actions/workflows/gi-auth-config.yml → Run workflow → main → įveskite `APPLY-GI-AUTH` → Run; patvirtinkite environment diegimą.
 
 ## Numatyta būtent GI pilotui
-`Site URL` keičiamas iš `http://localhost:3000` į:
-`https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/`
+`Site URL` keičiamas iš `http://localhost:3000` arba seno PR peržiūros adreso į:
+`https://starlit-shortbread-a38110.netlify.app/pilot/`
 
-Esamos HTTPS produkcinės `Site URL` reikšmės neliečiamos; dabartinės `uri_allow_list` nuorodos išsaugomos, pridedamas tik tikslus preview adresas. Reikės atskiro PR, kai GI oficialiai perkels pilotą į `app.giriuinspekcija.lt`.
+Į leidžiamus `Redirect URLs` įrašomi **abu** tikslūs adresai: pagrindinis `/pilot/` ir `https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/`. Kiti esami adresai išsaugomi, jau nustatytas atskiras HTTPS produkcinis `Site URL` neperrašomas. Kai GI oficialiai pereis į `app.giriuinspekcija.lt`, reikės atskiro PR ir įrašo į leidžiamas nuorodas.
 
 **NB:** šis PR nenustato Netlify svetainės matomumo. Jei matote `This site is private`, savanoris negalės atidaryti peržiūros net po sėkmingo Auth diegimo. Tikro testavimo metu svetainė turi būti atvira, o privačius duomenis saugo Supabase Auth ir RLS.
 
@@ -51,7 +51,7 @@ Esamos HTTPS produkcinės `Site URL` reikšmės neliečiamos; dabartinės `uri_a
 2. Supabase Auth URL Configuration: ne `localhost:3000`, o leistinas GI adresas.
 3. Supabase Email Templates: 3 lietuviški šablonai. Nekeisti `{{ .ConfirmationURL }}`.
 4. Su **nauja** asmenine el. pašto dėžute registruotis bandomojoje PWA; `Resend → Emails` patikrinti laiško išsiuntimą/pristatymą, patvirtinimą, slaptažodžio sukūrimą, `pending` būseną.
-5. Patikrinti tik su sintetinėmis užduotimis. Naujas naudotojas negali pats tapti Master/koordinatoriumi. Pagrindinio `PR #5` dėl realios programėlės kol kas nepublikuoti.
+5. Patikrinti tik su sintetinėmis užduotimis. Naujas naudotojas negali pats tapti Master/koordinatoriumi. Tik sintetinės užduotys: PR #5 sujungtas į main, bet tai dar nėra leidimas naudoti realias GI bylas ar nepatikrintas teises.
 6. Jei registracija nesuveikia – tikrinti Supabase Auth logs + Resend delivery logs. **Nerodyti slapto rakto.**
 7. Jei patvirtinimo nuoroda neveikia – galimas senas laiškas / pasibaigęs vienkartinis tokenas; naudoti naują laišką, nebandyti kartotinai per greitai.
 

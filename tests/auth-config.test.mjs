@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PROJECT_REF, PREVIEW_URL, loadTemplates, makePatch,
+  PROJECT_REF, PREVIEW_URL, LIVE_URL, loadTemplates, makePatch,
   diffKeys, verifyConfig
 } from '../scripts/sync-supabase-auth.mjs';
 
 test('project is locked to the existing GI pilot', () => {
   assert.equal(PROJECT_REF,'mkhxokzuietqgjdpkcqq');
   assert.ok(PREVIEW_URL.startsWith('https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/'));
+  assert.equal(LIVE_URL,'https://starlit-shortbread-a38110.netlify.app/pilot/');
 });
 
 test('3 Lithuanian emails have correct confirmation tokens, no active html', () => {
@@ -21,32 +22,33 @@ test('3 Lithuanian emails have correct confirmation tokens, no active html', () 
   }
 });
 
-test('old localhost default changes to pilot preview and keeps other redirects', () => {
+test('old localhost default changes to live pilot and keeps preview and existing redirects', () => {
   const current={site_url:'http://localhost:3000',uri_allow_list:'https://example.org/auth,https://app.giriuinspekcija.lt/'};
   const p=makePatch(current);
-  assert.equal(p.site_url,PREVIEW_URL);
+  assert.equal(p.site_url,LIVE_URL);
   assert.ok(p.uri_allow_list.includes('https://example.org/auth'));
   assert.ok(p.uri_allow_list.includes('https://app.giriuinspekcija.lt/'));
   assert.ok(p.uri_allow_list.includes(PREVIEW_URL));
+  assert.ok(p.uri_allow_list.includes(LIVE_URL));
   assert.ok(!Object.keys(p).some(k=>k.includes('smtp')));
 });
 
 test('configured production site URL is preserved', () => {
   const p=makePatch({site_url:'https://app.giriuinspekcija.lt/',uri_allow_list:''});
   assert.equal(p.site_url,undefined);
-  assert.deepEqual(p.uri_allow_list,PREVIEW_URL);
+  assert.deepEqual(p.uri_allow_list,[PREVIEW_URL,LIVE_URL].join(','));
 });
 
 test('second run is idempotent', () => {
-  const current={site_url:PREVIEW_URL,uri_allow_list:PREVIEW_URL};
+  const current={site_url:LIVE_URL,uri_allow_list:PREVIEW_URL+','+LIVE_URL};
   const patch=makePatch(current);
   assert.deepEqual(diffKeys({...current,...patch},patch),[]);
   assert.deepEqual(verifyConfig({...current,...patch},patch),[]);
 });
 
 test('readonly verify handles same redirect urls in different order',()=>{
-  const p=makePatch({site_url:PREVIEW_URL,uri_allow_list:'https://gi.example/'});
-  const actual={...p,uri_allow_list:PREVIEW_URL+',https://gi.example/'};
+  const p=makePatch({site_url:LIVE_URL,uri_allow_list:'https://gi.example/'});
+  const actual={...p,uri_allow_list:LIVE_URL+','+PREVIEW_URL+',https://gi.example/'};
   assert.deepEqual(verifyConfig(actual,p),[]);
 });
 
