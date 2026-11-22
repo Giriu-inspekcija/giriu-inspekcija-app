@@ -111,6 +111,13 @@
     client.auth.signOut({scope:'local'}).catch(()=>{});
   }
   let feedbackGroups=[],cases=[],documents=[],documentRequest=null,caseRequest=new Map();
+  const taskHistoryCache=new Map();
+  const taskEventLabels={create:'Sukurta',agent_propose:'DI pasiūlymas',propose:'Pasiūlyta',
+    publish:'Paskelbta fonde',assign:'Priskirta',claim:'Pasiimta',accept:'Priimta',
+    decline:'Atsisakyta',unassign:'Paskyrimas atšauktas',start:'Pradėta',
+    submit:'Pateiktas rezultatas',approve:'Patvirtinta',return:'Grąžinta taisyti',
+    set_due:'Terminas nustatytas',clear_due:'Terminas pašalintas',
+    time_approve:'Laikas patvirtintas',time_return:'Laikas grąžintas'};
   const canWriteDocuments=()=>staff() || (profile?.role==='volunteer' && profile.can_prepare_documents);
   let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
   let searchText='', ownerFilter='', dueFilter='all';
@@ -144,6 +151,7 @@
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
     nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
+    taskHistoryCache.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
     $('incidentForm').reset();$('incidentId').value='';$('incidentsList').replaceChildren();
     reviewableLogs.clear();
@@ -671,7 +679,13 @@
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
-        +buttonsFor(t)+timeEntry(t)+'</article>';
+        +buttonsFor(t)+timeEntry(t)
+        +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
+        +'<summary>Veiksmų istorija</summary>'
+        +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Rodyti / atnaujinti istoriją</button>'
+        +'<div data-task-history="'+escapeHTML(t.id)+'" class="small">'
+        +(taskHistoryCache.has(t.id)?taskHistoryCache.get(t.id):'Atverkite istoriją, jei reikia matyti ankstesnius veiksmus.')
+        +'</div></details></article>';
     }).join('');
   }
   // Prevent duplicate taps and show a persistent, local confirmation even when
@@ -1316,9 +1330,29 @@
       return run(()=>client.rpc('gi_set_document_permission',{p_user:id,p_allowed:allowed}));
     }
   });
-  $('taskList').addEventListener('click',event=>{
+  $('taskList').addEventListener('click',async event=>{
     const b=event.target.closest('button');
     if(!b||loading||mutationInFlight)return;
+    if(b.dataset.loadHistory){
+      const id=b.dataset.loadHistory;
+      const box=b.closest('details')?.querySelector('[data-task-history]');
+      if(!box||!tasks.some(t=>t.id===id))return;
+      b.disabled=true;
+      try{
+        const {data,error}=await client.from('gi_task_events')
+          .select('action,note,created_at,actor_id').eq('task_id',id)
+          .order('created_at',{ascending:false}).limit(40);
+        if(error)throw error;
+        const html=(data||[]).length?(data||[]).map(row=>
+          '<p><b>'+escapeHTML(taskEventLabels[row.action]||row.action)+'</b> · '
+          +escapeHTML(window.giDeadlines.display(row.created_at))
+          +(row.note?'<span> – '+escapeHTML(row.note)+'</span>':'')+'</p>'
+        ).join(''):'<p>Šiai užduočiai įvykių dar neužfiksuota.</p>';
+        taskHistoryCache.set(id,html);box.innerHTML=html;
+      }catch(error){toast('Užduoties istorijos nepavyko įkelti: '+(error.message||'klaida'),true);}
+      finally{b.disabled=false;}
+      return;
+    }
     const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask
       || b.dataset.jointApprove || b.dataset.timeForTask;
     if(b.dataset.timeForTask){
