@@ -124,6 +124,13 @@ def test_forms(page):
     page.locator('#batchPreview').click()
     expect(page.locator('#batchReview')).to_contain_text('Patikrinti vietą')
     expect(page.locator('#batchImport')).to_be_enabled()
+    for attempt in range(2):
+        if attempt:
+            page.locator('#batchJson').fill('Patikrinti vietą – sutikrinti žemėlapį')
+            page.locator('#batchPreview').click()
+        page.locator('#batchImport').click()
+        expect(page.locator('#notice')).to_contain_text('Užduotys jau yra fonde.')
+        expect(page.locator('#taskList h3').filter(has_text='Patikrinti vietą')).to_have_count(1)
     page.locator('#captureIncident').click()
     page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
     page.locator('#incidentCoords').fill('0.0, 0.0')
