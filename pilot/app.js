@@ -81,11 +81,14 @@
 
   function renderPendingMembers() {
     if(!admin()) return;
-    const pending = members.filter(p => p.role === 'pending' && p.id !== currentUser.id);
-    $('pendingMembers').innerHTML = pending.length
-      ? pending.map(p=>'<div class="row card"><span>'+escapeHTML(personName(p))+'</span>'
-        +'<button type="button" data-promote="'+escapeHTML(p.id)+'">Patvirtinti savanorį</button></div>').join('')
-      : '<p class="small">Šiuo metu naujų prašymų nėra.</p>';
+    const others = members.filter(p => p.id !== currentUser.id);
+    $('pendingMembers').innerHTML = others.length
+      ? others.map(p=>'<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
+        +'<p class="small">Dabartinė teisė: '+escapeHTML(roleNames[p.role]||p.role)+'</p></div>'
+        +'<div class="form-inline"><select aria-label="Nauja naudotojo teisė" data-role-select="'+escapeHTML(p.id)+'">'
+        +['pending','volunteer','coordinator'].map(role=>'<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
+        +'</select><button type="button" data-change-role="'+escapeHTML(p.id)+'">Išsaugoti</button></div></div>').join('')
+      : '<p class="small">Kitų paskyrų dar nėra.</p>';
   }
 
   function renderFeedback() {
@@ -291,10 +294,13 @@
       +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Užduotys jau yra fonde.'),!!failures.length);
   });
   $('pendingMembers').addEventListener('click',event=>{
-    const b=event.target.closest('[data-promote]');
+    const b=event.target.closest('[data-change-role]');
     if(!b||!admin())return;
-    if(!confirm('Patvirtinti šio naudotojo savanorio teises?'))return;
-    run(()=>client.rpc('gi_set_user_role',{p_user:b.dataset.promote,p_role:'volunteer'}));
+    const id=b.dataset.changeRole;
+    const role=[...document.querySelectorAll('[data-role-select]')].find(e=>e.dataset.roleSelect===id)?.value;
+    if(!['pending','volunteer','coordinator'].includes(role))return;
+    if(!confirm('Pakeisti naudotojo teises į „'+roleNames[role]+'“?'))return;
+    run(()=>client.rpc('gi_set_user_role',{p_user:id,p_role:role}));
   });
   $('taskList').addEventListener('click',event=>{
     const b=event.target.closest('button');
