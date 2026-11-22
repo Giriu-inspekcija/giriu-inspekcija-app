@@ -53,8 +53,11 @@
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
       $('roleName').textContent = roleNames[profile.role] || 'Laukia patvirtinimo';
       $('pendingView').hidden = approved();
-      $('activateMaster').hidden = approved()
-        || String(currentUser?.email || '').toLowerCase() !== 'zelaurynas@gmail.com';
+      $('activateMaster').hidden = true;
+      if(!approved()){
+        const candidate=await client.rpc('gi_is_bootstrap_candidate');
+        if(!candidate.error && candidate.data===true) $('activateMaster').hidden=false;
+      }
       $('workspace').hidden = !approved();
       $('staffPanel').hidden = !staff();
       $('adminPanel').hidden = !admin();
@@ -334,7 +337,7 @@
   $('refresh').addEventListener('click',refreshWorkspace);
   $('pendingRefresh').addEventListener('click',refreshWorkspace);
   $('activateMaster').addEventListener('click',async()=>{
-    if(!client||!currentUser||String(currentUser.email||'').toLowerCase()!=='zelaurynas@gmail.com')return;
+    if(!client||!currentUser||profile?.role!=='pending')return;
     if(!confirm('Aktyvuoti šios patvirtintos paskyros pagrindinio administratoriaus teises?'))return;
     await run(()=>client.rpc('gi_claim_first_admin'));
   });
