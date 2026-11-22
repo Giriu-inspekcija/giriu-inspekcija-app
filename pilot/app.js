@@ -222,6 +222,66 @@
       return result;
     });
   });
+  // ChatGPT-generated proposals must be reviewed by a coordinator; never assign automatically.
+  let reviewedBatch = null;
+  function parseBatchInput() {
+    const raw = JSON.parse($('batchJson').value);
+    const arr = Array.isArray(raw) ? raw : raw?.tasks;
+    if(!Array.isArray(arr) || arr.length < 1 || arr.length > 20) {
+      throw Error('JSON turi turėti nuo 1 iki 20 užduočių.');
+    }
+    return arr.map((item,index)=>{
+      if(!item || typeof item !== 'object' || Array.isArray(item)) throw Error('Netinkama užduotis Nr. '+(index+1));
+      const title = String(item.title??'').trim();
+      const details = String(item.details??'').trim();
+      const priority = String(item.priority??'normal');
+      const source_ref = String(item.source_ref??'').trim();
+      if(title.length<3||title.length>140||details.length<5||details.length>6000
+        ||!['low','normal','high'].includes(priority)||source_ref.length<3||source_ref.length>160) {
+        throw Error('Neteisingi laukai užduotyje Nr. '+(index+1)+'. Reikia source_ref, title, details, priority.');
+      }
+      return {title,details,priority,source_ref};
+    });
+  }
+  $('batchJson').addEventListener('input',()=>{
+    reviewedBatch=null;$('batchImport').disabled=true;$('batchReview').textContent='';
+  });
+  $('batchPreview').addEventListener('click',()=>{
+    if(!staff())return;
+    try {
+      const arr=parseBatchInput();
+      const refs=arr.map(t=>t.source_ref);
+      if(new Set(refs).size!==refs.length) throw Error('Sąraše yra pasikartojančių source_ref.');
+      reviewedBatch=arr;
+      $('batchReview').innerHTML='<b>Paruošta peržiūrai: '+arr.length+' užduočių.</b><ol>'
+        +arr.map(t=>'<li><b>'+escapeHTML(t.title)+'</b> – '+escapeHTML(t.priority)
+          +'<p class="small">'+escapeHTML(t.details.slice(0,200))+'</p></li>').join('')+'</ol>';
+      $('batchImport').disabled=false;
+    } catch(error) {
+      reviewedBatch=null; $('batchImport').disabled=true; notice(error.message,true);
+    }
+  });
+  $('batchImport').addEventListener('click',async()=>{
+    if(!staff()||!reviewedBatch?.length)return;
+    const copy=reviewedBatch;
+    $('batchImport').disabled=true;
+    let imported=0, failures=[];
+    for(const t of copy){
+      try {
+        const result=await client.rpc('gi_create_proposal',{
+          p_title:t.title,p_details:t.details,p_priority:t.priority,p_source_ref:t.source_ref
+        });
+        if(result.error) throw result.error;
+        imported++;
+      } catch(err) {failures.push(t.source_ref+': '+(err?.message||String(err)));}
+    }
+    reviewedBatch=null;
+    if(!failures.length){$('batchJson').value='';$('batchReview').textContent='';}
+    else $('batchReview').textContent='Klaidos: '+failures.slice(0,5).join(' | ');
+    await refreshWorkspace();
+    notice('Patvirtintų siūlomų užduočių: '+imported+' iš '+copy.length
+      +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Dabar jas gali paskelbti fonde.'),!!failures.length);
+  });
   $('pendingMembers').addEventListener('click',event=>{
     const b=event.target.closest('[data-promote]');
     if(!b||!admin())return;
