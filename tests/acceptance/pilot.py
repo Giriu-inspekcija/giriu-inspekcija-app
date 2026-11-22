@@ -8,7 +8,7 @@ import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from html import unescape
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 import requests
 
 def local_url(name, fallback=''):
@@ -57,22 +57,27 @@ def fixture(label):
         'user_metadata':{'full_name':'QA '+label}})
     return str(uuid.UUID(user['id'])),email,login(email)
 
+def confirm_local_email(email,kind):
+    for attempt in range(40):
+        mailbox=http.get(MAIL+'/api/v1/messages',timeout=4).json()['messages']
+        for message in mailbox:
+            if not any(p['Address']==email for p in message['To']):
+                continue
+            body=http.get(MAIL+'/api/v1/message/'+message['ID'],timeout=5).json()['HTML']
+            for raw in re.findall(r'href="([^"]+)"',body):
+                link=urlparse(unescape(raw))
+                if 'verify' in link.path and parse_qs(link.query).get('type')==[kind]:
+                    return http.get(AUTH+'/verify?'+link.query,allow_redirects=False,timeout=8)
+        time.sleep(.25)
+    raise AssertionError('Local '+kind+' email missing')
+
 def register(chief):
     email=f'gi-volunteer-{RUN}@example.test'
     user=request('POST',AUTH+'/signup',None,{'email':email,'password':PASSWORD,
         'data':{'full_name':'QA savanoris','membership_intent':'existing_volunteer'}})
     uid=str(uuid.UUID(user['id']))
     rpc('gi_approve_volunteer',{'p_user':uid},chief,{400,403})
-    for attempt in range(30):
-        messages=http.get(MAIL+'/api/v1/messages',timeout=4).json()['messages']
-        message=next((m for m in messages if any(p['Address']==email for p in m['To'])),None)
-        if message:break
-        time.sleep(.25)
-    assert message,'Local confirmation email missing'
-    body=http.get(MAIL+'/api/v1/message/'+message['ID'],timeout=5).json()['HTML']
-    link=next(unescape(u) for u in re.findall(r'href="([^"]+)"',body) if 'verify' in u)
-    # Follow only the confirmation entry point on this local Auth service.
-    confirmed=http.get(AUTH+'/verify?'+urlparse(link).query,allow_redirects=False,timeout=8)
+    confirmed=confirm_local_email(email,'signup')
     assert confirmed.status_code in (302,303) and 'error=' not in confirmed.headers['Location']
     token=login(email)
     assert rows('gi_profiles',token,'select=role')==[{'role':'pending'}]
@@ -100,11 +105,17 @@ def review(token,log,expected=None):
 
 def main():
     chief_id,chief_email,chief=fixture('chief')
-    coord_id,_,coord=fixture('coordinator')
+    coord_id,coord_email,coord=fixture('coordinator')
     other_id,_,other=fixture('other-staff')
     sql(f"UPDATE public.gi_profiles SET role='admin' WHERE id='{chief_id}';"
         f"UPDATE public.gi_profiles SET role='coordinator' WHERE id IN ('{coord_id}','{other_id}');"
-        f"INSERT INTO private.gi_time_reviewers VALUES ('chief','{chief_id}'),('coordinator','{coord_id}')")
+        f"INSERT INTO private.gi_time_reviewers VALUES ('chief','{chief_id}');"
+        f"INSERT INTO private.gi_reviewer_nomination(appointment,email) VALUES ('coordinator','{coord_email}')")
+    assert rpc('gi_reviewer_candidate',{},chief)==coord_id
+    rpc('gi_appoint_reviewer',{'p_user':coord_id},other,{400,403})
+    rpc('gi_appoint_reviewer',{'p_user':other_id},chief,{400,403})
+    rpc('gi_appoint_reviewer',{'p_user':coord_id},chief)
+    assert rpc('gi_reviewer_candidate',{},chief) is None
     uid,email,vol=register(chief)
     print('PASS A registration, local email, confirmation, approval, login and RLS',flush=True)
     due=(datetime.now(timezone.utc)+timedelta(days=7)).replace(second=0,microsecond=0).isoformat()
@@ -151,6 +162,22 @@ def main():
     assert rows('gi_tasks',chief,'select=due_at&id=eq.'+own)==[{'due_at':None}]
     assert rpc('gi_my_time_totals',{},vol)[0]['approved']==180
     print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
+    from workflows import case_and_document
+    case_and_document(chief,coord,vol,other,uid)
+    # The recovery link comes from the local mail sink, independent of the signup link.
+    request('POST',AUTH+'/recover',None,{'email':email})
+    recovery=confirm_local_email(email,'recovery')
+    assert recovery.status_code in (302,303)
+    token=parse_qs(urlparse(recovery.headers['Location']).fragment)['access_token'][0]
+    password=secrets.token_urlsafe(24)
+    request('PUT',AUTH+'/user',token,{'password':password})
+    request('POST',AUTH+'/token?grant_type=password',None,{'email':email,'password':PASSWORD},{400,401})
+    signed=request('POST',AUTH+'/token?grant_type=password',None,{'email':email,'password':password})
+    assert signed['user']['id']==uid
+    print('PASS isolated password recovery email, password change and fresh login',flush=True)
+    if os.environ.get('QA_VOLUME'):
+        from volume import measure
+        measure(chief)
     return chief_email
 
 if __name__=='__main__':

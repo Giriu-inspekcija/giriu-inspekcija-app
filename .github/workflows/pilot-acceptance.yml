@@ -3,6 +3,8 @@ on:
   pull_request:
     paths: ['pilot/**', 'supabase/migrations/**', 'tests/acceptance/**', '.github/workflows/pilot-acceptance.yml']
   workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
 permissions:
   contents: read
 jobs:
@@ -30,6 +32,7 @@ jobs:
           supabase start -x studio,vector,logflare,imgproxy,realtime,edge-runtime
       - name: Install browser test tools
         run: |
+          command -v pdftotext || (sudo apt-get update -qq && sudo apt-get install -y poppler-utils)
           pip install requests==2.32.5 playwright==1.60.0
           python -m playwright install --with-deps chromium webkit
           curl --fail --silent --show-error --retry 3 https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2 -o "$RUNNER_TEMP/gi-sdk.js"
@@ -39,4 +42,4 @@ jobs:
           set -a
           source "$RUNNER_TEMP/gi-local.env"
           set +a
-          QA_BROWSER=1 GI_TEST_SDK="$RUNNER_TEMP/gi-sdk.js" python tests/acceptance/pilot.py
+          QA_VOLUME=1 QA_BROWSER=1 GI_TEST_SDK="$RUNNER_TEMP/gi-sdk.js" python tests/acceptance/pilot.py
