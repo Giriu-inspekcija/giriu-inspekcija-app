@@ -53,3 +53,11 @@ test('each SECURITY DEFINER function uses valid dollar quoting', () => {
   assert.equal([...sql.matchAll(/as \$\$/g)].length, 7);
   assert.doesNotMatch(sql, /as \$\n/);
 });
+
+test('feedback collection is protected and synthetic-only', () => {
+  const feedback = readFileSync(new URL('../supabase/migrations/20261122162000_gi_synthetic_feedback.sql', import.meta.url),'utf8');
+  assert.match(feedback, /alter table public\.gi_feedback enable row level security;/);
+  assert.match(feedback, /reporter_id = \(select auth\.uid\(\)\)/);
+  assert.match(feedback, /is_demo = true/);
+  assert.doesNotMatch(feedback, /grant (?:update|delete|all) on public\.gi_feedback to authenticated/i);
+});
