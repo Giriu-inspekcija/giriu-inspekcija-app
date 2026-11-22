@@ -18,6 +18,9 @@ test('volunteers can follow the entire synthetic task cycle, including time logg
     assert.match(migration,new RegExp("p_action='"+action+"'"),action);
   }
   assert.match(migration,/FOR UPDATE/);
+  const review=readFileSync(new URL('../supabase/migrations/20261122231500_gi_prevent_task_self_approval.sql',import.meta.url),'utf8');
+  assert.match(review,/assigned_to IS DISTINCT FROM auth\.uid\(\)/);
+  assert.match(app,/task.assigned_to!==currentUser\?\.id/);
   assert.match(migration,/gi_task_events/);
   assert.match(migration,/candidate_safe/);
   assert.match(html,/id="taskSummary"/);
