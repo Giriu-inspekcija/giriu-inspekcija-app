@@ -17,6 +17,7 @@
     auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
+  let authMode = 'signup', passwordRecovery = false;
 
   function notice(msg, error = false) {
     const el = $('notice');
@@ -33,6 +34,7 @@
     currentUser = null; profile = null; tasks = []; members = []; feedback = [];
     $('authView').hidden = false;
     $('appView').hidden = true;
+    $('passwordResetView').hidden = true;
   }
 
   async function fetchProfile() {
@@ -175,23 +177,110 @@
     await refreshWorkspace();
   }
 
+  function selectAuthMode(mode){
+    if(!['signup','login'].includes(mode)) return;
+    authMode = mode;
+    const signup = mode === 'signup';
+    $('authTitle').textContent = signup ? 'Registruotis' : 'Prisijungti';
+    $('fullNameField').hidden = !signup;
+    $('fullName').required = signup;
+    $('password').autocomplete = signup ? 'new-password' : 'current-password';
+    $('passwordLabel').textContent = signup ? 'Susikurkite programėlės slaptažodį' : 'Programėlės slaptažodis';
+    $('authSubmit').textContent = signup ? 'Sukurti paskyrą' : 'Prisijungti';
+    $('showSignup').className = signup ? '' : 'outline';
+    $('showLogin').className = signup ? 'outline' : '';
+    $('showSignup').setAttribute('aria-pressed',String(signup));
+    $('showLogin').setAttribute('aria-pressed',String(!signup));
+    $('forgotPassword').hidden = signup;
+    $('password').value = '';
+    notice('');
+  }
+  selectAuthMode('signup');
+  $('showSignup').addEventListener('click',()=>selectAuthMode('signup'));
+  $('showLogin').addEventListener('click',()=>selectAuthMode('login'));
+
+  function authError(error){
+    switch(error?.code) {
+      case 'invalid_credentials':
+        return 'Neteisingas el. paštas arba programėlės slaptažodis. Jei dar neturite paskyros, pasirinkite „Registruotis“.';
+      case 'email_not_confirmed':
+        return 'Pirmiausia patvirtinkite paskyrą el. paštu. Patikrinkite ir šlamšto aplanką.';
+      case 'email_address_not_authorized':
+        return 'Registracijos laiškų siuntimas šiam adresui dar neįjungtas. GI administratorius turi sukonfigūruoti SMTP arba Google prisijungimą.';
+      case 'over_email_send_rate_limit':
+      case 'over_request_rate_limit':
+        return 'Viršyta el. laiškų siuntimo riba. Bandykite vėliau arba kreipkitės į koordinatorių.';
+      case 'user_already_exists':
+        return 'Paskyra jau sukurta. Rinkitės „Jau turiu paskyrą“ arba atkurkite slaptažodį.';
+      default:
+        return error?.message || 'Nepavyko atlikti veiksmo.';
+    }
+  }
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client) return notice('Prisijungimo biblioteka nepasiekiama.',true);
-    const button=event.submitter;
-    const mode=button?.value || 'login';
+    const signup = authMode === 'signup';
     const email=$('email').value.trim(), password=$('password').value, name=$('fullName').value.trim();
-    if(mode==='signup' && !name) return notice('Registruojantis įrašyk savo vardą.',true);
-    for(const b of $('authForm').querySelectorAll('button'))b.disabled=true;
+    if(signup && !name) return notice('Registruojantis įrašykite vardą.',true);
+    $('authSubmit').disabled=true;
     try{
-      let result;
-      if(mode==='signup') result=await client.auth.signUp({email,password,options:{data:{full_name:name},emailRedirectTo:location.href}});
-      else result=await client.auth.signInWithPassword({email,password});
+      const result = signup
+        ? await client.auth.signUp({
+            email,password,
+            options:{data:{full_name:name},emailRedirectTo:window.location.origin+window.location.pathname}
+          })
+        : await client.auth.signInWithPassword({email,password});
       if(result.error) throw result.error;
-      if(result.data?.session){await onSignIn();}
-      else notice('Registracija pateikta. Patvirtink el. pašto laišką, tada prisijunk. Vidines teises suteikia GI administratorius.');
-    }catch(error){notice(error?.message || 'Prisijungimas nepavyko.',true)}
-    finally{for(const b of $('authForm').querySelectorAll('button'))b.disabled=false;}
+      if(result.data?.session) {
+        await onSignIn();
+        notice('Prisijungta. Naujos paskyros vidines teises suteikia GI administratorius.');
+      } else if(signup) {
+        notice('Registracijos užklausa priimta. Patikrinkite el. paštą ir patvirtinimo nuorodą. Jei laiško nėra, kreipkitės į GI – Supabase el. laiškų siuntimas gali būti dar nesukonfigūruotas.');
+        selectAuthMode('login');
+        // Preserve success message even after changing form mode.
+        notice('Registracijos užklausa priimta. Jei gausite laišką, patvirtinkite paskyrą ir prisijunkite. Jei laiško nėra, kreipkitės į GI koordinatorių.');
+      }else{
+        notice('Prisijungimas nepatvirtintas. Patikrinkite el. paštą.',true);
+      }
+    }catch(error){notice(authError(error),true)}
+    finally{$('authSubmit').disabled=false;}
+  });
+
+  $('forgotPassword').addEventListener('click',async()=>{
+    if(!client)return notice('Prisijungimo biblioteka nepasiekiama.',true);
+    const email = $('email').value.trim();
+    if(!email || !$('email').checkValidity())return notice('Įrašykite teisingą el. pašto adresą.',true);
+    const btn=$('forgotPassword');btn.disabled=true;
+    try{
+      const {error}=await client.auth.resetPasswordForEmail(email,{
+        redirectTo:window.location.origin+window.location.pathname
+      });
+      if(error)throw error;
+      notice('Jeigu paskyra egzistuoja ir el. laiškų siuntimas įjungtas, gausite slaptažodžio atkūrimo nuorodą.');
+    }catch(error){notice(authError(error),true)}
+    finally{btn.disabled=false;}
+  });
+  function displayPasswordReset(){
+    passwordRecovery=true;
+    $('authView').hidden=true;
+    $('appView').hidden=true;
+    $('passwordResetView').hidden=false;
+    notice('Įveskite naują šios programėlės slaptažodį.');
+  }
+  $('passwordResetForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!passwordRecovery || !client)return;
+    const newPassword=$('newPassword').value;
+    if(newPassword.length<8)return notice('Slaptažodžiui reikia bent 8 simbolių.',true);
+    try{
+      const {error}=await client.auth.updateUser({password:newPassword});
+      if(error)throw error;
+      passwordRecovery=false;
+      await client.auth.signOut();
+      showLoggedOut();
+      selectAuthMode('login');
+      notice('Slaptažodis pakeistas. Dabar prisijunkite su naujuoju.',false);
+    }catch(error){notice(authError(error),true)}
   });
 
   $('logout').addEventListener('click',async()=>{if(client) await client.auth.signOut();showLoggedOut();notice('Atsijungta.');});
@@ -337,8 +426,9 @@
   });
   if(client){
     client.auth.onAuthStateChange((event,session)=>{
-      if(event==='SIGNED_OUT')setTimeout(showLoggedOut,0);
-      if(event==='SIGNED_IN'&&session?.user&&!currentUser)setTimeout(onSignIn,0);
+      if(event==='PASSWORD_RECOVERY')setTimeout(displayPasswordReset,0);
+      if(event==='SIGNED_OUT'&&!passwordRecovery)setTimeout(showLoggedOut,0);
+      if(event==='SIGNED_IN'&&session?.user&&!currentUser&&!passwordRecovery)setTimeout(onSignIn,0);
     });
     onSignIn().catch(e=>notice('Prisijungimo klaida: '+e.message,true));
     setInterval(()=>{if(currentUser&&!document.hidden)refreshWorkspace()},30000);
