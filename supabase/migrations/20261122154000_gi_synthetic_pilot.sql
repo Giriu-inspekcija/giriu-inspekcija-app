@@ -112,7 +112,7 @@ create or replace function public.gi_create_proposal(
 as $$
 declare v_id uuid;
 begin
-  if (select private.gi_role()) not in ('coordinator','admin') then
+  if coalesce((select private.gi_role()), 'pending') not in ('coordinator','admin') then
     raise exception 'GI permission denied';
   end if;
   if char_length(btrim(coalesce(p_title,''))) not between 3 and 140
@@ -137,7 +137,7 @@ returns void language plpgsql security definer set search_path = ''
 as $$
 declare v_status text; v_role text;
 begin
-  if (select private.gi_role()) not in ('coordinator','admin') then raise exception 'GI permission denied'; end if;
+  if coalesce((select private.gi_role()), 'pending') not in ('coordinator','admin') then raise exception 'GI permission denied'; end if;
   select role into v_role from public.gi_profiles where id=p_volunteer;
   if v_role not in ('volunteer','coordinator','admin') then raise exception 'Volunteer not approved'; end if;
   select status into v_status from public.gi_tasks where id=p_id for update;
@@ -190,7 +190,7 @@ returns uuid language plpgsql security definer set search_path = ''
 as $$
 declare v_new uuid;
 begin
-  if (select private.gi_role()) not in ('volunteer','coordinator','admin')
+  if coalesce((select private.gi_role()), 'pending') not in ('volunteer','coordinator','admin')
     or not exists(select 1 from public.gi_tasks where id=p_id and assigned_to=auth.uid()
       and status in ('accepted','in_progress','submitted','returned','approved'))
     or p_minutes not between 1 and 720 or char_length(coalesce(p_note,'')) > 1000 then
@@ -205,10 +205,10 @@ $$;
 -- Only an existing administrator may approve members; bootstrap first admin manually.
 create or replace function public.gi_set_user_role(p_user uuid, p_role text)
 returns void language plpgsql security definer set search_path = ''
-as $
+as $$
 declare v_prior text;
 begin
-  if (select private.gi_role()) <> 'admin' or p_user=auth.uid()
+  if coalesce((select private.gi_role()), 'pending') <> 'admin' or p_user=auth.uid()
     or p_role not in ('pending','volunteer','coordinator','admin') then
     raise exception 'GI admin approval required';
   end if;
