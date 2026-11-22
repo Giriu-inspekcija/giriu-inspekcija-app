@@ -368,6 +368,23 @@
         return error?.message || 'Nepavyko atlikti veiksmo.';
     }
   }
+  function likelyEmailTypo(email) {
+    // Avoid sending disposable OTP links to obviously mistyped common mail domains.
+    // Do not silently correct addresses or reject unknown/legitimate mail domains.
+    const at=email.lastIndexOf('@');
+    if(at<1)return null;
+    const domain=email.slice(at+1).toLowerCase();
+    const fixes={
+      'gmail.con':'gmail.com',
+      'gmail.cmo':'gmail.com',
+      'gmial.com':'gmail.com',
+      'outlook.con':'outlook.com',
+      'hotmail.con':'hotmail.com',
+      'yahoo.con':'yahoo.com'
+    };
+    return fixes[domain]?email.slice(0,at+1)+fixes[domain]:null;
+  }
+
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
@@ -375,6 +392,11 @@
     const email=$('email').value.trim().toLowerCase();
     const name=$('fullName').value.trim();
     const password=$('password').value;
+    const suggestedEmail=likelyEmailTypo(email);
+    if(signup&&suggestedEmail){
+      $('email').focus();
+      return notice('Patikrinkite el. paštą: įrašyta „'+email+'“. Ar turėjote omenyje „'+suggestedEmail+'“? Pataisykite adresą prieš siunčiant laišką.',true);
+    }
     if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
     const membershipIntent=$('membershipIntent').value;
     if(signup&&!['new_candidate','existing_volunteer'].includes(membershipIntent))
@@ -402,7 +424,7 @@
           }
         });
         if(error)throw error;
-        notice('Registracijos laiško užklausa priimta. Patikrinkite paštą ir šlamšto aplanką. Pakartotinai siųsti galėsite po 2 minučių.');
+        notice('Registracijos laiško užklausa priimta adresu '+email+'. Patikrinkite tikslų adresą ir šlamšto aplanką. Pakartotinai siųsti galėsite po 2 minučių.');
       }else{
         const result=await client.auth.signInWithPassword({email,password});
         if(result.error)throw result.error;
