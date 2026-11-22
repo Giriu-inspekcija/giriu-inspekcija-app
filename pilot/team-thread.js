@@ -61,6 +61,11 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
   function threadLink(kind,id,title){
     return '<a class="thread-title" href="'+html(link(kind,id))+'" data-thread="'+kind+'" data-key="'+html(id)+'">'+html(title)+'</a>';
   }
+  function historyItems(items){
+    return items.map(h=>'<li><b>'+html(h.label)+'</b><time class="small">'+html(when(h.at))+'</time>'
+      +(h.body?'<p>'+html(h.body)+'</p>':'')+(h.url||'')
+      +(h.file?'<button type="button" class="outline" data-file="'+html(h.file)+'">'+html(h.name||'Priedas')+'</button>':'')+'</li>').join('');
+  }
   async function open(kind,id,changeUrl=true){
     if(!user()||!Object.hasOwn(kindName,kind)||!uuid.test(id))return;
     if(changeUrl)history.replaceState(null,'',link(kind,id));
@@ -96,6 +101,7 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
       for(const d of docs)history.push({at:d.updated_at,label:'Atnaujintas dokumentas',body:d.title+' · '+({draft:'Juodraštis',review:'Peržiūrimas',changes:'Grąžintas taisyti',ready:'Parengtas pasirašyti'}[d.phase]||d.phase)});
       for(const e of updates)history.push({at:e.created_at,label:entryName[e.kind]+' · '+e.actor_name,body:e.body,file:e.attachment,name:e.filename});
       history.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+      view.history=history;
       const contributors=updates.filter(e=>e.kind==='help');
       const participate=['volunteer','coordinator','admin'].includes(role())&&(!incident||row.status==='submitted');
       const canClaim=!incident&&row.status==='pool'&&!row.assigned_to;
@@ -119,8 +125,10 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         +(isStaff()&&incident&&row.status==='submitted'&&!caseRow?'<button type="button" data-do="case">Pradėti atvejo patikrą</button>':'')
         +(caseRow&&isStaff()?'<details><summary>Sukurti atvejo užduotį</summary><form data-new-task><label class="field">Pavadinimas<input name="title" required minlength="3" maxlength="140"></label><label class="field">Ką reikia atlikti?<textarea name="details" required minlength="5" maxlength="6000"></textarea></label><button>Sukurti užduotį</button></form></details>':'')
         +(participate?'<form data-update><label class="field">Papildyti situaciją<textarea name="body" maxlength="2000" placeholder="Kas pasikeitė arba kokios pagalbos reikia?"></textarea></label><label class="field">Pridėti nuotrauką arba PDF (iki 5 MB)<input name="file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></label><button>Paskelbti papildymą</button></form>':'')
-        +'<h3>Istorija</h3><ol class="thread-history">'+history.map(h=>'<li><b>'+html(h.label)+'</b><time class="small">'+html(when(h.at))+'</time>'
-          +(h.body?'<p>'+html(h.body)+'</p>':'')+(h.url||'')+(h.file?'<button type="button" class="outline" data-file="'+html(h.file)+'">'+html(h.name)+'</button>':'')+'</li>').join('')+'</ol>';
+        +'<details class="thread-events"><summary><b>Istorija ('+history.length+')</b></summary>'
+        +'<ol class="thread-history">'+historyItems(history.slice(0,5))+'</ol>'
+        +(history.length>5?'<button type="button" class="outline" data-expand-history="1">Rodyti visą istoriją</button>':'')
+        +'</details>';
     }catch(e){if(current()){el('threadTitle').textContent='Kortelės atverti nepavyko';el('threadStatus').textContent=e.message||'Patikrinkite ryšį.';}}
   }
   async function act(button,fn,success){
@@ -138,6 +146,13 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
   content.addEventListener('click',async e=>{
     const b=e.target.closest('button');if(!active?.row||!b||working)return;
     const {kind,id,row}=active;
+    if(b.dataset.expandHistory){
+      const section=b.closest('.thread-events');
+      const list=section?.querySelector('.thread-history');
+      if(list)list.innerHTML=historyItems(active.history||[]);
+      b.remove();
+      return;
+    }
     if(b.dataset.do==='copy'){
       if(await copyText(link(kind,id),'Užverti'))el('threadStatus').textContent='Nuoroda nukopijuota. Galite ją įklijuoti į komandos pokalbį.';
     }else if(b.dataset.do==='share'){
