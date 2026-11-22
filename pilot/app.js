@@ -359,8 +359,9 @@
       case 'email_address_not_authorized':
         return 'Registracijos laiškų siuntimas šiam adresui dar neįjungtas. GI administratorius turi sukonfigūruoti SMTP arba Google prisijungimą.';
       case 'over_email_send_rate_limit':
+        return 'Išnaudota bendra „Girių inspekcijos“ bandomojo pašto siuntimo riba (Supabase: 2 laiškai per valandą). Nespauskite pakartotinai. Jei jau patvirtinote el. paštą ir turite slaptažodį, rinkitės „Jau turiu paskyrą“. Masinei registracijai administratorius turi prijungti SMTP.';
       case 'over_request_rate_limit':
-        return 'Viršyta el. laiškų siuntimo riba. Bandykite vėliau arba kreipkitės į koordinatorių.';
+        return 'Per daug prisijungimo užklausų. Nebandykite siųsti pakartotinai iškart. Jei jau turite paskyrą, rinkitės „Jau turiu paskyrą“.';
       case 'user_already_exists':
         return 'Paskyra jau sukurta. Rinkitės „Jau turiu paskyrą“ arba atkurkite slaptažodį.';
       default:
