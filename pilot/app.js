@@ -461,15 +461,32 @@
         +buttonsFor(t)+timeEntry(t)+'</article>';
     }).join('');
   }
-  async function run(call) {
+  // Prevent duplicate taps and show a persistent, local confirmation even when
+  // the updated button disappears after a status transition.
+  async function run(call,successMessage='Veiksmas išsaugotas.') {
+    if(mutationInFlight)return false;
+    mutationInFlight=true;
+    const button=document.activeElement;
+    const wasButton=button?.tagName==='BUTTON';
+    if(wasButton)button.disabled=true;
     try {
       notice('');
-      const result = await call();
-      if(result?.error) throw result.error;
-      await refreshWorkspace();
-      notice('Veiksmas išsaugotas.');
+      const result=await call();
+      if(result?.error)throw result.error;
+      const refreshed=await refreshWorkspace();
+      if(!refreshed)throw Error('Pakeitimas išsaugotas, tačiau būsenos atnaujinti nepavyko. Spauskite „Atnaujinti“.');
+      const msg=typeof successMessage==='function'?successMessage(result?.data):successMessage;
+      notice(msg);
+      toast(msg);
+      return true;
     } catch(error) {
-      notice(error?.message || 'Nepavyko atlikti veiksmo.', true);
+      const message='Nepavyko atlikti veiksmo: '+(error?.message||'Nežinoma klaida');
+      notice(message,true);
+      toast(message,true);
+      return false;
+    } finally {
+      if(wasButton)button.disabled=false;
+      mutationInFlight=false;
     }
   }
   async function onSignIn() {
