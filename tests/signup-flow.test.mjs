@@ -40,7 +40,7 @@ test('signup text is concise, no Workspace mailbox demand, mobile fields fit',()
   assert.match(html,/Tik bandomosios užduotys/);
   assert.match(html,/width:100%;max-width:100%/);
   assert.match(html,/overflow-wrap:anywhere/);
-  assert.match(sw,/const CACHE='gi-pilot-shell-\\d{8}-v\\d+-[a-z-]+'/);
+  assert.match(sw,/const CACHE='gi-pilot-shell-\d{8}-v\d+-[a-z-]+'/);
 });
 
 test('registered pending volunteer receives explicit coordinator-status feedback',()=>{
