@@ -29,7 +29,7 @@ test('feedback is available from every authenticated workspace section with sour
   assert.match(app,/feedbackOrigin=activePanel/);
   assert.match(app,/const message=origin\?'\['\+origin\+'\] '\+raw:raw/);
   assert.match(app,/gi_feedback'\)\.insert\(/);
-  assert.match(app,/Pastaba užregistruota/);
+  assert.match(app,/Pastaba išsiųsta GI koordinatoriams/);
 });
 
 test('refresh preserves expanded task controls, unsaved drafts and scroll position',()=>{
