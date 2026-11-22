@@ -74,7 +74,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE v_status text;
 BEGIN
- IF (select private.gi_role()) NOT IN ('coordinator','admin') OR auth.uid() IS NULL THEN
+ IF coalesce((select private.gi_role()),'pending') NOT IN ('coordinator','admin') OR auth.uid() IS NULL THEN
    RAISE EXCEPTION 'GI staff permission required'; END IF;
  IF p_kind NOT IN ('field_visit','training','advocacy','documentation','other')
    OR (p_safe AND p_kind NOT IN ('field_visit','training','other'))
@@ -246,23 +246,41 @@ BEGIN
 END
 $$;
 
+-- Rank and AI permission audits are NOT role changes; store them separately.
+CREATE TABLE IF NOT EXISTS public.gi_member_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  actor_id uuid REFERENCES public.gi_profiles(id) ON DELETE SET NULL,
+  target_id uuid REFERENCES public.gi_profiles(id) ON DELETE SET NULL,
+  kind text NOT NULL CHECK(kind IN ('rank','document_permission')),
+  old_value text,
+  new_value text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS gi_member_events_actor_idx ON public.gi_member_events(actor_id);
+CREATE INDEX IF NOT EXISTS gi_member_events_target_idx ON public.gi_member_events(target_id,created_at DESC);
+ALTER TABLE public.gi_member_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.gi_member_events FROM PUBLIC,anon,authenticated;
+GRANT SELECT ON public.gi_member_events TO authenticated;
+CREATE POLICY "gi_member_events_staff" ON public.gi_member_events FOR SELECT TO authenticated
+ USING ((select private.gi_role()) IN ('coordinator','admin'));
+
 -- A separate experience rank is recognition, NOT a permission grant.
 CREATE OR REPLACE FUNCTION private.gi_set_volunteer_rank(p_user uuid,p_rank text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
-DECLARE v_role text;
+DECLARE v_role text; v_old_rank text;
 BEGIN
- IF (select private.gi_role()) <> 'admin' OR p_user=auth.uid()
+ IF coalesce((select private.gi_role()),'pending') <> 'admin' OR p_user=auth.uid()
    OR p_rank NOT IN ('pradedantysis','patyres','vyriausias','regiono_vadas') THEN
    RAISE EXCEPTION 'Only master can set volunteer ranks'; END IF;
- SELECT role INTO v_role FROM public.gi_profiles WHERE id=p_user FOR UPDATE;
+ SELECT role,volunteer_rank INTO v_role,v_old_rank FROM public.gi_profiles WHERE id=p_user FOR UPDATE;
  IF v_role NOT IN ('candidate','volunteer') THEN
    RAISE EXCEPTION 'Approved volunteer or candidate required'; END IF;
  IF v_role='candidate' AND p_rank<>'pradedantysis' THEN
    RAISE EXCEPTION 'A candidate must first become a volunteer'; END IF;
  UPDATE public.gi_profiles SET volunteer_rank=p_rank WHERE id=p_user;
- INSERT INTO public.gi_role_events(actor_id,target_id,former_role,new_role)
- VALUES(auth.uid(),p_user,'rank_changed',p_rank);
+ INSERT INTO public.gi_member_events(actor_id,target_id,kind,old_value,new_value)
+ VALUES(auth.uid(),p_user,'rank',v_old_rank,p_rank);
 END
 $$;
 REVOKE ALL ON FUNCTION private.gi_set_volunteer_rank(uuid,text) FROM PUBLIC,anon;
@@ -292,16 +310,16 @@ GRANT EXECUTE ON FUNCTION public.gi_can_prepare_documents() TO authenticated;
 CREATE OR REPLACE FUNCTION private.gi_set_document_permission(p_user uuid,p_allowed boolean)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
-DECLARE v_role text;
+DECLARE v_role text; v_old_allowed boolean;
 BEGIN
- IF (select private.gi_role()) <> 'admin' OR p_user=auth.uid() OR p_allowed IS NULL THEN
+ IF coalesce((select private.gi_role()),'pending') <> 'admin' OR p_user=auth.uid() OR p_allowed IS NULL THEN
    RAISE EXCEPTION 'Only master can grant document drafting'; END IF;
- SELECT role INTO v_role FROM public.gi_profiles WHERE id=p_user FOR UPDATE;
+ SELECT role,can_prepare_documents INTO v_role,v_old_allowed FROM public.gi_profiles WHERE id=p_user FOR UPDATE;
  IF v_role IS DISTINCT FROM 'volunteer' THEN
    RAISE EXCEPTION 'Only confirmed volunteers can receive this permission'; END IF;
  UPDATE public.gi_profiles SET can_prepare_documents=p_allowed WHERE id=p_user;
- INSERT INTO public.gi_role_events(actor_id,target_id,former_role,new_role)
- VALUES(auth.uid(),p_user,'draft_permission',CASE WHEN p_allowed THEN 'enabled' ELSE 'disabled' END);
+ INSERT INTO public.gi_member_events(actor_id,target_id,kind,old_value,new_value)
+ VALUES(auth.uid(),p_user,'document_permission',v_old_allowed::text,p_allowed::text);
 END
 $$;
 REVOKE ALL ON FUNCTION private.gi_set_document_permission(uuid,boolean) FROM PUBLIC,anon;
