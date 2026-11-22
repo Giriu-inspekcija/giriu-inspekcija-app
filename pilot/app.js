@@ -35,6 +35,7 @@
     $('authView').hidden = false;
     $('appView').hidden = true;
     $('passwordResetView').hidden = true;
+    $('passwordSetupView').hidden = true;
   }
 
   async function fetchProfile() {
@@ -52,6 +53,8 @@
       $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
       $('roleName').textContent = roleNames[profile.role] || 'Laukia patvirtinimo';
       $('pendingView').hidden = approved();
+      $('activateMaster').hidden = approved()
+        || String(currentUser?.email || '').toLowerCase() !== 'zelaurynas@gmail.com';
       $('workspace').hidden = !approved();
       $('staffPanel').hidden = !staff();
       $('adminPanel').hidden = !admin();
@@ -169,30 +172,51 @@
     }
   }
   async function onSignIn() {
-    if(!client){notice('Nepavyko įkelti prisijungimo bibliotekos. Patikrink interneto ryšį.',true);return;}
-    const {data,error} = await client.auth.getUser();
+    if(!client){notice('Nepavyko įkelti prisijungimo bibliotekos. Patikrinkite ryšį.',true);return;}
+    const {data,error}=await client.auth.getUser();
     if(error || !data.user){showLoggedOut();return;}
-    currentUser = data.user;
-    $('authView').hidden = true; $('appView').hidden = false;
+    currentUser=data.user;
+    // Email-link registrations have no password until verified; Google OAuth does not require one.
+    const providers = data.user.app_metadata?.providers || [];
+    const googleLogin = providers.includes('google');
+    const check=await client.rpc('gi_password_needed');
+    if(check.error){
+      $('appView').hidden=true;
+      $('authView').hidden=true;
+      notice('Nepavyko patikrinti paskyros: '+check.error.message,true);
+      return;
+    }
+    if(check.data===true && !googleLogin){
+      $('authView').hidden=true;
+      $('appView').hidden=true;
+      $('passwordSetupView').hidden=false;
+      $('passwordResetView').hidden=true;
+      notice('El. paštas patvirtintas. Susikurkite slaptažodį ir tęskite.');
+      return;
+    }
+    $('passwordSetupView').hidden=true;
+    $('passwordResetView').hidden=true;
+    $('authView').hidden=true;
+    $('appView').hidden=false;
     await refreshWorkspace();
   }
 
   function selectAuthMode(mode){
-    if(!['signup','login'].includes(mode)) return;
-    authMode = mode;
-    const signup = mode === 'signup';
-    $('authTitle').textContent = signup ? 'Registruotis' : 'Prisijungti';
-    $('fullNameField').hidden = !signup;
-    $('fullName').required = signup;
-    $('password').autocomplete = signup ? 'new-password' : 'current-password';
-    $('passwordLabel').textContent = signup ? 'Susikurkite programėlės slaptažodį' : 'Programėlės slaptažodis';
-    $('authSubmit').textContent = signup ? 'Sukurti paskyrą' : 'Prisijungti';
-    $('showSignup').className = signup ? '' : 'outline';
-    $('showLogin').className = signup ? 'outline' : '';
+    if(!['signup','login'].includes(mode))return;
+    authMode=mode;
+    const signup=mode==='signup';
+    $('authTitle').textContent=signup?'Tapkite „Girių inspekcijos“ savanoriu':'Prisijungimas';
+    $('fullNameField').hidden=!signup;
+    $('fullName').required=signup;
+    $('loginPasswordField').hidden=signup;
+    $('password').required=!signup;
+    $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
+    $('showSignup').className=signup?'':'outline';
+    $('showLogin').className=signup?'outline':'';
     $('showSignup').setAttribute('aria-pressed',String(signup));
     $('showLogin').setAttribute('aria-pressed',String(!signup));
-    $('forgotPassword').hidden = signup;
-    $('password').value = '';
+    $('forgotPassword').hidden=signup;
+    $('password').value='';
     notice('');
   }
   selectAuthMode('signup');
@@ -218,32 +242,55 @@
   }
   $('authForm').addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!client) return notice('Prisijungimo biblioteka nepasiekiama.',true);
-    const signup = authMode === 'signup';
-    const email=$('email').value.trim(), password=$('password').value, name=$('fullName').value.trim();
-    if(signup && !name) return notice('Registruojantis įrašykite vardą.',true);
+    if(!client)return notice('Prisijungimas nepasiekiamas. Patikrinkite ryšį.',true);
+    const signup=authMode==='signup';
+    const email=$('email').value.trim().toLowerCase();
+    const name=$('fullName').value.trim();
+    const password=$('password').value;
+    if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
     $('authSubmit').disabled=true;
     try{
-      const result = signup
-        ? await client.auth.signUp({
-            email,password,
-            options:{data:{full_name:name},emailRedirectTo:window.location.origin+window.location.pathname}
-          })
-        : await client.auth.signInWithPassword({email,password});
-      if(result.error) throw result.error;
-      if(result.data?.session) {
-        await onSignIn();
-        notice('Prisijungta. Naujos paskyros vidines teises suteikia GI administratorius.');
-      } else if(signup) {
-        notice('Registracijos užklausa priimta. Patikrinkite el. paštą ir patvirtinimo nuorodą. Jei laiško nėra, kreipkitės į GI – Supabase el. laiškų siuntimas gali būti dar nesukonfigūruotas.');
-        selectAuthMode('login');
-        // Preserve success message even after changing form mode.
-        notice('Registracijos užklausa priimta. Jei gausite laišką, patvirtinkite paskyrą ir prisijunkite. Jei laiško nėra, kreipkitės į GI koordinatorių.');
+      let result;
+      if(signup){
+        result=await client.auth.signInWithOtp({
+          email,options:{
+            shouldCreateUser:true,
+            emailRedirectTo:window.location.origin+window.location.pathname,
+            data:{full_name:name}
+          }
+        });
+        if(result.error)throw result.error;
+        $('authSubmit').textContent='Patvirtinimo laiškas užsakytas';
+        notice('Patikrinkite savo el. paštą (taip pat šlamšto aplanką). Atsidarykite laiške esančią patvirtinimo nuorodą – ten susikursite slaptažodį. Jei laiško negaunate, informuokite koordinatorių.');
       }else{
-        notice('Prisijungimas nepatvirtintas. Patikrinkite el. paštą.',true);
+        result=await client.auth.signInWithPassword({email,password});
+        if(result.error)throw result.error;
+        if(result.data?.session)await onSignIn();
+        else notice('Prisijungimas nepatvirtintas. Patikrinkite el. paštą.',true);
       }
+    }catch(error){notice(authError(error),true);}
+    finally{
+      $('authSubmit').disabled=false;
+      $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
+    }
+  });
+  $('passwordSetupForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!currentUser||!client)return notice('Pirmiausia patvirtinkite savo el. paštą.',true);
+    const p=$('initialPassword').value,p2=$('initialPasswordConfirm').value;
+    if(p.length<8)return notice('Slaptažodis turi būti bent 8 simbolių.',true);
+    if(p!==p2)return notice('Slaptažodžiai nesutampa.',true);
+    const btn=$('passwordSetupForm').querySelector('button[type=submit]');
+    btn.disabled=true;
+    try{
+      const {error}=await client.auth.updateUser({password:p});
+      if(error)throw error;
+      $('initialPassword').value='';
+      $('initialPasswordConfirm').value='';
+      await onSignIn();
+      notice('Slaptažodis sukurtas. Dabar turite „Girių inspekcija“ paskyrą.');
     }catch(error){notice(authError(error),true)}
-    finally{$('authSubmit').disabled=false;}
+    finally{btn.disabled=false;}
   });
 
   $('forgotPassword').addEventListener('click',async()=>{
@@ -286,6 +333,12 @@
   $('logout').addEventListener('click',async()=>{if(client) await client.auth.signOut();showLoggedOut();notice('Atsijungta.');});
   $('refresh').addEventListener('click',refreshWorkspace);
   $('pendingRefresh').addEventListener('click',refreshWorkspace);
+  $('activateMaster').addEventListener('click',async()=>{
+    if(!client||!currentUser||String(currentUser.email||'').toLowerCase()!=='zelaurynas@gmail.com')return;
+    if(!confirm('Aktyvuoti šios patvirtintos paskyros pagrindinio administratoriaus teises?'))return;
+    await run(()=>client.rpc('gi_claim_first_admin'));
+  });
+
   $('proposalForm').addEventListener('submit',event=>{
     event.preventDefault();
     if(!staff()) return;
