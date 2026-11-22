@@ -1,0 +1,42 @@
+name: Pilot user journeys
+on:
+  pull_request:
+    paths: ['pilot/**', 'supabase/migrations/**', 'tests/acceptance/**', '.github/workflows/pilot-acceptance.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.83.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Start a disposable local Supabase project
+        run: |
+          supabase init
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('supabase/config.toml')
+          head,section=path.read_text().split('[auth.email]',1)
+          section=section.replace('enable_confirmations = false','enable_confirmations = true',1)
+          path.write_text(head+'[auth.email]'+section)
+          PY
+          supabase start -x studio,vector,logflare,imgproxy,realtime,edge-runtime
+      - name: Install browser test tools
+        run: |
+          pip install requests==2.32.5 playwright==1.60.0
+          python -m playwright install --with-deps chromium webkit
+          curl --fail --silent --show-error --retry 3 https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2 -o "$RUNNER_TEMP/gi-sdk.js"
+      - name: Run real volunteer, reviewer, email and browser journeys
+        run: |
+          supabase status -o env > "$RUNNER_TEMP/gi-local.env"
+          set -a
+          source "$RUNNER_TEMP/gi-local.env"
+          set +a
+          QA_BROWSER=1 GI_TEST_SDK="$RUNNER_TEMP/gi-sdk.js" python tests/acceptance/pilot.py

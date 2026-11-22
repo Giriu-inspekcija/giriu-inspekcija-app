@@ -181,17 +181,21 @@ header{padding:10px 16px 9px}
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
   <div id="taskSummary" class="task-summary small" aria-live="polite"></div>
   <div class="card" id="taskFilterPanel" hidden>
-   <label class="field">Užduočių filtras<select id="taskStatusFilter">
+   <form id="taskSearchForm"><label class="field">Ieškoti užduoties<input id="taskSearch" type="search" maxlength="100" placeholder="Pavadinimas ar aprašymas"></label><div class="grid"><label class="field">Būsena<select id="taskStatusFilter">
      <option value="all">Visos būsenos</option><option value="pool">Laukia paskirstymo</option>
      <option value="assigned">Paskirtos / vykdomos</option><option value="submitted">Rezultatas pateiktas</option>
      <option value="approved">Patvirtintos</option>
    </select></label>
+    <label class="field">Terminas<select id="taskDueFilter"><option value="all">Visi terminai</option><option value="overdue">Pradelstos</option><option value="week">Per 7 dienas</option><option value="none">Be termino</option></select></label>
+    <label class="field">Vykdytojas<select id="taskOwnerFilter"><option value="">Visi vykdytojai</option><option value="mine">Tik mano darbai</option></select></label>
+    </div><button type="submit" class="outline">Filtruoti</button></form>
   </div>
   <div id="staffPanel" hidden>
-   <div class="card"><h2>Užduočių fondas</h2><p class="small">Kurti pasiūlymus, patvirtinti ir paskirstyti. ChatGPT importą prijungsime per atskirą saugų etapą.</p>
+   <div class="card"><h2>Užduočių fondas</h2><p class="small">Sukurkite užduotį arba peržiūrėkite parengtus pasiūlymus.</p>
     <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
+     <label class="field">Terminas Vilniaus laiku (nebūtina)<input name="due" type="datetime-local"></label>
      <button type="submit">Pridėti siūlomą užduotį</button>
     </form></details>
     <details><summary><b>Importuoti ChatGPT pasiūlytas užduotis</b></summary>
@@ -221,7 +225,9 @@ header{padding:10px 16px 9px}
         <label class="field">Valandos <input id="manualTimeHours" type="number" min="0" max="12" value="0" required></label>
         <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
       </div>
-      <label class="field">Ką atlikote? (nebūtina) <textarea id="manualTimeNote" maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
+      <label class="field">Darbo data <input type="date" id="manualTimeDate" required></label>
+      <label class="field">Projektas (bendroje savanorystėje palikite tuščią) <input id="timeProject" minlength="2" maxlength="120"></label>
+      <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
     </form>
     <h3>Mano laiko įrašai</h3>
@@ -279,6 +285,7 @@ header{padding:10px 16px 9px}
 </main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
+<script defer src="./deadlines.js"></script>
 <script defer src="./app.js"></script>
 <script>
 if('serviceWorker' in navigator) {

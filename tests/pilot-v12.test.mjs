@@ -44,7 +44,7 @@ test('manual time form works independently of tasks and limits selectable task l
   }
   assert.match(js,/\.eq\('assigned_to',currentUser\.id\)/);
   assert.match(js,/\.order\('updated_at',\{ascending:false\}\)\.limit\(25\)/);
-  assert.match(js,/gi_record_volunteer_time/);
+  assert.match(js,/gi_record_dated_time/);
   assert.match(sql,/ALTER TABLE public\.gi_work_logs ALTER COLUMN task_id DROP NOT NULL/);
   assert.match(sql,/activity_title/);
   assert.match(sql,/Only your own synthetic assigned task may receive time entries/);
@@ -73,7 +73,7 @@ test('own time entries remain visible to admin separately from other volunteer a
   assert.match(js,/\.eq\('review_status','submitted'\)\.neq\('volunteer_id',currentUser\.id\)/);
   assert.match(js,/\$\('staffTimeLogs'\)\.addEventListener\('click',handleTimeReviewClick\)/);
   assert.match(js,/\$\('workLogsList'\)\.innerHTML=mine\.length/);
-  assert.match(sw,/v11-hours-cleanup/);
+  assert.match(sw,/v12-vilnius-reviews/);
 });
 test('all directly referenced input elements still exist',()=>{
   const ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
