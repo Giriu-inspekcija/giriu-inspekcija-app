@@ -18,6 +18,50 @@
   });
   let currentUser = null, profile = null, members = [], tasks = [], feedback = [], loading = false;
   let authMode = 'signup', passwordRecovery = false;
+  // Browser-side convenience only; Supabase rate limits must also remain enabled.
+  const OTP_COOLDOWN_MS = 120000;
+  const OTP_COOLDOWN_KEY = 'gi-pilot-confirmation-email-until';
+  let inMemoryOtpCooldownUntil = 0;
+  let otpRequestInFlight = false;
+  function otpCooldownUntil() {
+    try {
+      return Math.max(inMemoryOtpCooldownUntil,
+        Number(window.localStorage.getItem(OTP_COOLDOWN_KEY)) || 0);
+    } catch {
+      return inMemoryOtpCooldownUntil;
+    }
+  }
+  function otpRemainingSeconds() {
+    return Math.max(0,Math.ceil((otpCooldownUntil()-Date.now())/1000));
+  }
+  function setOtpCooldown() {
+    const until=Date.now()+OTP_COOLDOWN_MS;
+    inMemoryOtpCooldownUntil=until;
+    try { window.localStorage.setItem(OTP_COOLDOWN_KEY,String(until)); } catch {}
+    updateOtpButton();
+    return until;
+  }
+  function clearOtpCooldownIfOwned(until) {
+    if(inMemoryOtpCooldownUntil===until)inMemoryOtpCooldownUntil=0;
+    try {
+      if(Number(window.localStorage.getItem(OTP_COOLDOWN_KEY))===until)
+        window.localStorage.removeItem(OTP_COOLDOWN_KEY);
+    } catch {}
+    updateOtpButton();
+  }
+  function updateOtpButton() {
+    const status=$('signupSendStatus');
+    status.hidden=authMode!=='signup';
+    if(authMode!=='signup')return;
+    const remaining=otpRemainingSeconds();
+    $('authSubmit').disabled=otpRequestInFlight||remaining>0;
+    $('authSubmit').textContent=otpRequestInFlight?'Siunčiama...'
+      :remaining>0?'Siųsti dar kartą po '+remaining+' s':'Gauti patvirtinimo laišką';
+    status.textContent=remaining>0
+      ?'Pakartotinai siųsti galėsite po 2 minučių nuo paskutinio bandymo. Patikrinkite el. paštą ir šlamšto aplanką.'
+      :'Vieną kartą paspauskite mygtuką ir patikrinkite savo el. paštą.';
+  }
+
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
@@ -289,6 +333,7 @@
     $('loginPasswordField').hidden=signup;
     $('password').required=!signup;
     $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
+    updateOtpButton();
     $('showSignup').className=signup?'':'outline';
     $('showLogin').className=signup?'outline':'';
     $('showSignup').setAttribute('aria-pressed',String(signup));
@@ -300,6 +345,10 @@
   selectAuthMode('signup');
   $('showSignup').addEventListener('click',()=>selectAuthMode('signup'));
   $('showLogin').addEventListener('click',()=>selectAuthMode('login'));
+  window.setInterval(()=>{if(authMode==='signup')updateOtpButton();},1000);
+  window.addEventListener('storage',event=>{
+    if(event.key===OTP_COOLDOWN_KEY)updateOtpButton();
+  });
 
   function authError(error){
     switch(error?.code) {
@@ -327,33 +376,52 @@
     const password=$('password').value;
     if(signup&&!name)return notice('Registruojantis įrašykite vardą.',true);
     const membershipIntent=$('membershipIntent').value;
-    if(signup&&!['new_candidate','existing_volunteer'].includes(membershipIntent))return notice('Pasirinkite, ar esate naujas kandidatas, ar jau savanoriaujate.',true);
-    $('authSubmit').disabled=true;
+    if(signup&&!['new_candidate','existing_volunteer'].includes(membershipIntent))
+      return notice('Pasirinkite, ar esate naujas kandidatas, ar jau savanoriaujate.',true);
+    if(signup&&(otpRequestInFlight||otpRemainingSeconds()>0)){
+      updateOtpButton();
+      return notice('Laiško užklausa jau pateikta arba dar galioja laukimo laikotarpis. Patikrinkite savo paštą.');
+    }
+    let reservedUntil=0;
+    if(signup){
+      otpRequestInFlight=true;
+      reservedUntil=setOtpCooldown();
+    } else $('authSubmit').disabled=true;
     try{
-      let result;
       if(signup){
-        result=await client.auth.signInWithOtp({
+        const {error}=await client.auth.signInWithOtp({
           email,options:{
             shouldCreateUser:true,
             emailRedirectTo:window.location.origin+window.location.pathname,
-            data:{full_name:name,membership_intent:membershipIntent,preferred_activity:$('preferredActivity').value,region_label:$('regionLabel').value.trim()}
+            data:{
+              full_name:name,membership_intent:membershipIntent,
+              preferred_activity:$('preferredActivity').value,
+              region_label:$('regionLabel').value.trim()
+            }
           }
         });
-        if(result.error)throw result.error;
-        $('authSubmit').textContent='Patvirtinimo laiškas užsakytas';
-        notice('Patikrinkite savo el. paštą (taip pat šlamšto aplanką). Atsidarykite laiške esančią patvirtinimo nuorodą – ten susikursite slaptažodį. Jei laiško negaunate, informuokite koordinatorių.');
+        if(error)throw error;
+        notice('Registracijos laiško užklausa priimta. Patikrinkite paštą ir šlamšto aplanką. Pakartotinai siųsti galėsite po 2 minučių.');
       }else{
-        result=await client.auth.signInWithPassword({email,password});
+        const result=await client.auth.signInWithPassword({email,password});
         if(result.error)throw result.error;
         if(result.data?.session)await onSignIn();
         else notice('Prisijungimas nepatvirtintas. Patikrinkite el. paštą.',true);
       }
-    }catch(error){notice(authError(error),true);}
-    finally{
-      $('authSubmit').disabled=false;
-      $('authSubmit').textContent=signup?'Gauti patvirtinimo laišką':'Prisijungti';
+    }catch(error){
+      if(signup&&!['over_email_send_rate_limit','over_request_rate_limit'].includes(error?.code)){
+        clearOtpCooldownIfOwned(reservedUntil);
+      }
+      notice(authError(error),true);
+    }finally{
+      if(signup)otpRequestInFlight=false;
+      if(authMode!=='signup'){
+        $('authSubmit').disabled=false;
+        $('authSubmit').textContent='Prisijungti';
+      }else updateOtpButton();
     }
   });
+
   $('passwordSetupForm').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!currentUser||!client)return notice('Pirmiausia patvirtinkite savo el. paštą.',true);
