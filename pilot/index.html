@@ -30,17 +30,26 @@ button.ghost{background:#f5f7f4;color:#385644;border:1px solid var(--line)}
 .tag.high{background:#fff0d9;color:#8f541c}.tag.submitted{background:#e3efff;color:#2e587e}
 .form-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.form-inline select{flex:1 1 170px}
 hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 30px;color:#829086;font-size:11px;text-align:center}
-@media(max-width:540px){main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.row{align-items:flex-start}}
+.shell{width:100%;min-width:0}.card,main,section,form,.brand,.brand>div,.field{min-width:0}
+input,select,textarea{display:block;width:100%;max-width:100%}
+h1,h2,h3,p,label,.notice,.alert,footer{overflow-wrap:anywhere}
+.actions button{min-width:0;max-width:100%;white-space:normal}
+.signup-progress{border-top:1px solid var(--line);margin-top:14px;padding-top:18px}
+.signup-steps{padding-left:22px;margin:10px 0 16px}.signup-steps li{margin-bottom:8px}
+.recipient{font-size:18px;font-weight:750;color:#154636;overflow-wrap:anywhere;margin:9px 0 16px}
+#emailHelp.invalid{color:#a12727;font-weight:650}
+@media(max-width:540px){main{padding:15px 13px 34px}header{padding:18px 15px}.grid{grid-template-columns:1fr}.brand b{font-size:17px}.brand img{width:48px;height:48px}.brand .pilot{flex-shrink:0}.row{align-items:flex-start}.actions>button{flex:1 1 160px}input,select,textarea{font-size:16px}}
+
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Realus prisijungimas · tik sintetinės užduotys · jokios tikros GI bylos</p></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div><b>Girių inspekcija</b><small>SAVANORIŲ DARBO VIETA</small></div><span class="pilot">PILOTAS</span></div><p>Bandomoji savanorių darbo vieta</p></header>
 <main>
-<div class="alert"><b>Bandymo aplinka.</b> Prisijungimui reikalingas el. paštas ir pasirinktinai vardas. Į užduočių aprašymus bei pastabas nekelkite realių miškų koordinačių, kitų asmenų duomenų, pranešėjų informacijos, nuotraukų ar oficialių dokumentų.</div>
+<div class="alert"><b>Tik bandomosios užduotys.</b> Nekelkite tikrų miškų koordinačių, žmonių duomenų, nuotraukų ar oficialių dokumentų.</div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <section id="authView">
  <h1 id="authTitle">Tapkite „Girių inspekcijos“ savanoriu</h1>
- <p class="muted">Pirmą kartą? Įrašykite savo vardą ir el. paštą. Patvirtinę el. laiško nuorodą galėsite susikurti programėlės slaptažodį.</p>
+ <p class="muted" id="authIntro">Užpildykite trumpą anketą, patvirtinkite el. paštą ir susikurkite slaptažodį.</p>
  <div class="card">
   <div class="actions" role="group" aria-label="Registracija arba prisijungimas">
    <button type="button" id="showSignup" aria-pressed="true">Registruotis</button>
@@ -66,14 +75,32 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
      </select>
     </label>
     <label class="field">Regionas arba savivaldybė (nebūtina)<input id="regionLabel" maxlength="100" placeholder="Pvz., Vilniaus rajonas"></label>
-    <p class="small">Anketoje pasirinktas statusas nesuteikia vidinių teisių. Kandidatas gauna tik jam priskirtas saugias užduotis, kai jo dalyvavimą patvirtina koordinatorius.</p>
    </div>
-   <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="jusu.pastas@gmail.com"></label><p class="small">Prieš siųsdami patikrinkite pašto adresą, ypač galūnę <b>.com</b>. Neteisingu adresu išsiųsto laiško negausite.</p>
+   <label class="field">El. paštas<input id="email" type="email" autocomplete="email" inputmode="email" required placeholder="jusu.pastas@gmail.com" maxlength="254"></label>
+   <label class="field" id="emailConfirmField">Pakartokite el. paštą<input id="emailConfirm" type="email" inputmode="email" autocomplete="off" spellcheck="false" required placeholder="Patvirtinkite adresą" maxlength="254"></label>
+   <p class="small" id="emailHelp" role="status" aria-live="polite">Prieš siųsdami patikrinkite, kad abu adresai sutaptų.</p>
    <label class="field" id="loginPasswordField" hidden>Programėlės slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8"></label>
    <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
    <p class="small" id="signupSendStatus" role="status" aria-live="polite" hidden></p>
   </form>
-  <p class="small"><b>Savanoriams nereikia organizacijos Google Workspace paskyros.</b> Patvirtinę el. paštą ir susikūrę slaptažodį galėsite prisijungti. Užduotis administratorius arba koordinatorius pateiks, kai patvirtins jūsų dalyvavimą.</p>
+  <section id="signupWaiting" class="signup-progress" aria-labelledby="signupWaitingTitle" hidden>
+   <h2 id="signupWaitingTitle">Patikrinkite el. paštą</h2>
+   <p>Patvirtinimo laiško užklausa priimta adresu:</p>
+   <p class="recipient" id="signupWaitingEmail"></p>
+   <ol class="signup-steps">
+    <li>Atidarykite „Girių inspekcijos“ laišką (patikrinkite ir šlamštą).</li>
+    <li>Paspauskite <b>Patvirtinti el. paštą</b>.</li>
+    <li>Grįžę į programėlę susikurkite slaptažodį.</li>
+   </ol>
+   <p id="signupWaitingStatus" class="small" role="status" aria-live="polite">Laukiama, kol patvirtinsite el. paštą.</p>
+   <div class="actions">
+    <button type="button" id="checkSignupStatus">Patikrinti prisijungimą</button>
+    <button type="button" id="resendSignupEmail" class="outline">Siųsti naują laišką</button>
+    <button type="button" id="editSignupEmail" class="ghost">Pataisyti adresą</button>
+    <button type="button" id="stopSignup" class="ghost">Nebetęsti</button>
+   </div>
+   <p class="small">Patvirtinimo nuoroda gali atsidaryti naujame lange. Jei patvirtinote kitame įrenginyje, ten baikite kurti slaptažodį, o čia pasirinkite „Jau turiu paskyrą“.</p>
+  </section>
  </div>
 </section>
 <section id="passwordSetupView" hidden>
@@ -87,7 +114,7 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 </section>
 <section id="passwordResetView" hidden>
  <h1>Naujas slaptažodis</h1>
- <p class="muted">Nustatykite naują programėlės slaptažodį. Tai nekeičia jūsų Google ar Workspace slaptažodžio.</p>
+ <p class="muted">Nustatykite naują „Girių inspekcijos“ slaptažodį.</p>
  <form id="passwordResetForm" class="card">
   <label class="field">Naujas slaptažodis<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
   <button type="submit">Išsaugoti naują slaptažodį</button>
@@ -95,7 +122,7 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 </section>
 <section id="appView" hidden>
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
- <div id="pendingView" class="card" hidden><h2>Paskyra sukurta – laukia patvirtinimo</h2><p>El. paštas patvirtintas, paskyra aktyvi. Koordinatorius patikrins, ar esate naujas kandidatas, ar jau savanoriaujate, ir suteiks atitinkamą vaidmenį. Iki patvirtinimo užduočių nematysite.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
+ <div id="pendingView" class="card" hidden><h2>Laukiama koordinatoriaus patvirtinimo</h2><p>Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
   <div class="card" id="taskFilterPanel" hidden>
