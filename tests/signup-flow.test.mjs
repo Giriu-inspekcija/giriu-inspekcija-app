@@ -77,5 +77,5 @@ test('Google sign-in is hidden unless enabled on Supabase and never grants GI ro
   assert.match(js,/client\.auth\.signInWithOAuth\(\{/);
   assert.match(js,/provider:'google'/);
   assert.match(js,/client\.rpc\('gi_password_needed'\)/);
-  assert.match(sw,/v16-ai-proposals/);
+  assert.match(sw,/v17-save-feedback/);
 });
