@@ -30,6 +30,16 @@ Terminą galima nustatyti kuriant užduotį arba keisti kortelėje iki rezultato
 
 Skiltyje „Pastabos“ vienodo teksto bei kategorijos pranešimai grupuojami automatiškai. Aprašykite vykdytojui tinkamą darbą, susiekite vidinę užduotį ir užrašykite sprendimą. Pirminę pastabą mato jos autorius ir darbuotojai, turintys koordinatoriaus ar administratoriaus teises. GitHub patikros naudoja sintetinius duomenis.
 
+## Kaip komandai tęsti darbą iš „Messenger“
+
+Darbo vietoje paspauskite **Fiksuoti įvykį**. Paspaudus **Pateikti bandomąjį pranešimą** mygtukas parodo, kad pranešimas siunčiamas. Pateikto įvykio pavadinimas ir užduoties pavadinimas atveria atskirą kortelę.
+
+Kortelėje pasirinkite **Kopijuoti nuorodą** ir įklijuokite ją į komandos pokalbį. Telefonuose, kuriuose naršyklė palaiko bendrinimą, galite pasirinkti **Dalintis…**. Nuoroda veikia prisijungus. Jeigu situaciją turi matyti visi patvirtinti savanoriai, koordinatorius pasirenka **Atverti komandai**. „Riboti prieigą“ vėl taiko įprastas įrašo teises. Susieta užduotis ir atvejis turi atskiras matomumo nuostatas.
+
+Savanoris gali pasirinkti **Prisijungti padėti**, parašyti, ką jau patikrino, ir pridėti JPG, PNG, WebP arba PDF iki 5 MB. Kiekvienas papildymas turi autorių ir laiką. Iš fondo paimama užduotis turi atskirą veiksmą **Prisiimti užduotį**. Komandos pokalbių turinys į programėlę automatiškai neperduodamas.
+
+Darbuose išskleiskite **Užduotys iš ChatGPT arba pokalbio**, įklijuokite po vieną darbą eilutėje, pasirinkite **Peržiūrėti sąrašą** ir patvirtinkite įkėlimą į fondą. Jei prijungtas „ChatGPT“ jau tiesiogiai įrašė užduotis, jas rasite atnaujinę darbų sąrašą.
+
 ## Prieigos teisės
 
 | Vaidmuo arba atskiras paskyrimas | Užduotys | Laiko tvirtinimas | Dokumentai |

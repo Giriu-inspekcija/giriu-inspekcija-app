@@ -31,6 +31,37 @@ def case_and_document(chief,coord,reporter,other_staff,owner_id):
     assert rows('gi_tasks',chief,'select=case_id&id=eq.'+task)==[{'case_id':case}]
     print('PASS G incident, 10 private images, staff review, linked case and task',flush=True)
 
+    from pilot import fixture
+    helper_id,_,helper=fixture('thread-helper')
+    rpc('gi_approve_volunteer',{'p_user':helper_id},chief)
+    endpoint=REST+'/gi_thread_entries'
+    q='select=kind&incident_id=eq.'+incident
+    assert rows('gi_incidents',helper,'select=id&id=eq.'+incident)==[]
+    rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':True},coord)
+    assert rows('gi_cases',helper,'select=id&id=eq.'+case)==[{'id':case}]
+    assert download('01',helper).ok
+    request('POST',endpoint,helper,{'incident_id':incident,'kind':'help'})
+    request('POST',endpoint,helper,{'incident_id':incident,'kind':'help'},{409})
+    entry=str(uuid.uuid4())
+    object_name=f'{helper_id}/incident/{incident}/{entry}.png'
+    file_url=BASE+'/storage/v1/object/gi-thread-files/'+object_name
+    headers={'apikey':KEY,'Authorization':'Bearer '+helper,'Content-Type':'image/png'}
+    upload=http.post(file_url,headers=headers,data=png,timeout=10)
+    assert upload.ok,(upload.status_code,upload.text[:240])
+    request('POST',endpoint,helper,{'id':entry,'incident_id':incident,'kind':'note','body':'Vietos papildymas',
+        'attachment':object_name,'filename':'vietos-vaizdas.png'})
+    assert http.get(file_url,headers={'apikey':KEY,'Authorization':'Bearer '+reporter},timeout=10).content==png
+    assert len(rows('gi_thread_entries',reporter,q))==3
+    assert rows('gi_tasks',helper,'select=id&id=eq.'+task)==[]
+    rpc('gi_set_team_visibility',{'p_kind':'task','p_id':task,'p_visible':True},coord)
+    request('POST',endpoint,helper,{'task_id':task,'kind':'note','body':'Papildoma užduoties informacija'})
+    assert len(rows('gi_thread_entries',helper,'select=id&task_id=eq.'+task))==2
+    rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':False},coord)
+    assert rows('gi_thread_entries',helper,q)==[]
+    assert not http.get(file_url,headers=headers,timeout=10).ok
+    request('POST',endpoint,helper,{'incident_id':incident,'kind':'note','body':'Test'},{401,403})
+    print('PASS restricted and shared threads, case link, helpers, contextual file and visibility revocation',flush=True)
+
     doc=str(uuid.uuid4())
     params={'p_id':doc,'p_revision':0,'p_action':'create','p_title':'Patikros pažyma',
             'p_body':'Išgalvoti patikros faktai','p_case':case,'p_task':task}

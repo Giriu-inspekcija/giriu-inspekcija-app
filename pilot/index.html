@@ -109,6 +109,21 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
 
 #printDocument{display:none}
 @media print{body>*{display:none!important}body>#printDocument{display:block!important;background:white;color:#171717;white-space:pre-wrap;font:12pt/1.5 Georgia,serif}#printDocument h1{font-size:17pt}@page{size:A4;margin:22mm}}
+button:active:not(:disabled){filter:brightness(.77);transform:translateY(1px)}
+button[aria-busy="true"]{background:#dce3dd!important;color:#25382c!important;border-color:#829487!important;opacity:1;cursor:wait}
+button[aria-busy="true"]::before{content:"";display:inline-block;width:.85em;height:.85em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;margin-right:.5em;animation:gi-spin .7s linear infinite}
+@keyframes gi-spin{to{transform:rotate(360deg)}}
+.field-shortcut{display:flex;justify-content:flex-end;margin:.4rem 0}.field-shortcut button{min-height:44px}
+dialog{color:inherit;background:#fff;border:1px solid #c1cfc4;border-radius:16px;padding:22px;width:min(94vw,34rem);max-height:90dvh;overflow:auto}
+dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45rem)}#threadDialog h2{overflow-wrap:anywhere}
+.thread-top,.log-head{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.thread-history{padding-left:1.4rem}.thread-history li{padding:.45rem 0 .7rem .25rem;border-bottom:1px solid #dae2dc}
+.thread-history p,.log-card p{margin:.35em 0;white-space:pre-line;overflow-wrap:anywhere}.thread-history time{display:block}
+.log-card{padding:12px 0;border-bottom:1px solid #cedbd1}.log-head strong{font-size:1.12rem;color:#244c35;white-space:nowrap}
+.review-panel{padding:16px;background:#f3f7f2;border:1px solid #ccd9cd;border-radius:12px;margin:10px 0}
+#threadStatus:not(:empty){padding:10px;background:#f2f5ed;border-radius:8px}.thread-title{font:inherit;color:#185438;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:540px){#threadDialog{width:100%;max-width:100%;height:100dvh;max-height:100dvh;border:0;border-radius:0;margin:0;padding:16px}.field-shortcut button{width:100%}}
+@media(prefers-reduced-motion:reduce){button[aria-busy="true"]::before{animation:none}}
 </style>
 </head>
 <body><div class="shell">
@@ -203,6 +218,7 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline" hidden>Atsijungti</button></div>
  <div id="pendingView" class="card" hidden><h2 id="pendingHeading">Laukiama koordinatoriaus patvirtinimo</h2><p id="pendingDescription">Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="withdrawRegistration" class="outline" type="button">Atšaukti savo registraciją</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
+  <div class="field-shortcut"><button type="button" id="captureIncident">＋ Fiksuoti įvykį</button></div>
   <nav id="workspaceNav" class="workspace-nav" aria-label="Darbo vietos skiltys">
     <button type="button" data-nav="tasks" aria-current="page">Darbai</button>
     <button type="button" data-nav="time">Valandos</button>
@@ -233,9 +249,10 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
      <label class="field">Terminas Vilniaus laiku (nebūtina)<input name="due" type="datetime-local"></label>
      <button type="submit">Pridėti siūlomą užduotį</button>
     </form></details>
-    <details><summary><b>Importuoti ChatGPT pasiūlytas užduotis</b></summary>
-    <p class="small">Įklijuok JSON masyvą su laukais <code>source_ref</code>, <code>title</code>, <code>details</code> ir <code>priority</code>. Parodysime peržiūrą. Užduotys bus tik siūlomos, jos nebus automatiškai paskirtos.</p>
-    <label class="field">JSON iš ChatGPT<textarea id="batchJson" spellcheck="false" placeholder='[{"source_ref":"SYNTH-CG-01","title":"Bandomoji užduotis","details":"Tik išgalvotas aprašymas","priority":"normal"}]'></textarea></label>
+    <details><summary><b>Užduotys iš ChatGPT arba pokalbio</b></summary>
+    <p>Jei „ChatGPT“ prijungtas prie GI sistemos, parašykite „Pateik šias užduotis GI komandai“. Jo įrašytus pasiūlymus rasite skiltyje „Darbai“, atnaujinę sąrašą.</p>
+    <label class="field">Įklijuoti užduotis ranka<textarea id="batchJson" spellcheck="false" placeholder="Patikrinti išvykos vietą – palyginti du žemėlapius&#10;Parengti raštą – surinkti reikalingus priedus"></textarea></label>
+    <p class="small">Viena užduotis eilutėje. Po brūkšnio galite pridėti aprašymą. Tinka ir ChatGPT parengtas JSON. Prieš įkeldami peržiūrėkite sąrašą.</p>
     <div class="actions"><button type="button" class="outline" id="batchPreview">Peržiūrėti sąrašą</button><button type="button" id="batchImport" disabled>Patvirtinti ir įkelti į fondą</button></div>
     <div id="batchReview" class="small" aria-live="polite"></div></details>
     </div>
@@ -246,9 +263,10 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
   <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
   </section>
   <section id="timeSection" class="workspace-section" hidden>
-    <h2>Mano valandos</h2>
-    <div id="myTimeSummary" class="card"></div>
-    <form id="manualTimeForm" class="card">
+    <h2>Darbo laikas</h2>
+    <section id="staffTimePanel" class="review-panel" hidden><h3>Patvirtinti savanorių laiką <span id="reviewCount" class="tag"></span></h3><div id="staffTimeLogs"></div></section>
+    <h3>Mano valandos</h3><div id="myTimeSummary" class="card"></div>
+    <details class="card" id="timeEntryPanel"><summary><b>Deklaruoti darbo laiką</b></summary><form id="manualTimeForm">
       <h3>Pridėti darbo laiką</h3>
       <p class="small">Galite įrašyti laiką ir po rezultato pateikimo arba už veiklą be išankstinės užduoties.</p>
       <label class="field">Susieti su mano užduotimi (nebūtina)
@@ -264,13 +282,14 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
       <label class="field">Projektas (bendroje savanorystėje palikite tuščią) <input id="timeProject" minlength="2" maxlength="120"></label>
       <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
-    </form>
+    </form></details>
     <h3>Mano laiko įrašai</h3>
     <div id="workLogsList"></div>
-    <div id="staffTimePanel" hidden><h3>Kitų savanorių laikas – patvirtinti</h3><div id="staffTimeLogs"></div></div>
+
   </section>
   <section id="incidentsSection" class="workspace-section" hidden>
-    <h2>Pranešti apie įvykį</h2>
+    <h2>Įvykiai ir atvejai</h2>
+    <details class="card" id="incidentEditor"><summary><b>Fiksuoti įvykį</b></summary>
     <div class="alert"><b>Tik demonstracija.</b> Naudokite išgalvotas vietas ir situacijas. Naudokite tik demonstracines nuotraukas be žmonių ir jautrių vietovių.</div>
     <form id="incidentForm" class="card">
       <input id="incidentId" type="hidden">
@@ -289,9 +308,9 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
         <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
         <button type="submit" name="action" value="submit">Pateikti bandomąjį pranešimą</button>
         <button type="button" class="outline" id="incidentClear">Naujas juodraštis</button>
-      </div>
+      </div><p role="status" id="incidentProgress" class="small"></p>
     </form>
-    <h3>Mano pranešimai</h3><div id="incidentsList"></div>
+    </details><h3>Pranešimų sąrašas</h3><div id="incidentsList"></div>
   </section>
   <section id="documentsSection" class="workspace-section" hidden>
     <h2>Dokumentai</h2>
@@ -346,6 +365,16 @@ body.signed-in #notice{position:fixed;top:12px;left:50%;transform:translateX(-50
 <script defer src="./vendor/fflate-0.8.2.js"></script>
 <script defer src="./document-export.js"></script>
 <script defer src="./deadlines.js"></script>
+<dialog id="threadDialog" aria-labelledby="threadTitle">
+ <div class="thread-top"><strong id="threadName">Darbo kortelė</strong><button type="button" class="outline" id="closeThread">Uždaryti</button></div>
+ <h2 id="threadTitle">Kraunama…</h2><p id="threadStatus" role="status"></p><div id="threadContent"></div>
+</dialog>
+<dialog id="decision" aria-labelledby="decisionTitle" aria-describedby="decisionText">
+ <form method="dialog"><h2 id="decisionTitle"></h2><p id="decisionText"></p>
+ <label class="field" id="decisionField">Įrašykite atsakymą<textarea id="decisionInput"></textarea></label>
+ <div class="actions"><button value="cancel" formnovalidate class="outline">Atšaukti</button><button id="decisionSubmit" value="accept"></button></div></form>
+</dialog>
+<script defer src="./team-thread.js"></script>
 <script defer src="./app.js"></script>
 <script>
 if('serviceWorker' in navigator) {

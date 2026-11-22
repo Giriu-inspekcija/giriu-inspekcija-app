@@ -88,6 +88,7 @@ def exercise(user,password):
                 expect(field).to_have_value(date+'T19:30')
                 page.unroute('**/rpc/gi_change_task_due')
                 card.get_by_role('button',name='Pašalinti terminą').click()
+                page.locator('#decisionSubmit').click()
                 expect(card.get_by_text('Nustatyti terminą',exact=True)).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
@@ -118,12 +119,25 @@ def test_forms(page):
     import zipfile
     from xml.etree import ElementTree
     expect(page.locator('#documentsNav')).to_be_visible()
-    page.locator('[data-nav=incidents]').click()
+    page.get_by_text('Užduotys iš ChatGPT arba pokalbio',exact=True).click()
+    page.locator('#batchJson').fill('Palyginti išvykos schemas – sutikrinti žemėlapį')
+    page.locator('#batchPreview').click()
+    expect(page.locator('#batchReview')).to_contain_text('Palyginti išvykos schemas')
+    expect(page.locator('#batchImport')).to_be_enabled()
+    for attempt in range(2):
+        if attempt:
+            page.locator('#batchJson').fill('Palyginti išvykos schemas – sutikrinti žemėlapį')
+            page.locator('#batchPreview').click()
+        page.locator('#batchImport').click()
+        expect(page.locator('#notice')).to_contain_text('Užduotys jau yra fonde.')
+        expect(page.locator('#taskList h3').filter(has_text='Palyginti išvykos schemas')).to_have_count(1)
+    page.locator('#captureIncident').click()
     page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
     page.locator('#incidentCoords').fill('0.0, 0.0')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
-    page.get_by_role('button',name='Pateikti bandomąjį pranešimą').click()
+    send=page.get_by_role('button',name='Pateikti bandomąjį pranešimą')
+    assert send.evaluate("(b)=>{b.click();return b.disabled && b.getAttribute('aria-busy')==='true' && b.textContent==='Pateikiama…'}")
     incident=page.locator('#incidentsList article').filter(has_text='Naršyklės demonstracinė patikra')
     expect(incident).to_contain_text('Pateikta')
     incident.get_by_role('button',name='Nuotraukos').click()
@@ -135,6 +149,24 @@ def test_forms(page):
     form.locator('[name=details]').fill('Peržiūrėti demonstracinį atvejį')
     form.locator('button').click()
     expect(page.locator('#actionToast')).to_contain_text('Užduotis sukurta')
+    incident.get_by_role('link',name='Atverti kortelę ir istoriją').click()
+    thread=page.locator('#threadDialog')
+    expect(thread).to_contain_text('Pradėta atvejo patikra')
+    expect(thread).to_contain_text('Naršyklės atvejo užduotis')
+    thread.locator('[data-do=help]').click()
+    expect(thread).to_contain_text('Prisijungė padėti')
+    thread.locator('[name=body]').fill('Savanoris papildė patikros istoriją.')
+    thread.get_by_role('button',name='Paskelbti papildymą').click()
+    expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    page.reload()
+    expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    # The identity provider returns to the allowlisted path without query parameters.
+    page.evaluate("""() => sessionStorage.setItem('gi-thread-login-return',JSON.stringify({
+        kind:'incident',id:new URL(location.href).searchParams.get('incident'),expires:Date.now()+60000}))""")
+    page.goto(page.url.split('?')[0])
+    expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    assert '?incident=' in page.url
+    thread.get_by_role('button',name='Uždaryti').click()
     page.locator('#documentsNav').click()
     page.get_by_text('Sukurti paprastą bandomąjį juodraštį',exact=True).click()
     form=page.locator('#documentCreate')
