@@ -34,10 +34,12 @@
   function rememberSignupWaiting(email) {
     signupWaiting={email,at:Date.now()};
     try {window.sessionStorage.setItem(SIGNUP_WAITING_KEY,JSON.stringify(signupWaiting))} catch {}
+    updateAccountSwitcher();
   }
   function clearSignupWaiting() {
     signupWaiting=null;
     try {window.sessionStorage.removeItem(SIGNUP_WAITING_KEY)} catch {}
+    updateAccountSwitcher();
   }
   function showSignupWaiting() {
     const show=authMode==='signup' && !!signupWaiting;
@@ -46,6 +48,7 @@
     $('signupWaitingEmail').textContent=show?signupWaiting.email:'';
     if(show)$('signupWaitingStatus').textContent='Laiško užklausa priimta. Laukiama, kol atidarysite patvirtinimo nuorodą.';
     updateOtpButton();
+    updateAccountSwitcher();
   }
   // Browser-side convenience only; Supabase rate limits must also remain enabled.
   const OTP_COOLDOWN_MS = 120000;
@@ -108,6 +111,11 @@
   const admin = () => profile?.role === 'admin';
   const approved = () => ['candidate','volunteer','coordinator','admin'].includes(profile?.role);
   const personName = p => (p?.display_name || 'Naudotojas ' + String(p?.id || '').slice(0,8)).trim();
+  function updateAccountSwitcher() {
+    const email=currentUser?.email || signupWaiting?.email || '';
+    $('accountSwitchBar').hidden=!(email || passwordRecovery);
+    $('accountSwitchLabel').textContent=email?'Paskyra: '+email:'Slaptažodžio keitimas';
+  }
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; members = []; feedback = [];
     taskCursor = null; hasMoreTasks = false; taskFilter = 'all'; memberSearchTerm = '';
@@ -115,6 +123,7 @@
     $('appView').hidden = true;
     $('passwordResetView').hidden = true;
     $('passwordSetupView').hidden = true;
+    updateAccountSwitcher();
   }
 
   async function fetchProfile() {
@@ -328,6 +337,7 @@
     const {data,error}=await client.auth.getUser();
     if(error || !data.user){showLoggedOut();return;}
     currentUser=data.user;
+    updateAccountSwitcher();
     clearSignupWaiting();
     showSignupWaiting();
     // Email-link registrations have no password until verified; Google OAuth does not require one.
@@ -584,6 +594,7 @@
   });
   function displayPasswordReset(){
     passwordRecovery=true;
+    updateAccountSwitcher();
     $('authView').hidden=true;
     $('appView').hidden=true;
     $('passwordResetView').hidden=false;
@@ -598,14 +609,49 @@
       const {error}=await client.auth.updateUser({password:newPassword});
       if(error)throw error;
       passwordRecovery=false;
-      await client.auth.signOut();
+      await client.auth.signOut({scope:'local'});
       showLoggedOut();
       selectAuthMode('login');
       notice('Slaptažodis pakeistas. Dabar prisijunkite su naujuoju.',false);
     }catch(error){notice(authError(error),true)}
   });
 
-  $('logout').addEventListener('click',async()=>{if(client) await client.auth.signOut();showLoggedOut();notice('Atsijungta.');});
+  // Switch only this browser's session; leave other devices signed in.
+  let switchingAccount=false;
+  async function switchAccount() {
+    if(switchingAccount)return;
+    const button=$('switchAccount');
+    switchingAccount=true;
+    button.disabled=true;
+    $('logout').disabled=true;
+    try {
+      if(!client)throw new Error('Prisijungimo biblioteka nepasiekiama. Patikrinkite ryšį.');
+      const {data,error}=await client.auth.getSession();
+      if(error)throw error;
+      if(data?.session){
+        const result=await client.auth.signOut({scope:'local'});
+        if(result.error)throw result.error;
+      }
+      passwordRecovery=false;
+      clearSignupWaiting();
+      $('authForm').reset();
+      $('passwordSetupForm').reset();
+      $('passwordResetForm').reset();
+      showLoggedOut();
+      selectAuthMode('login');
+      $('email').value='';
+      notice('Galite prisijungti kita paskyra.');
+      $('email').focus();
+    }catch(error){
+      notice('Nepavyko pakeisti paskyros: '+(error?.message||'klaida'),true);
+    }finally{
+      switchingAccount=false;
+      button.disabled=false;
+      $('logout').disabled=false;
+    }
+  }
+  $('switchAccount').addEventListener('click',switchAccount);
+  $('logout').addEventListener('click',switchAccount);
   $('refresh').addEventListener('click',refreshWorkspace);
   $('taskStatusFilter').addEventListener('change',event=>{
     if(!staff())return;
