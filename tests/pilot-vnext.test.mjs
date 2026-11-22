@@ -71,7 +71,7 @@ test('mobile navigation and professional Google button remain accessible',()=>{
   assert.match(html,/aria-label="Darbo vietos skiltys"/);
   assert.match(html,/aria-label="Google"/);
   assert.match(html,/Bandomoji GI sistema/);
-  assert.match(sw,/v10-workspace/);
+  assert.match(sw,/v11-hours-cleanup/);
   assert.match(html,/#EA4335/);
   assert.doesNotMatch(html,/<span class="google-mark" aria-hidden="true">G<\/span>/);
   assert.match(html,/id="switchAccount"/);
