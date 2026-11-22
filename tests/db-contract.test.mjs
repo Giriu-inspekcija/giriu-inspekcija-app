@@ -61,3 +61,20 @@ test('feedback collection is protected and synthetic-only', () => {
   assert.match(feedback, /is_demo = true/);
   assert.doesNotMatch(feedback, /grant (?:update|delete|all) on public\.gi_feedback to authenticated/i);
 });
+
+test('privileged GI RPCs are private, public wrappers use SECURITY INVOKER', () => {
+  const hardening = readFileSync(new URL('../supabase/migrations/20261122170000_gi_rpc_private_hardening.sql', import.meta.url), 'utf8');
+  for (const name of ['gi_create_proposal','gi_assign_task','gi_task_action','gi_log_minutes','gi_set_user_role']) {
+    assert.match(hardening, new RegExp('ALTER FUNCTION public\\.' + name + '\\('));
+    assert.match(hardening, new RegExp('CREATE FUNCTION public\\.' + name + '\\('));
+  }
+  assert.equal([...hardening.matchAll(/SECURITY INVOKER/g)].length, 6);
+  assert.match(hardening, /REVOKE ALL ON FUNCTION[\s\S]*?FROM PUBLIC, anon;/);
+  assert.match(hardening, /GRANT EXECUTE ON FUNCTION[\s\S]*?TO authenticated;/);
+});
+test('feedback creation is only available to approved pilot members', () => {
+  const approval = readFileSync(new URL('../supabase/migrations/20261122173000_gi_feedback_approved_only.sql', import.meta.url), 'utf8');
+  assert.match(approval, /FOR INSERT TO authenticated/);
+  assert.match(approval, /IN \('volunteer','coordinator','admin'\)/);
+  assert.match(approval, /reporter_id = \(select auth\.uid\(\)\)/);
+});
