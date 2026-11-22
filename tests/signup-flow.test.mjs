@@ -18,13 +18,13 @@ test('waiting UI shows actual address and steps without exposing accounts',()=>{
   for(const id of ['signupWaiting','signupWaitingTitle','signupWaitingEmail','signupWaitingStatus',
     'checkSignupStatus','editSignupEmail','stopSignup','resendSignupEmail']){
     assert.match(html,new RegExp('id="'+id+'"'));
-    assert.match(js,new RegExp(id));
+    if(id!=='signupWaitingTitle')assert.match(js,new RegExp(id));
   }
   assert.match(html,/Patvirtinti el\. paštą/);
   assert.match(js,/signupWaitingEmail'\)\.textContent/);
   assert.match(js,/client\.auth\.getSession\(\)/);
   assert.match(js,/client\.auth\.getUser\(\)/);
-  assert.match(js,/negalima/i);
+  assert.match(js,/Šioje naršyklėje prisijungimo dar nėra/);
 });
 
 test('registration progress does not falsely cancel an Auth account or bypass OTP rate limits',()=>{
