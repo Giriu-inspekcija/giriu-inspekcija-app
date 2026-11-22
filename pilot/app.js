@@ -775,8 +775,14 @@
   }
   // Prevent duplicate taps and show a persistent, local confirmation even when
   // the updated button disappears after a status transition.
+  // A confirmed server write must never be reported as a failed write merely
+  // because the subsequent screen refresh failed. Retrying could duplicate work.
   async function run(call,successMessage='Veiksmas išsaugotas.') {
     if(mutationInFlight)return false;
+    if(navigator.onLine===false){
+      toast('Nėra interneto ryšio. Veiksmas neišsiųstas – prisijungę bandykite dar kartą.',true);
+      return false;
+    }
     mutationInFlight=true;
     const button=lastControl?.isConnected?lastControl:document.activeElement?.closest('button');
     const clearBusy=busy(button,button?.closest('#incidentForm')?(button.value==='submit'?'Pateikiama…':'Saugomas juodraštis…'):'Saugoma…');
@@ -785,10 +791,20 @@
       notice('');
       const result=await call();
       if(result?.error)throw result.error;
-      if(loading)await refreshFinished;
-      const refreshed=await refreshWorkspace();
-      if(!refreshed)throw Error('Pakeitimas išsaugotas, tačiau būsenos atnaujinti nepavyko. Spauskite „Atnaujinti“.');
+      // The write has now succeeded; only the view reload can still fail.
       const msg=typeof successMessage==='function'?successMessage(result?.data):successMessage;
+      let refreshed=false;
+      try {
+        if(loading)await refreshFinished;
+        refreshed=await refreshWorkspace();
+      }catch(refreshError){
+        if(expiredSession(refreshError))endExpiredSession();
+      }
+      if(!refreshed){
+        toast(msg);
+        notice('Veiksmas išsaugotas serveryje, tačiau ekranas neatsinaujino. Patikrinkite ryšį ir spauskite „Atnaujinti“. Nekartokite to paties veiksmo.',true);
+        return true;
+      }
       toast(msg);
       return true;
     } catch(error) {
