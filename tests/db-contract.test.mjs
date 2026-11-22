@@ -15,7 +15,7 @@ test('new registrations start with pending role, not volunteer/admin', () => {
 });
 test('role approval requires existing administrator', () => {
   assert.match(sql, /function public\.gi_set_user_role/);
-  assert.match(sql, /private\.gi_role\(\)\) <> 'admin'/);
+  assert.match(sql, /coalesce\(\(select private\.gi_role\(\)\), 'pending'\) <> 'admin'/);
   assert.match(sql, /insert into public\.gi_role_events/);
 });
 test('no public client writes directly to tables', () => {
@@ -41,4 +41,15 @@ test('SECURITY DEFINER functions pin search_path', () => {
     const after = sql.slice(match.index,match.index+100);
     assert.match(after, /set search_path = ''/);
   }
+});
+
+test('missing roles fail closed for all privileged actions', () => {
+  assert.match(sql, /coalesce\(\(select private\.gi_role\(\)\), 'pending'\) not in \('coordinator','admin'\)/);
+  assert.match(sql, /coalesce\(\(select private\.gi_role\(\)\), 'pending'\) not in \('volunteer','coordinator','admin'\)/);
+});
+test('each SECURITY DEFINER function uses valid dollar quoting', () => {
+  const count = [...sql.matchAll(/security definer set search_path = ''/g)].length;
+  assert.equal(count, 7);
+  assert.equal([...sql.matchAll(/as \$\$/g)].length, 7);
+  assert.doesNotMatch(sql, /as \$\n/);
 });
