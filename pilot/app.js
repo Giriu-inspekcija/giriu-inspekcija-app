@@ -108,23 +108,57 @@
   function renderPendingMembers() {
     if(!staff())return;
     const others=members.filter(p=>p.id!==currentUser.id);
+    const intentNames={new_candidate:'Naujas kandidatas',existing_volunteer:'Jau savanoriauja',unspecified:'Nenurodė'};
+    const activityNames={field:'Išvykos ir fiksavimas',advocacy:'Advokacija',gis:'GIS',communications:'Komunikacija',other:'Kita'};
+    const rankNames={pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'};
+    const info=p=>'<p class="small">Anketoje: '+escapeHTML(intentNames[p.membership_intent]||'Nenurodė')
+      +' · '+escapeHTML(activityNames[p.preferred_activity]||'Kita')
+      +(p.region_label?' · '+escapeHTML(p.region_label):'')+'</p>';
     const pending=others.filter(p=>p.role==='pending');
-    const pendingRows=pending.map(p=>
-      '<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
-      +'<p class="small">Laukia patvirtinimo</p></div>'
-      +'<button type="button" data-approve-volunteer="'+escapeHTML(p.id)+'">Patvirtinti savanorį</button></div>').join('');
-    const managed=admin()
-      ? others.filter(p=>p.role!=='pending').map(p=>
-         '<div class="row card"><div><b>'+escapeHTML(personName(p))+'</b>'
-         +'<p class="small">Dabartinė teisė: '+escapeHTML(roleNames[p.role]||p.role)+'</p></div>'
-         +'<div class="form-inline"><select aria-label="Nauja naudotojo teisė" data-role-select="'+escapeHTML(p.id)+'">'
-         +['pending','volunteer','coordinator'].map(role=>'<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
-         +'</select><button type="button" data-change-role="'+escapeHTML(p.id)+'">Išsaugoti</button></div></div>').join('')
-      : '';
-    $('pendingMembers').innerHTML =
-      '<h3>Nauji savanoriai ('+pending.length+')</h3>'
+    const pendingRows=pending.map(p=>{
+      const id=escapeHTML(p.id);
+      const likelyExisting=p.membership_intent==='existing_volunteer';
+      return '<div class="card"><b>'+escapeHTML(personName(p))+'</b>'+info(p)
+        +'<p class="small">Anketoje pasirinktas statusas nėra įrodymas – prieš suteikdamas prieigą patikrink žmogų.</p>'
+        +'<div class="actions">'
+        +(likelyExisting
+          ? '<button type="button" data-approve-volunteer="'+id+'">Patvirtinti savanorį</button>'
+          : '<button type="button" data-approve-candidate="'+id+'">Priimti kandidatu</button>')
+        +'<button type="button" class="outline" data-'+(likelyExisting?'approve-candidate':'approve-volunteer')+'="'+id+'">Kitas vaidmuo (po patikros)</button>'
+        +'</div></div>';
+    }).join('');
+    const candidates=others.filter(p=>p.role==='candidate');
+    const candidateRows=candidates.map(p=>'<div class="card"><b>'+escapeHTML(personName(p))+'</b>'
+      +info(p)+'<p class="small">Kandidatas – tik specialiai pažymėtos užduotys</p>'
+      +'<button type="button" data-promote-candidate="'+escapeHTML(p.id)+'">Patvirtinti kaip savanorį</button></div>').join('');
+    const managed=admin()?others.filter(p=>['candidate','volunteer','coordinator'].includes(p.role)).map(p=>{
+      const id=escapeHTML(p.id);
+      return '<div class="card"><b>'+escapeHTML(personName(p))+'</b>'
+        +'<p class="small">Dabartinis vaidmuo: '+escapeHTML(roleNames[p.role]||p.role)
+        +(p.volunteer_rank?' · '+escapeHTML(rankNames[p.volunteer_rank]||p.volunteer_rank):'')+'</p>'
+        +'<div class="form-inline"><select aria-label="Keisti vaidmenį" data-role-select="'+id+'">'
+        +['pending','candidate','volunteer','coordinator'].map(role=>
+          '<option value="'+role+'"'+(p.role===role?' selected':'')+'>'+escapeHTML(roleNames[role])+'</option>').join('')
+        +'</select><button type="button" data-change-role="'+id+'">Išsaugoti vaidmenį</button></div>'
+        +(['candidate','volunteer'].includes(p.role)?
+         '<div class="form-inline"><select aria-label="Savanorio laipsnis" data-rank-select="'+id+'">'
+          +Object.keys(rankNames).filter(k=>p.role!=='candidate'||k==='pradedantysis').map(rank=>
+            '<option value="'+rank+'"'+(p.volunteer_rank===rank?' selected':'')+'>'+escapeHTML(rankNames[rank])+'</option>').join('')
+          +'</select><button class="outline" type="button" data-rank-change="'+id+'">Patvirtinti laipsnį</button></div>'
+          :'')
+        +(p.role==='volunteer'
+          ?'<div class="actions"><button type="button" class="outline" data-doc-permission="'+id+'">'
+            +(p.can_prepare_documents?'Atšaukti raštų rengimo teisę':'Leisti rengti raštų projektus')+'</button></div>'
+          :'')
+        +'</div>';
+    }).join(''):'';
+    $('pendingMembers').innerHTML='<h3>Laukia patvirtinimo ('+pending.length+')</h3>'
       +(pendingRows||'<p class="small">Naujų registracijų nėra.</p>')
-      +(admin()?'<hr><h3>Kitų narių teisės</h3>'+ (managed||'<p class="small">Nėra kitų patvirtintų narių.</p>'):'');
+      +'<hr><h3>Kandidatai ('+candidates.length+')</h3>'
+      +(candidateRows||'<p class="small">Patvirtintų kandidatų nėra.</p>')
+      +(admin()?'<hr><h3>Vaidmenys ir papildomos teisės</h3>'
+        +'<p class="small">Laipsnis savaime nesuteikia prieigos prie raštų ar jautrių bylų. Leidimas rengti raštus paruoštas, tačiau DI API dar neprijungta.</p>'
+        +(managed||'<p class="small">Nėra valdomų paskyrų.</p>'):'');
   }
 
   function renderFeedback() {
