@@ -56,3 +56,12 @@ test('approving suggested tasks does not prompt twice and still calls authentica
   assert.match(handler,/p_action:'publish'/);
   assert.doesNotMatch(handler,/await ask\(/);
 });
+
+test('coordinator creates feedback-based tasks with one inline form, not sequential prompts',()=>{
+  assert.match(app,/data-feedback-start/);
+  assert.match(app,/data-feedback-create/);
+  assert.match(app,/form\.hidden=!form\.hidden/);
+  assert.match(app,/p_action:'task'/);
+  assert.match(app,/gi_review_feedback_group/);
+  assert.doesNotMatch(app,/Koks užduoties pavadinimas\?/);
+});
