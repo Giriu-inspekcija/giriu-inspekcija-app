@@ -14,8 +14,9 @@ https://supabase.com/dashboard/project/mkhxokzuietqgjdpkcqq/auth/templates
 | --- | --- | --- |
 | Confirm signup | `Patvirtinkite el. paštą – Girių inspekcija` | `supabase/email-templates/confirm-signup.html` |
 | Magic link | `Jūsų prisijungimo nuoroda – Girių inspekcija` | `supabase/email-templates/magic-link.html` |
+| Reset Password (Recovery) | `Slaptažodžio atkūrimas – Girių inspekcija` | `supabase/email-templates/recovery.html` |
 
-**Dėmesio:** `pilot/app.js` naudoja `signInWithOtp`. Priklausomai nuo registracijos situacijos Supabase gali siųsti *Confirm signup* arba *Magic link*. Todėl **būtinai atnaujinkite abu**.
+**Dėmesio:** `pilot/app.js` naudoja `signInWithOtp`. Priklausomai nuo registracijos situacijos Supabase gali siųsti *Confirm signup* arba *Magic link*. Todėl **būtinai atnaujinkite abu, o atkūrimo laiškams – ir trečią šabloną**.
 
 HTML nuoroda įdėta taip: `href="{{ .ConfirmationURL }}"`. **Nepakeiskite šios išraiškos** į Netlify URL — ji yra vienkartinė saugi Supabase patvirtinimo / prisijungimo nuoroda.
 
@@ -29,7 +30,7 @@ HTML nuoroda įdėta taip: `href="{{ .ConfirmationURL }}"`. **Nepakeiskite šios
 7. Tik po realaus testo kviesti naujus savanorius.
 
 ## GI logotipas
-Šablonuose naudojamas PWA svetainės `https://starlit-shortbread-a38110.netlify.app/logo.png` vaizdo adresas. **Prieš viešą išsiuntimą patikrinti, ar gavėjo pašte jis pasiekiamas be prisijungimo ir tikrai yra galutinis GI logotipas**; jei ne, pakeisti patikimai viešai pasiekiamu organizacijos domeno HTTPS logotipo adresu. Net jei vaizdas blokuojamas, tekstinė antraštė „Girių inspekcija“ turi likti matoma.
+Šablonuose naudojamas PWA svetainės `https://raw.githubusercontent.com/Giriu-inspekcija/giriu-inspekcija-app/main/logo.png` vaizdo adresas. **Prieš viešą išsiuntimą patikrinti, ar gavėjo pašte jis pasiekiamas be prisijungimo ir tikrai yra galutinis GI logotipas**; jei ne, pakeisti patikimai viešai pasiekiamu organizacijos domeno HTTPS logotipo adresu. Net jei vaizdas blokuojamas, tekstinė antraštė „Girių inspekcija“ turi likti matoma.
 
 ## Ką laiškas žada ir ko ne
 Šablonas sako „sveiki atvykę“ ir prašo patvirtinti **el. paštą**, bet **neteigia**, kad naujas žmogus jau priimtas kaip savanoris. Po patvirtinimo jis turi būti `pending` ir laukti koordinatoriaus sprendimo.
