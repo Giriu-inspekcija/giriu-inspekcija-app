@@ -8,7 +8,7 @@ from pathlib import Path
 import hashlib
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "logo.png"
 EXPECTED_SHA256 = "6e6662087b4d9ebcbded51d18ae81244511b22b88e427c192b617c4f97072e50"
 
