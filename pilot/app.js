@@ -185,8 +185,8 @@
     try {
       await fetchProfile();
       if(currentUser?.id!==actor)return false;
-      $('greeting').textContent = profile.display_name ? 'Labas, ' + profile.display_name : 'Mano darbo vieta';
-      $('roleName').textContent = (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
+      $('greeting').textContent = 'Darbo vieta';
+      $('roleName').textContent = (profile.display_name?profile.display_name+' · ':'') + (roleNames[profile.role] || 'Laukia patvirtinimo') + (profile.volunteer_rank ? ' · '+({pradedantysis:'Pradedantysis',patyres:'Patyręs',vyriausias:'Vyriausias',regiono_vadas:'Regiono vadas'}[profile.volunteer_rank] || profile.volunteer_rank) : '');
       $('pendingView').hidden = approved();
       const regState=profile.registration_state||'active';
       $('pendingHeading').textContent=regState==='rejected'?'Registracija atmesta':regState==='withdrawn'?'Registracija atšaukta':'Laukiama koordinatoriaus patvirtinimo';
@@ -323,11 +323,14 @@
     } finally {loading=false;finish();}
   }
 
+  const panelTitles={tasks:'Darbai',time:'Valandos',incidents:'Įvykiai',documents:'Dokumentai',team:'Komanda',feedback:'Pastabos'};
+  let feedbackOrigin='feedback';
   function openPanel(name) {
     if(!['tasks','time','incidents','documents','team','feedback'].includes(name))name='tasks';
     if(name==='documents'&&!canWriteDocuments())name='tasks';
     if(name==='team'&&!staff())name='tasks';
     activePanel=name;
+    $('quickFeedback').hidden=name==='feedback'||!approved();
     for(const panel of ['tasks','time','incidents','documents','team','feedback']){
       $(panel+'Section').hidden=panel!==name;
       const button=document.querySelector('[data-nav="'+panel+'"]');
@@ -340,7 +343,16 @@
   $('workspaceNav').addEventListener('click',event=>{
     const button=event.target.closest('[data-nav]');
     if(!button)return;
+    if(button.dataset.nav==='feedback')feedbackOrigin=activePanel;
     openPanel(button.dataset.nav);
+    if(button.dataset.nav==='feedback')$('feedbackContext').textContent='Pastaba apie: '+(panelTitles[feedbackOrigin]||'Programėlė');
+  });
+  $('quickFeedback').addEventListener('click',()=>{
+    feedbackOrigin=activePanel;
+    openPanel('feedback');
+    $('feedbackContext').textContent='Pastaba apie: '+(panelTitles[feedbackOrigin]||'Programėlė');
+    $('feedbackForm').querySelector('textarea[name="message"]').focus({preventScroll:true});
+    $('feedbackForm').scrollIntoView({block:'start',behavior:'auto'});
   });
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
   function renderManualTimeTaskOptions(){
@@ -518,7 +530,7 @@
             || (m.role==='candidate'&&task.candidate_safe);
           return allowed && memberEmails[m.id]?.verified;
         });
-        markup+='<details><summary><b>Priskirti savanoriui</b></summary>'
+        markup+='<details data-ui-key="assign-'+id+'"><summary><b>Priskirti savanoriui</b></summary>'
           +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
           +'<option value="">Pasirinkite savanorį</option>'
           +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
@@ -530,7 +542,7 @@
       }
     }
     if(staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
-      markup+='<details><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
+      markup+='<details data-ui-key="due-'+id+'"><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
         +'<label class="field">Data ir laikas Vilniuje<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
         +(task.due_at?' value="'+window.giDeadlines.inputValue(task.due_at)+'"':'')+'></label>'
         +'<div class="actions"><button type="button" data-set-due="'+id+'">Išsaugoti terminą</button>'
@@ -591,11 +603,16 @@
         due='<p class="small"><b>Terminas:</b> '+escapeHTML(window.giDeadlines.display(end)+' (Vilniaus laiku)')
           +(late?' · Terminas praėjęs':'')+'</p>';
       }
-      return '<article class="task">'
+      const description=t.details?.length>260
+        ?'<p class="task-description">'+escapeHTML(t.details.slice(0,220))+'…</p>'
+          +'<details data-ui-key="description-'+escapeHTML(t.id)+'"><summary>Rodyti visą aprašymą</summary>'
+          +'<p class="task-description">'+escapeHTML(t.details)+'</p></details>'
+        :'<p class="task-description">'+escapeHTML(t.details||'')+'</p>';
+      return '<article class="task" data-task="'+escapeHTML(t.id)+'">'
         +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
           +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
-        +'<h3>'+escapeHTML(t.title)+'</h3><p>'+escapeHTML(t.details)+'</p>'+due
+        +'<h3>'+escapeHTML(t.title)+'</h3>'+description+due
         +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
         +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
         +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
@@ -1089,16 +1106,20 @@
   $('feedbackForm').addEventListener('submit',event => {
     event.preventDefault();
     if(!currentUser || !approved()) return;
-    const form=event.currentTarget, data=new FormData(form);
+    const form=event.currentTarget,data=new FormData(form);
+    const raw=String(data.get('message')||'').trim();
+    const origin=feedbackOrigin==='feedback'?'':(panelTitles[feedbackOrigin]||'');
+    const message=origin?'['+origin+'] '+raw:raw;
+    if(message.length>1500)return toast('Pastaba per ilga – sutrumpinkite iki 1500 simbolių.',true);
     run(async()=>{
       const result=await client.from('gi_feedback').insert({
         reporter_id:currentUser.id,
         category:String(data.get('category')||'pasiulymas'),
-        message:String(data.get('message')||'').trim()
+        message
       });
-      if(!result.error) form.reset();
+      if(!result.error){form.reset();feedbackOrigin='feedback';}
       return result;
-    });
+    },'Pastaba užregistruota. Ačiū!');
   });
   // ChatGPT-generated proposals must be reviewed by a coordinator; never assign automatically.
   let reviewedBatch = null;
