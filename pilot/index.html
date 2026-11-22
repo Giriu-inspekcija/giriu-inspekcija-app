@@ -47,6 +47,26 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
   </div>
   <form id="authForm">
    <label id="fullNameField" class="field">Jūsų vardas<input id="fullName" autocomplete="name" maxlength="100" required placeholder="Vardas"></label>
+   <div id="signupDetails">
+    <label class="field">Koks jūsų ryšys su „Girių inspekcija“?
+     <select id="membershipIntent" required>
+      <option value="">Pasirinkite</option>
+      <option value="new_candidate">Esu naujas kandidatas – noriu prisijungti</option>
+      <option value="existing_volunteer">Jau savanoriauju „Girių inspekcijoje“</option>
+     </select>
+    </label>
+    <label class="field">Kokią veiklą norėtumėte išbandyti?
+     <select id="preferredActivity">
+      <option value="field">Išvykos, stebėjimas ir įvykių fiksavimas</option>
+      <option value="advocacy">Raštai, dokumentai ir advokacija</option>
+      <option value="gis">GIS ir žemėlapiai</option>
+      <option value="communications">Komunikacija</option>
+      <option value="other">Kita</option>
+     </select>
+    </label>
+    <label class="field">Regionas arba savivaldybė (nebūtina)<input id="regionLabel" maxlength="100" placeholder="Pvz., Vilniaus rajonas"></label>
+    <p class="small">Anketoje pasirinktas statusas nesuteikia vidinių teisių. Kandidatas gauna tik jam priskirtas saugias užduotis, kai jo dalyvavimą patvirtina koordinatorius.</p>
+   </div>
    <label class="field">El. paštas<input id="email" type="email" autocomplete="email" required placeholder="jusu.pastas@gmail.com"></label>
    <label class="field" id="loginPasswordField" hidden>Programėlės slaptažodis<input id="password" type="password" autocomplete="current-password" minlength="8"></label>
    <div class="actions"><button type="submit" id="authSubmit">Gauti patvirtinimo laišką</button><button type="button" class="ghost" id="forgotPassword" hidden>Pamiršau slaptažodį</button></div>
@@ -73,7 +93,7 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
 </section>
 <section id="appView" hidden>
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline">Atsijungti</button></div>
- <div id="pendingView" class="card" hidden><h2>Paskyra sukurta – laukia patvirtinimo</h2><p>El. paštas patvirtintas, paskyra aktyvi. Administratorius dar turi patvirtinti savanorio arba koordinatoriaus teises. Iki tol vidinių užduočių nematysite.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
+ <div id="pendingView" class="card" hidden><h2>Paskyra sukurta – laukia patvirtinimo</h2><p>El. paštas patvirtintas, paskyra aktyvi. Koordinatorius patikrins, ar esate naujas kandidatas, ar jau savanoriaujate, ir suteiks atitinkamą vaidmenį. Iki patvirtinimo užduočių nematysite.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
   <div class="card" id="taskFilterPanel" hidden>
@@ -101,7 +121,7 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
     <p class="small">Kai savanorių bus daugiau, ieškokite pagal vardą. Paieška padeda ir priskirti užduotis, ir patvirtinti registraciją.</p>
     <form id="memberSearchForm" class="form-inline"><input id="memberSearch" type="search" maxlength="80" placeholder="Ieškoti pagal vardą" aria-label="Savanorio paieška"><button type="submit">Ieškoti</button><button type="button" class="outline" id="clearMemberSearch">Valyti</button></form>
    </div>
-   <div id="adminPanel" class="card" hidden><h2>Komandos nariai</h2><p class="small">Koordinatorius gali patvirtinti naują savanorį. Tik administratorius gali suteikti ar pakeisti koordinatoriaus teises.</p><div id="pendingMembers"></div></div>
+   <div id="adminPanel" class="card" hidden><h2>Komandos nariai</h2><p class="small">Koordinatorius gali priimti kandidatą, patvirtinti esamą savanorį ir vėliau pakelti kandidatą į savanorį. Tik administratorius gali suteikti aukštesnes teises, rangą ar prieigą prie dokumentų rengimo.</p><div id="pendingMembers"></div></div>
   </div>
   <div id="taskList" class="tasks"></div>
   <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
