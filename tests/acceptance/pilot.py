@@ -90,9 +90,9 @@ def submit(token,ref,deadline=None):
 def step(task,action,token,note=None):
     return rpc('gi_task_action',{'p_id':task,'p_action':action,'p_note':note},token)
 
-def record(token,task=None,project=None):
+def record(token,task=None,project=None,request_id=None):
     return rpc('gi_record_dated_time',{'p_date':(date.today()-timedelta(days=1)).isoformat(),
-        'p_general':project is None,'p_project':project,'p_minutes':90,'p_task_id':task,
+        'p_request':request_id,'p_general':project is None,'p_project':project,'p_minutes':90,'p_task_id':task,
         'p_activity_title':None if task else 'Demonstracinis papildomas darbas','p_note':'Patikrintas testo įrašas'},token)
 
 def review(token,log,expected=None):
@@ -140,6 +140,17 @@ def main():
     assert rows('gi_work_logs',vol,'select=task_id,minutes,review_status&id=eq.'+independent)==[
         {'task_id':None,'minutes':90,'review_status':'approved'}]
     print('PASS F standalone activity and review',flush=True)
+    key=str(uuid.uuid4())
+    first=record(vol,request_id=key)
+    assert record(vol,request_id=key)==first
+    assert rows('gi_work_logs',vol,'select=id&request_id=eq.'+key)==[{'id':first}]
+    updated={'p_id':own,'p_expected':None,'p_due':due}
+    rpc('gi_change_task_due',updated,chief);rpc('gi_change_task_due',updated,chief)
+    rpc('gi_change_task_due',dict(updated,p_due=None),chief,{400})
+    rpc('gi_change_task_due',dict(updated,p_due=None,p_expected=due),chief)
+    assert rows('gi_tasks',chief,'select=due_at&id=eq.'+own)==[{'due_at':None}]
+    assert rpc('gi_my_time_totals',{},vol)[0]['approved']==180
+    print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
     return chief_email
 
 if __name__=='__main__':

@@ -78,11 +78,11 @@ def exercise(user,password):
                 due_button.click()
                 expect(page.locator('#actionToast')).to_contain_text('Pasirinkite datą')
                 field.fill(date+'T19:30')
-                page.route('**/rpc/gi_set_task_due',lambda route:route.abort())
+                page.route('**/rpc/gi_change_task_due',lambda route:route.abort())
                 due_button.click()
                 expect(page.locator('#actionToast')).to_contain_text('Nepavyko')
                 expect(field).to_have_value(date+'T19:30')
-                page.unroute('**/rpc/gi_set_task_due')
+                page.unroute('**/rpc/gi_change_task_due')
                 card.get_by_role('button',name='Pašalinti terminą').click()
                 expect(card.get_by_text('Nustatyti terminą',exact=True)).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name

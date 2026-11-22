@@ -100,9 +100,9 @@
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
-  let reviewableLogs=new Set();
+  let reviewableLogs=new Set(), timeTotals={submitted:0,approved:0};
   let searchText='', ownerFilter='', dueFilter='all';
-  let proposalRef=null;
+  let proposalRef=null, timeRequest=null;
   function notice(msg, error = false) {
     const el = $('notice');
     if(!msg) {el.hidden = true; return;}
@@ -132,7 +132,7 @@
     currentUser = null; profile = null; tasks = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     activePanel='tasks';
     reviewableLogs.clear();
-    proposalRef=null;searchText='';ownerFilter='';dueFilter='all';
+    proposalRef=null;timeRequest=null;searchText='';ownerFilter='';dueFilter='all';
     $('taskSearchForm').reset();
     $('proposalForm').reset();
     $('manualTimeForm').reset();
@@ -227,6 +227,9 @@
       if(ownerFilter && ![...ownerSelect.options].some(o=>o.value===ownerFilter))ownerSelect.add(new Option('Pasirinktas vykdytojas',ownerFilter));
       ownerSelect.value=ownerFilter;
       const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity';
+      const totals=await client.rpc('gi_my_time_totals');
+      if(totals.error)throw totals.error;
+      timeTotals=totals.data?.[0]||{submitted:0,approved:0};
       const ownLogs=await client.from('gi_work_logs').select(logFields)
         .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70);
       if(ownLogs.error)throw ownLogs.error;
@@ -305,9 +308,8 @@
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
   function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
-    const waiting=mine.filter(w=>w.review_status==='submitted').reduce((sum,w)=>sum+w.minutes,0);
-    const accepted=mine.filter(w=>w.review_status==='approved').reduce((sum,w)=>sum+w.minutes,0);
-    $('myTimeSummary').textContent='Naujausi '+mine.length+' įrašai · Pateikta patvirtinti: '+clockDuration(waiting)+' · Patvirtinta: '+clockDuration(accepted);
+    $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(Number(timeTotals.submitted))
+      +' · Patvirtinta iš viso: '+clockDuration(Number(timeTotals.approved));
     const entry=w=>{
       const task=timeOwnTasks.find(t=>t.id===w.task_id)||tasks.find(t=>t.id===w.task_id);
       const owner=members.find(p=>p.id===w.volunteer_id);
@@ -1208,7 +1210,8 @@
         try { due=window.giDeadlines.toInstant(input.value); }
         catch(error){input.focus();return toast(error.message,true);}
       }else if(!confirm('Pašalinti šios užduoties terminą?'))return;
-      return run(()=>client.rpc('gi_set_task_due',{p_id:taskId,p_due:due}),
+      const previous=tasks.find(t=>t.id===taskId)?.due_at||null;
+      return run(()=>client.rpc('gi_change_task_due',{p_id:taskId,p_expected:previous,p_due:due}),
         due?'Terminas išsaugotas: '+window.giDeadlines.display(due)+' (Vilniaus laiku).':'Terminas pašalintas.');
     }
     const action=b.dataset.step;
@@ -1278,9 +1281,13 @@
       p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim(),
       p_date:$('manualTimeDate').value,p_project:$('timeProject').value.trim()||null,
       p_general:!$('timeProject').value.trim()};
+    const signature=JSON.stringify(params);
+    if(timeRequest?.signature!==signature)timeRequest={signature,id:crypto.randomUUID()};
+    params.p_request=timeRequest.id;
     const ok=await run(()=>client.rpc('gi_record_dated_time',params),
       'Pateikta '+clockDuration(total)+' patvirtinimui.');
     if(ok){
+      timeRequest=null;
       $('manualTimeForm').reset();
       $('manualTimeDate').value=$('manualTimeDate').max;
       updateManualActivityMode();
