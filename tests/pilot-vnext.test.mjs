@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const app=readFileSync(new URL('../pilot/app.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../pilot/index.html',import.meta.url),'utf8');
+const sw=readFileSync(new URL('../pilot/sw.js',import.meta.url),'utf8');
 const migration=readFileSync(new URL('../supabase/migrations/20261122230000_gi_pilot_registration_tasks_time_incidents.sql',import.meta.url),'utf8');
 const emailFix=readFileSync(new URL('../supabase/migrations/20261122230500_gi_staff_member_email_type_fix.sql',import.meta.url),'utf8');
 
