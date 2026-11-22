@@ -64,6 +64,16 @@ hr{border:0;border-top:1px solid #e6eee6;margin:14px 0}footer{padding:10px 20px 
    <div id="adminPanel" class="card" hidden><h2>Naujų savanorių patvirtinimas</h2><div id="pendingMembers"></div></div>
   </div>
   <div id="taskList" class="tasks"></div>
+  <div class="card" id="feedbackPanel">
+   <h2>Pastabos apie programėlę</h2>
+   <p class="small">Pastabos čia bus siunčiamos į bendrą testinio projekto duomenų bazę. Koordinatoriai jas matys, bet jos automatiškai netaps viešais GitHub įrašais. Nerašykite asmens duomenų.</p>
+   <form id="feedbackForm">
+    <label class="field">Tipas<select name="category"><option value="klaida">Klaida</option><option value="pasiulymas">Pasiūlymas</option><option value="klausimas">Klausimas</option></select></label>
+    <label class="field">Pastaba<textarea name="message" minlength="5" maxlength="1500" required></textarea></label>
+    <button type="submit">Išsiųsti pastabą</button>
+   </form>
+   <hr><h3 id="feedbackTitle">Mano pastabos</h3><div id="feedbackList"></div>
+  </div>
  </div>
 </section>
 </main><footer>Testinis projektas: Girių inspekcija · tik sintetinė informacija · bandomosios užduotys nėra realūs pavedimai</footer>
