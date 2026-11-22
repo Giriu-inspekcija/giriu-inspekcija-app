@@ -61,9 +61,10 @@ test('HTML, service workers and emails do not reference placeholder logos', () =
     assert.doesNotMatch(worker,/icon\.svg/);
   }
   for(const file of ['supabase/email-templates/confirm-signup.html',
-                      'supabase/email-templates/magic-link.html']){
+                      'supabase/email-templates/magic-link.html',
+                      'supabase/email-templates/recovery.html']){
     const html=readText(file);
-    assert.match(html,/https:\/\/starlit-shortbread-a38110\.netlify\.app\/logo\.png/);
+    assert.match(html,/https:\/\/raw\.githubusercontent\.com\/Giriu-inspekcija\/giriu-inspekcija-app\/main\/logo\.png/);
     assert.match(html,/Girių inspekcija/);
   }
 });
