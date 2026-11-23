@@ -45,3 +45,10 @@ jobs:
           source "$RUNNER_TEMP/gi-local.env"
           set +a
           QA_VOLUME=1 QA_BROWSER=1 GI_TEST_SDK="$RUNNER_TEMP/gi-sdk.js" python tests/acceptance/pilot.py
+      - name: Validate real backup CLI export flags on isolated synthetic database
+        run: |
+          supabase status -o env > "$RUNNER_TEMP/gi-backup-local.env"
+          set -a
+          source "$RUNNER_TEMP/gi-backup-local.env"
+          set +a
+          bash tests/acceptance/backup_cli_smoke.sh "$DB_URL"
