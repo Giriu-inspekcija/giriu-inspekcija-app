@@ -17,6 +17,12 @@ test('Cloudflare Pages bundle contains only public PWA assets',()=>{
   const privatePaths=['docs','tests','supabase','scripts','.github','package.json','README.txt'];
   for(const path of privatePaths)assert.equal(existsSync(join(out,path)),false,path+' leaked into public bundle');
   for(const path of readdirSync(out)) assert.ok(!path.startsWith('.'),'hidden file deployed: '+path);
+  // The Cloudflare root must never expose the obsolete local-only DEMO app.
+  const landing=readFileSync(join(out,'index.html'),'utf8');
+  assert.match(landing,/http-equiv="refresh" content="0; url=\\/pilot\\/"/);
+  assert.match(landing,/location\\.replace\\('\\/pilot\\/'\\)/);
+  assert.match(landing,/href="\\/pilot\\/"/);
+  assert.doesNotMatch(landing,/Testavimo vaidmuo|Koordinatorius \\(demo\\)|localStorage/);
   const entry=readFileSync(join(out,'pilot/index.html'),'utf8');
   assert.match(entry,/supabase-js/);
   assert.match(readFileSync(join(out,'_headers'),'utf8'),/no-cache/);
