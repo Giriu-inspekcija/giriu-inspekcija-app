@@ -244,7 +244,16 @@
       const value=form.querySelector('[name="result"]')?.value||'';
       if(value)results.set(form.dataset.submitResult,value);
     });
+    // The textarea/date field is replaced during refresh. Restore keyboard focus
+    // without scrolling the phone to the top of the newly rendered list.
+    const focusSelector=anchor&&active?.matches?.('input,textarea,select')
+      ?(active.matches('[data-due]')?'[data-due]':active.matches('[data-person]')?'[data-person]'
+        :active.matches('textarea[data-body]')?'textarea[data-body]'
+        :active.matches('[name="result"]')?'[name="result"]':null):null;
+    const focusRange=focusSelector&&active.matches('textarea,input[type="text"],input[type="search"]')
+      ?[active.selectionStart,active.selectionEnd]:null;
     return {
+      focusSelector,focusRange,
       openKeys:[...document.querySelectorAll('#taskList details[data-ui-key][open]')].map(el=>el.dataset.uiKey),
       docBodies,results,controls,
       anchorType:anchor?.hasAttribute('data-task')?'task':anchor?.hasAttribute('data-document')?'document':null,
@@ -279,6 +288,14 @@
       :state.anchorType==='document'
         ?[...document.querySelectorAll('#documentList [data-document]')].find(el=>el.dataset.document===state.anchorId)
         :null;
+    if(anchor&&state.focusSelector){
+      const field=anchor.querySelector(state.focusSelector);
+      if(field&&!field.disabled){
+        field.focus({preventScroll:true});
+        if(state.focusRange&&Number.isInteger(state.focusRange[0])&&Number.isInteger(state.focusRange[1]))
+          field.setSelectionRange(...state.focusRange);
+      }
+    }
     if(anchor&&Number.isFinite(state.anchorTop)){
       const delta=anchor.getBoundingClientRect().top-state.anchorTop;
       if(Math.abs(delta)>3)window.scrollBy(0,delta);
@@ -470,7 +487,9 @@
     if(button.dataset.nav==='feedback')$('feedbackContext').textContent='Pastaba apie: '+(panelTitles[feedbackOrigin]||'Programėlė');
   });
   $('captureIncident').addEventListener('click',()=>{
-    openPanel('incidents');$('incidentEditor').open=true;$('incidentDescription').focus();$('incidentForm').scrollIntoView({block:'start'});
+    openPanel('incidents');$('incidentEditor').open=true;
+    $('incidentDescription').focus({preventScroll:true});
+    $('incidentForm').scrollIntoView({block:'nearest'});
   });
   function openQuickFeedback(){
     if(!approved()||!currentUser)return;
@@ -620,6 +639,18 @@
         +(managed||'<p class="small">Nėra valdomų narių.</p>'):'');
   }
   function renderFeedback() {
+    // The review list may update while the user is reading or editing a note.
+    // Retain expanded rows and unsent task drafts across DOM replacement.
+    const expandedQueue=new Set([...$('feedbackQueue').querySelectorAll('details[data-feedback-id][open]')]
+      .map(el=>el.dataset.feedbackId));
+    const expandedArchive=new Set([...$('feedbackList').querySelectorAll('details[data-feedback-report][open]')]
+      .map(el=>el.dataset.feedbackReport));
+    const feedbackDrafts=new Map([...$('feedbackQueue').querySelectorAll('form[data-feedback-create]')].map(form=>[
+      form.dataset.feedbackCreate,{visible:!form.hidden,title:form.querySelector('[name="title"]')?.value||'',
+        note:form.querySelector('[name="note"]')?.value||''}
+    ]));
+    const activeFeedback=document.activeElement?.closest?.('form[data-feedback-create]');
+    const focusedDraft=activeFeedback?{id:activeFeedback.dataset.feedbackCreate,name:document.activeElement.name}:null;
     $('feedbackQueuePanel').hidden=!staff();
     const pending=feedbackGroups.filter(g=>!g.resolved_at);
     const groups=feedbackShowResolved?feedbackGroups:pending;
@@ -628,7 +659,7 @@
     $('feedbackQueue').innerHTML=groups.map(g=>{
       const full=String(g.gi_feedback?.message||'');
       const preview=full.length>95?full.slice(0,95)+'…':full;
-      return '<details class="feedback-item"><summary><b class="feedback-tag">'+escapeHTML(g.gi_feedback?.category||'Pastaba')+'</b>'
+      return '<details class="feedback-item" data-feedback-id="'+escapeHTML(g.id)+'"><summary><b class="feedback-tag">'+escapeHTML(g.gi_feedback?.category||'Pastaba')+'</b>'
         +'<span class="feedback-snippet">'+escapeHTML(preview)+'</span>'
         +'<span class="small">×'+Number(g.reports||1)+'</span></summary>'
         +'<p>'+escapeHTML(full)+'</p>'
@@ -648,7 +679,7 @@
       const who=members.find(m=>m.id===item.reporter_id);
       const message=String(item.message||'');
       const preview=message.length>105?message.slice(0,105)+'…':message;
-      return '<details class="feedback-item"><summary><b class="feedback-tag">'+escapeHTML(item.category)+'</b>'
+      return '<details class="feedback-item" data-feedback-report="'+escapeHTML(item.id)+'"><summary><b class="feedback-tag">'+escapeHTML(item.category)+'</b>'
         +'<span class="feedback-snippet">'+escapeHTML(preview)+'</span>'
         +'<span class="small">'+escapeHTML(new Date(item.created_at).toLocaleDateString('lt-LT'))+'</span></summary>'
         +'<p>'+escapeHTML(message)+'</p>'
@@ -657,6 +688,24 @@
     }).join(''):'<p class="small">Pastabų dar nėra.</p>';
     $('feedbackMore').hidden=feedback.length<=feedbackVisibleCount;
     $('feedbackMore').textContent='Rodyti daugiau ('+Math.max(0,feedback.length-feedbackVisibleCount)+')';
+    $('feedbackQueue').querySelectorAll('details[data-feedback-id]').forEach(el=>{
+      el.open=expandedQueue.has(el.dataset.feedbackId);
+      const form=el.querySelector('form[data-feedback-create]');
+      const draft=feedbackDrafts.get(el.dataset.feedbackId);
+      if(form&&draft){
+        form.hidden=!draft.visible;
+        form.querySelector('[name="title"]').value=draft.title;
+        form.querySelector('[name="note"]').value=draft.note;
+      }
+    });
+    $('feedbackList').querySelectorAll('details[data-feedback-report]').forEach(el=>{
+      el.open=expandedArchive.has(el.dataset.feedbackReport);
+    });
+    if(focusedDraft&&['title','note'].includes(focusedDraft.name)){
+      const form=[...$('feedbackQueue').querySelectorAll('form[data-feedback-create]')]
+        .find(el=>el.dataset.feedbackCreate===focusedDraft.id);
+      form?.querySelector('[name="'+focusedDraft.name+'"]')?.focus({preventScroll:true});
+    }
   }
   $('feedbackResolvedToggle').addEventListener('click',()=>{
     if(!staff())return;
