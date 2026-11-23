@@ -872,7 +872,7 @@
         +buttonsFor(t)+timeEntry(t)
         +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
         +'<summary>Veiksmų istorija</summary>'
-        +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Rodyti / atnaujinti istoriją</button>'
+        +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Bandyti dar kartą / atnaujinti</button>'
         +'<div data-task-history="'+escapeHTML(t.id)+'" class="small">'
         +(taskHistoryCache.has(t.id)?taskHistoryCache.get(t.id):'Atverkite istoriją, jei reikia matyti ankstesnius veiksmus.')
         +'</div></details></article>';
@@ -1637,27 +1637,50 @@
       return run(()=>client.rpc('gi_set_document_permission',{p_user:id,p_allowed:allowed}));
     }
   });
+  async function loadTaskHistory(id,box,button,{force=false}={}){
+    if(!box||!tasks.some(t=>t.id===id))return;
+    if(!force && taskHistoryCache.has(id)){
+      box.innerHTML=taskHistoryCache.get(id);return;
+    }
+    if(taskHistoryRequests.has(id))return;
+    taskHistoryRequests.add(id);
+    if(button)button.disabled=true;
+    box.textContent='Įkeliama veiksmų istorija…';
+    try{
+      const {data,error}=await client.from('gi_task_events')
+        .select('action,note,created_at').eq('task_id',id)
+        .order('created_at',{ascending:false}).limit(40);
+      if(error)throw error;
+      const html=(data||[]).length?(data||[]).map(row=>
+        '<p><b>'+escapeHTML(taskEventLabels[row.action]||row.action)+'</b> · '
+        +escapeHTML(window.giDeadlines.display(row.created_at))
+        +(row.note?'<span> – '+escapeHTML(row.note)+'</span>':'')+'</p>'
+      ).join(''):'<p>Šiai užduočiai įvykių dar neužfiksuota.</p>';
+      taskHistoryCache.set(id,html);
+      if(box.isConnected)box.innerHTML=html;
+    }catch(error){
+      if(box.isConnected)box.textContent='Istorijos nepavyko įkelti. Spauskite „Bandyti dar kartą“.';
+      toast('Istorijos įkėlimas nepavyko: '+(error?.message||'patikrinkite ryšį'),true);
+    }finally{
+      taskHistoryRequests.delete(id);
+      if(button&&button.isConnected)button.disabled=false;
+    }
+  }
+  // Opening a history section must load events immediately. No second tap.
+  // Native toggle does not bubble, therefore the listener uses capture=true.
+  $('taskList').addEventListener('toggle',event=>{
+    const details=event.target;
+    if(!details.matches?.('details.task-actions-more')||!details.open)return;
+    const id=details.closest('[data-task]')?.dataset.task;
+    if(id)void loadTaskHistory(id,details.querySelector('[data-task-history]'),
+      details.querySelector('[data-load-history]'));
+  },true);
   $('taskList').addEventListener('click',async event=>{
     const b=event.target.closest('button');
     if(!b||mutationInFlight)return;
     if(b.dataset.loadHistory){
-      const id=b.dataset.loadHistory;
       const box=b.closest('details')?.querySelector('[data-task-history]');
-      if(!box||!tasks.some(t=>t.id===id))return;
-      b.disabled=true;
-      try{
-        const {data,error}=await client.from('gi_task_events')
-          .select('action,note,created_at,actor_id').eq('task_id',id)
-          .order('created_at',{ascending:false}).limit(40);
-        if(error)throw error;
-        const html=(data||[]).length?(data||[]).map(row=>
-          '<p><b>'+escapeHTML(taskEventLabels[row.action]||row.action)+'</b> · '
-          +escapeHTML(window.giDeadlines.display(row.created_at))
-          +(row.note?'<span> – '+escapeHTML(row.note)+'</span>':'')+'</p>'
-        ).join(''):'<p>Šiai užduočiai įvykių dar neužfiksuota.</p>';
-        taskHistoryCache.set(id,html);box.innerHTML=html;
-      }catch(error){toast('Užduoties istorijos nepavyko įkelti: '+(error.message||'klaida'),true);}
-      finally{b.disabled=false;}
+      await loadTaskHistory(b.dataset.loadHistory,box,b,{force:true});
       return;
     }
     const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask
