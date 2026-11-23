@@ -1319,7 +1319,11 @@
   }
   $('switchAccount').addEventListener('click',switchAccount);
   $('logout').addEventListener('click',switchAccount);
-  $('refresh').addEventListener('click',refreshWorkspace);
+  $('refresh').addEventListener('click',async()=>{
+    if(loading)return;
+    const done=busy($('refresh'),'Atnaujinama…');
+    try{await refreshWorkspace();}finally{done();}
+  });
   $('dueReminderButtons').addEventListener('click',e=>{
     const button=e.target.closest('[data-when]');
     if(!button||loading)return;
