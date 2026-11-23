@@ -143,6 +143,14 @@ button[aria-busy="true"]{opacity:.72;cursor:progress}
  #decision,#quickFeedbackDialog{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:100%;max-height:85dvh;border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));border-bottom:0}
  .feedback-fast{font-size:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom))}
 }
+/* iOS Safari quick-feedback dialog must remain in viewport, not page scroll. */
+#quickFeedbackDialog{overscroll-behavior:contain}
+@media(max-width:720px){
+ #quickFeedbackDialog{position:fixed;inset:50% auto auto 50%;top:50%;left:50%;
+   transform:translate(-50%,-50%);margin:0;width:calc(100vw - 24px);
+   max-height:calc(100dvh - 30px);overflow-y:auto;border-radius:16px;
+   padding:18px 16px 20px}
+}
 /* Phone: keep touch targets visible and avoid feedback overlays on active dialogs. */
 body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 @media(max-width:720px){
@@ -279,7 +287,14 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
      <label class="field">Terminas Vilniaus laiku (nebūtina)<input name="due" type="datetime-local"></label>
-     <button type="submit">Pridėti siūlomą užduotį</button>
+     <label class="field">Kur išsiųsti užduotį?<select id="newTaskDestination" name="destination">
+      <option value="pool">Į bendrą užduočių fondą</option>
+      <option value="assigned">Iškart paskirti savanoriui</option>
+      <option value="proposed">Tik išsaugoti pasiūlymą</option>
+     </select></label>
+     <label class="field" id="newTaskAssigneeWrap" hidden>Kam paskirti?<select id="newTaskAssignee" name="assignee"><option value="">Pasirinkite savanorį</option></select></label>
+     <p class="small">Tai tik bandomosios užduotys. Paskirtą užduotį savanoris galės priimti.</p>
+     <button id="proposalSubmit" type="submit">Sukurti užduotį</button>
     </form></details>
     <details><summary><b>Atsarginis rankinis užduočių importas</b></summary>
     <p class="small">Naudokite tik jei tiesioginis ChatGPT ryšys nepasiekiamas. Čia galima įklijuoti paprastą užduočių sąrašą be JSON.</p>
@@ -393,7 +408,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
   </section>
  </div>
 </section>
-<button type="button" id="quickFeedback" class="feedback-fast" aria-label="Pastaba iš bet kurios skilties">✎ Pastaba</button>
+<button type="button" id="quickFeedback" class="feedback-fast" aria-label="Pateikti pastabą iš bet kurios skilties">✎ Pastaba</button>
 </main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>

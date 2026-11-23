@@ -1,3 +1,5 @@
+> **ARCHYVAS: pradinės migracijos instrukcija (2026-11-23).** Cloudflare Git prijungimas ir `komanda.giriuinspekcija.lt` CNAME jau atlikti. Dabartinė kanoninė darbo vieta yra https://komanda.giriuinspekcija.lt/pilot/, o tikroji CI / publikavimo tvarka aprašyta [GI-CANONICAL-VERSION.md](GI-CANONICAL-VERSION.md). **Negrąžinti į Netlify, nebekurti naujo Pages projekto ir neperkelti viso DNS pagal žemiau esančius istorinius žingsnius.**
+
 # GI komanda – saugus perėjimas į Cloudflare Pages
 
 **Tvarka:** Cloudflare pirmiausia, PR #35 vėliau. Šiame PR jokios veikiančios Supabase, DNS ar Netlify konfigūracijos nekeisti.
