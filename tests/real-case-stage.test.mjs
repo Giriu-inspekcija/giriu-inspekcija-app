@@ -35,6 +35,7 @@ test('private immutable evidence is tied to one real case and uploader',()=>{
   assert.match(real,/CREATE POLICY gi_real_evidence_upload/);
   assert.match(real,/split_part\(name,'\/',2\)=\(SELECT auth.uid\(\)\)::text/);
   assert.match(real,/a\.can_upload/);
+  assert.match(real,/private\.gi_real_has_access\(c\.id,true\)/);
   assert.doesNotMatch(real,/CREATE POLICY gi_real_evidence_(?:delete|update)/i);
   assert.match(integration,/assert not http\.get\(vfile,headers=vheaders/);
 });
