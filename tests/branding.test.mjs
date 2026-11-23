@@ -40,7 +40,9 @@ test('both PWA manifests use only emblem-generated icons', () => {
     assert.ok(icons.some(i=>i.sizes==='192x192' && i.purpose==='maskable'));
     assert.ok(icons.some(i=>i.sizes==='512x512' && i.purpose==='maskable'));
     for(const icon of icons){
-      assert.match(icon.src,/icon-(?:192|512)(?:-maskable)?\.png$/);
+      const resolved = new URL(icon.src, 'https://gi.example/pilot/');
+      assert.equal(resolved.origin, 'https://gi.example');
+      assert.match(resolved.pathname,/\/icon-(?:192|512)(?:-maskable)?\.png$/);
       assert.equal(icon.type,'image/png');
     }
   }
