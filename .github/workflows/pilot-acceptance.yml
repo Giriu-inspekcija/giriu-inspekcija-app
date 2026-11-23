@@ -4,7 +4,9 @@ on:
     paths: ['pilot/**', 'supabase/migrations/**', 'tests/acceptance/**', '.github/workflows/pilot-acceptance.yml']
   workflow_dispatch:
   schedule:
-    - cron: "17 5 * * 1"
+    # Isolated database + real browser interactions three times weekly.
+    # Testing does not push code and does not deploy to Netlify.
+    - cron: "17 5 * * 1,3,5"
 permissions:
   contents: read
 jobs:
