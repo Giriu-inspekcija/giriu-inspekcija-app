@@ -1,0 +1,92 @@
+name: GI encrypted daily Supabase backup (offsite)
+on:
+  schedule:
+    # 02:23 UTC every day; does NOT build or deploy Netlify.
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: gi-database-daily-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.repository == 'Giriu-inspekcija/giriu-inspekcija-app'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GI_BACKUP_DB_URL: ${{ secrets.GI_BACKUP_DB_URL }}
+      GI_BACKUP_SERVICE_ROLE_KEY: ${{ secrets.GI_BACKUP_SERVICE_ROLE_KEY }}
+      GI_BACKUP_AGE_RECIPIENT: ${{ vars.GI_BACKUP_AGE_RECIPIENT }}
+      GI_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/encrypted-gi
+      GI_BACKUP_RCLONE_CONFIG_B64: ${{ secrets.GI_BACKUP_RCLONE_CONFIG_B64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the required secrets without displaying them
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in GI_BACKUP_DB_URL GI_BACKUP_SERVICE_ROLE_KEY GI_BACKUP_AGE_RECIPIENT; do
+            if [[ -z "$(printenv "$name")" ]]; then
+              echo "::error::Missing required repository secret/variable: $name"
+              exit 1
+            fi
+          done
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.83.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install encryption, Drive sync and Storage client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age rclone
+          python -m pip install requests==2.32.5
+      - name: Encrypt full SQL and Storage snapshot
+        id: snapshot
+        shell: bash
+        run: bash scripts/gi_backup.sh
+      - name: Retain encrypted snapshot separately from Supabase (30 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gi-encrypted-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/encrypted-gi/*.age
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - name: Optional offsite copy to GI Google Drive folder
+        if: env.GI_BACKUP_RCLONE_CONFIG_B64 != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$GI_BACKUP_RCLONE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/rclone.conf"
+          file="$(find "$GI_BACKUP_OUTPUT_DIR" -maxdepth 1 -name '*.age' -type f -print -quit)"
+          test -s "$file"
+          rclone --config "$RUNNER_TEMP/rclone.conf" copyto "$file" "gidrive:$(basename "$file")" \
+            --drive-root-folder-id 1_1ZxYmh5DehDWhezR4FN5eUms93YdVrM --retries 3
+          rm -f "$RUNNER_TEMP/rclone.conf"
+          echo "Encrypted copy mirrored to GI Drive." >> "$GITHUB_STEP_SUMMARY"
+      - name: Successful backup status
+        shell: bash
+        run: |
+          echo "### GI encrypted backup" >> "$GITHUB_STEP_SUMMARY"
+          echo "Database SQL, auth records, Storage metadata and object bytes exported and encrypted." >> "$GITHUB_STEP_SUMMARY"
+          echo "Encrypted GitHub artifact retained for 30 days; Google Drive mirror requires configured rclone credentials." >> "$GITHUB_STEP_SUMMARY"
+      - name: Create or update one visible failure issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          title="GI BACKUP FAILED: patikrinti atsargines kopijas"
+          body="Automatinė šifruota kopija NEPATVIRTINTA. Tikrinkite vykdymą: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Negalima aktyvuoti realių GI bylų, kol nepatvirtintas sėkmingas pilnas eksportas ir atkūrimo bandymas. Niekada nedėkite slaptų raktų į issue."
+          current="$(gh issue list --state open --search 'GI BACKUP FAILED in:title' --json number --jq '.[0].number' 2>/dev/null)"
+          if [[ -n "$current" ]]; then
+            gh issue comment "$current" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
