@@ -22,9 +22,9 @@ test('inbox reads only unapproved agent proposals, with RLS and pagination',()=>
   assert.match(app,/client\.from\('gi_tasks'\)/);
   assert.match(app,/\.eq\('status','proposed'\)\.like\('source_ref','agent:%'\)/);
   assert.match(app,/\.limit\(30\)/);
-  assert.match(app,/if\(inbox\.error\)throw inbox\.error/);
+  assert.match(app,/if\(inbox\.error\|\|people\.error\)throw inbox\.error\|\|people\.error/);
   assert.match(app,/agentProposals=inbox\.data\|\|\[\]/);
-  assert.match(app,/else agentProposals=\[\]/);
+  assert.match(app,/staff\(\)\?client\.from\('gi_tasks'\)/);
   assert.match(app,/escapeHTML\(t\.title\)/);
   assert.match(app,/escapeHTML\(t\.details\)/);
 });
