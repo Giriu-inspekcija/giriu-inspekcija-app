@@ -25,7 +25,8 @@ test('client verifies a server-issued user and role before displaying cases',()=
 
 test('evidence uses only authenticated private Storage endpoints, not public URLs',()=>{
   assert.match(js,/const BUCKET = 'gi-real-evidence'/);
-  assert.match(js,/\.storage\.from\(BUCKET\)\.download\(path\)/);
+  assert.match(js,/const store=db\.storage\.from\(BUCKET\)/);
+  assert.match(js,/await store\.download\(path\)/);
   assert.match(js,/upsert:false/);
   assert.match(js,/const MAX_FILE_BYTES = 10 \* 1024 \* 1024/);
   assert.doesNotMatch(js,/createSignedUrl|getPublicUrl|\.innerHTML\s*=/);
