@@ -73,5 +73,5 @@ test('new UI controls have matching DOM elements and IDs are unique',()=>{
   assert.equal(ids.size,found.length);
   const references=[...app.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(x=>x[1]);
   for(const ref of new Set(references))assert.ok(ids.has(ref),'Missing DOM ID '+ref);
-  assert.match(sw,/v20-cloudflare-feedback-ux/);
+  assert.match(sw,/v22-mobile-time-fast-refresh/);
 });

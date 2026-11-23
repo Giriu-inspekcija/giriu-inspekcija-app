@@ -143,6 +143,21 @@ button[aria-busy="true"]{opacity:.72;cursor:progress}
  #decision,#quickFeedbackDialog{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:100%;max-height:85dvh;border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));border-bottom:0}
  .feedback-fast{font-size:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom))}
 }
+/* Mobile first: one-tap time entry, compact suggestions and advanced candidate roles. */
+.time-header{gap:12px;align-items:center;margin-bottom:12px}
+.time-header h2{margin:0}
+#addHoursQuick{min-height:48px;flex:0 0 auto}
+.time-presets{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:11px 0}
+.time-presets .small{font-weight:700}
+.time-presets button{min-height:42px;padding:8px 10px;font-weight:650}
+.time-presets button[aria-pressed="true"]{background:#205742;color:#fff;border-color:#205742}
+#aiProposalPanel summary,#staffTimePanel summary,#timeHistoryPanel summary{cursor:pointer;padding:4px 0}
+#aiProposalPanel[open] #aiProposalList{display:grid;gap:12px;margin-top:12px}
+#aiProposalPanel .task{margin-top:3px}
+.candidate-options{margin-top:8px;padding:8px 10px;border:1px solid #dae6db;border-radius:9px;background:#f7faf6}
+.candidate-options summary{font-size:12px;color:#365d44}
+.candidate-options button{margin-top:9px;background:#eff4ee;color:#205742;border:1px solid #c9dacd;font-weight:600}
+@media(max-width:540px){.time-header{flex-wrap:wrap}.time-header h2{flex:1}.time-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.time-presets .small{grid-column:1/-1}.time-presets button{padding:8px 3px}}
 /* iOS Safari quick-feedback dialog must remain in viewport, not page scroll. */
 #quickFeedbackDialog{overscroll-behavior:contain}
 @media(max-width:720px){
@@ -276,12 +291,11 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
     </div><button type="submit" class="outline">Filtruoti</button></form>
   </details>
   <div id="staffPanel" hidden>
-   <div class="card" id="aiProposalPanel">
-     <h2>ChatGPT pasiūlymai <span id="aiProposalCount" class="tag">0 laukia</span></h2>
+   <details class="card" id="aiProposalPanel"><summary><b>DI ir „Gmail“ pasiūlymai <span id="aiProposalCount" class="tag">0 laukia</span></b></summary>
      <p class="small">Pasakykite ChatGPT: „Pateik šias užduotis GI komandai“. Kai ChatGPT prijungtas prie GI duomenų bazės, pasiūlymai atsiras čia be kopijavimo. Jie nebus paskirstyti ar paskelbti, kol nepatvirtinsite.</p>
      <div class="actions"><button id="aiRefresh" class="outline" type="button">Atnaujinti pasiūlymus</button></div>
      <div id="aiProposalList" aria-live="polite"><p class="small">Pasiūlymai įkeliami prisijungus.</p></div>
-   </div>
+   </details>
    <div class="card"><h2>Užduočių fondas</h2><p class="small">Sukurkite užduotį arba peržiūrėkite parengtus pasiūlymus.</p>
     <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
@@ -310,10 +324,9 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
   <div class="actions"><button type="button" id="taskLoadMore" class="outline" hidden>Rodyti dar 50 užduočių</button><span id="taskPageInfo" class="small"></span></div>
   </section>
   <section id="timeSection" class="workspace-section" hidden>
-    <h2>Darbo laikas</h2>
-    <section id="staffTimePanel" class="review-panel" hidden><h3>Patvirtinti savanorių laiką <span id="reviewCount" class="tag"></span></h3><div id="staffTimeLogs"></div></section>
-    <h3>Mano valandos</h3><div id="myTimeSummary" class="card"></div>
-    <details class="card" id="timeEntryPanel"><summary><b>Deklaruoti darbo laiką</b></summary><form id="manualTimeForm">
+    <div class="row time-header"><h2>Mano valandos</h2><button type="button" id="addHoursQuick">＋ Pridėti laiką</button></div>
+    <div id="myTimeSummary" class="card"></div>
+    <details class="card" id="timeEntryPanel"><summary><b>Įrašyti darbo laiką</b></summary><form id="manualTimeForm">
       <h3>Pridėti darbo laiką</h3>
       <p class="small">Galite įrašyti laiką ir po rezultato pateikimo arba už veiklą be išankstinės užduoties.</p>
       <label class="field">Susieti su mano užduotimi (nebūtina)
@@ -321,6 +334,13 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       </label>
       <p class="small" id="manualTimeTaskHint">Rodoma iki 25 naujausių jums priskirtų užduočių.</p>
       <label class="field" id="manualTimeActivityField">Veiklos pavadinimas <input id="manualTimeActivity" minlength="5" maxlength="160" required placeholder="Pvz., bandomosios medžiagos paruošimas"></label>
+      <div class="time-presets" role="group" aria-label="Greitai pasirinkti trukmę"><span class="small">Trukmė:</span>
+        <button type="button" class="outline" data-time-preset="15">15 min.</button>
+        <button type="button" class="outline" data-time-preset="30" aria-pressed="true">30 min.</button>
+        <button type="button" class="outline" data-time-preset="60">1 val.</button>
+        <button type="button" class="outline" data-time-preset="90">90 min.</button>
+        <button type="button" class="outline" data-time-preset="120">2 val.</button>
+        <button type="button" class="outline" data-time-preset="180">3 val.</button></div>
       <div class="grid">
         <label class="field">Valandos <input id="manualTimeHours" type="number" min="0" max="12" value="0" required></label>
         <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
@@ -330,8 +350,10 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
     </form></details>
-    <h3>Mano laiko įrašai</h3>
-    <div id="workLogsList"></div>
+    <details class="card" id="timeHistoryPanel"><summary><b>Mano ankstesni laiko įrašai</b></summary>
+      <div id="workLogsList"></div></details>
+    <details id="staffTimePanel" class="review-panel" hidden><summary><b>Koordinatoriaus peržiūra · <span id="reviewCount" class="tag"></span> laiko įrašų</b></summary>
+      <div id="staffTimeLogs"></div></details>
 
   </section>
   <section id="incidentsSection" class="workspace-section" hidden>

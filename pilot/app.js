@@ -361,37 +361,36 @@
       }:(appendTasks?taskCursor:null);
       $('taskLoadMore').hidden=!hasMoreTasks;
       $('taskPageInfo').textContent='Rodoma: '+tasks.length+' užduočių';
-      if(staff()){
-        // The ChatGPT inbox is independent from task pagination and search filters.
-        // Only approved staff can see it through the existing gi_tasks RLS policy.
-        const inbox = await client.from('gi_tasks')
+      // Independent coordinator lists can load concurrently, not one after the other.
+      const [inbox,people]=await Promise.all([
+        staff()?client.from('gi_tasks')
           .select('id,source_ref,title,details,priority,due_at,created_at')
           .eq('status','proposed').like('source_ref','agent:%')
-          .order('created_at',{ascending:false}).limit(30);
-        if(inbox.error)throw inbox.error;
-        agentProposals=inbox.data||[];
-      }else agentProposals=[];
+          .order('created_at',{ascending:false}).limit(30):Promise.resolve({data:[]}),
+        staff()?(()=>{
+          let query=client.from('gi_profiles')
+            .select('id,display_name,role,registration_state,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents')
+            .order('created_at',{ascending:false}).limit(100);
+          if(memberSearchTerm)query=query.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
+          return query;
+        })():Promise.resolve({data:[]})
+      ]);
+      if(inbox.error||people.error)throw inbox.error||people.error;
+      agentProposals=inbox.data||[];
+      members=people.data||[];
       if(staff()){
-        let peopleQuery=client.from('gi_profiles')
-          .select('id,display_name,role,registration_state,created_at,membership_intent,preferred_activity,region_label,volunteer_rank,can_prepare_documents').order('created_at',{ascending:false}).limit(100);
-        if(memberSearchTerm) peopleQuery=peopleQuery.ilike('display_name','%'+memberSearchTerm.replace(/[%_]/g,'')+'%');
-        const {data:people,error:e2}=await peopleQuery;
-        if(e2) throw e2;
-        members=people||[];
         const ids=members.map(p=>p.id);
         const lookup=ids.length?await client.rpc('gi_member_emails',{p_ids:ids}):{data:[]};
         if(lookup.error)throw lookup.error;
         memberEmails=Object.fromEntries((lookup.data||[]).map(x=>[x.user_id,x]));
-      } else {members=[];memberEmails={};}
-      const feedbackResult = await client.from('gi_feedback')
-        .select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60);
-      if(feedbackResult.error) throw feedbackResult.error;
-      feedback = feedbackResult.data || [];
-      const [queue,reminder]=await Promise.all([
+      }else memberEmails={};
+      const [feedbackResult,queue,reminder]=await Promise.all([
+        client.from('gi_feedback').select('id,reporter_id,category,message,created_at').order('created_at',{ascending:false}).limit(60),
         staff()?client.from('gi_feedback_review').select('id,reports,task_id,resolved_at,resolution,gi_feedback!example_id(category,message)').order('last_report_at',{ascending:false}).limit(60):Promise.resolve({data:[]}),
         client.rpc('gi_deadline_counts')
       ]);
-      if(queue.error||reminder.error)throw queue.error||reminder.error;
+      if(feedbackResult.error||queue.error||reminder.error)throw feedbackResult.error||queue.error||reminder.error;
+      feedback=feedbackResult.data||[];
       feedbackGroups=queue.data||[];
       const counts=reminder.data?.[0]||{};
       $('dueReminder').hidden=!Number(counts.overdue)&&!Number(counts.upcoming);
@@ -403,47 +402,41 @@
       if(ownerFilter && ![...ownerSelect.options].some(o=>o.value===ownerFilter))ownerSelect.add(new Option('Pasirinktas vykdytojas',ownerFilter));
       ownerSelect.value=ownerFilter;
       const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity,worker:gi_profiles!volunteer_id(display_name),job:gi_tasks!task_id(title)';
-      const totals=await client.rpc('gi_my_time_totals');
-      if(totals.error)throw totals.error;
+      // Fetch unrelated workspace datasets together. A slow view should not make
+      // every other view wait for another network round-trip.
+      const [totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs]=await Promise.all([
+        client.rpc('gi_my_time_totals'),
+        client.from('gi_work_logs').select(logFields)
+          .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70),
+        staff()?client.rpc('gi_review_queue').select(logFields).order('created_at').order('id'):Promise.resolve({data:[]}),
+        client.from('gi_tasks').select('id,title,status,updated_at')
+          .eq('assigned_to',currentUser.id).order('updated_at',{ascending:false}).limit(25),
+        client.from('gi_incidents').select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at,observed_at')
+          .order('created_at',{ascending:false}).limit(100),
+        admin()?client.rpc('gi_reviewer_candidate'):Promise.resolve({data:null}),
+        canWriteDocuments()?client.from('gi_documents').select('id,title,body,phase,revision,author_id,task_id,case_id')
+          .order('updated_at',{ascending:false}).limit(50):Promise.resolve({data:[]})
+      ]);
+      for(const response of [totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs])
+        if(response.error)throw response.error;
       timeTotals=totals.data?.[0]||{submitted:0,approved:0};
-      const ownLogs=await client.from('gi_work_logs').select(logFields)
-        .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70);
-      if(ownLogs.error)throw ownLogs.error;
-      let others=[];
-      if(staff()){
-        const pendingLogs=await client.rpc('gi_review_queue').select(logFields).order('created_at').order('id');
-        if(pendingLogs.error)throw pendingLogs.error;
-        others=pendingLogs.data||[];
-      }
-      workLogs=[...(ownLogs.data||[]),...others];
-      const ids=workLogs.filter(w=>w.review_status==='submitted').map(w=>w.id);
-      const permissions=staff() && ids.length ? await client.rpc('gi_reviewable_logs',{p_ids:ids}) : {data:[]};
-      if(permissions.error)throw permissions.error;
-      reviewableLogs=new Set(permissions.data||[]);
-      $('manualTimeDate').max=window.giDeadlines.inputValue(new Date()).slice(0,10);
-      if(!$('manualTimeDate').value) $('manualTimeDate').value=$('manualTimeDate').max;
-      const ownTaskResult=await client.from('gi_tasks')
-        .select('id,title,status,updated_at')
-        .eq('assigned_to',currentUser.id)
-        .order('updated_at',{ascending:false}).limit(25);
-      if(ownTaskResult.error)throw ownTaskResult.error;
+      workLogs=[...(ownLogs.data||[]),...(pendingLogs.data||[])];
       timeOwnTasks=ownTaskResult.data||[];
-      renderManualTimeTaskOptions();
-      const incidentResult=await client.from('gi_incidents')
-        .select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at,observed_at')
-        .order('created_at',{ascending:false}).limit(100);
-      if(incidentResult.error)throw incidentResult.error;
       incidents=incidentResult.data||[];
-      if(!$('incidentObserved').value)$('incidentObserved').value=window.giDeadlines.inputValue(new Date());
-      const reviewer=admin()?await client.rpc('gi_reviewer_candidate'):{data:null};
-      if(reviewer.error)throw reviewer.error;
       nomination=reviewer.data;
-      const caseResult=staff() && incidents.length?await client.from('gi_cases').select('id,incident_id').in('incident_id',incidents.map(i=>i.id)):{data:[]};
-      if(caseResult.error)throw caseResult.error;
-      cases=caseResult.data||[];
-      const docs=canWriteDocuments()?await client.from('gi_documents').select('id,title,body,phase,revision,author_id,task_id,case_id').order('updated_at',{ascending:false}).limit(50):{data:[]};
-      if(docs.error)throw docs.error;
       documents=docs.data||[];
+      const ids=workLogs.filter(w=>w.review_status==='submitted').map(w=>w.id);
+      const [permissions,caseResult]=await Promise.all([
+        staff()&&ids.length?client.rpc('gi_reviewable_logs',{p_ids:ids}):Promise.resolve({data:[]}),
+        staff()&&incidents.length?client.from('gi_cases').select('id,incident_id').in('incident_id',incidents.map(i=>i.id)):Promise.resolve({data:[]})
+      ]);
+      if(permissions.error||caseResult.error)throw permissions.error||caseResult.error;
+      reviewableLogs=new Set(permissions.data||[]);
+      cases=caseResult.data||[];
+      $('manualTimeDate').max=window.giDeadlines.inputValue(new Date()).slice(0,10);
+      if(!$('manualTimeDate').value)$('manualTimeDate').value=$('manualTimeDate').max;
+      renderManualTimeTaskOptions();
+      if(!$('incidentObserved').value)$('incidentObserved').value=window.giDeadlines.inputValue(new Date());
       if(currentUser?.id!==actor)return false;
       renderDocuments();
       renderNewTaskAssignees();
@@ -540,6 +533,28 @@
     if(!independent)$('manualTimeActivity').value='';
   }
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
+  function updateTimePresetButtons(){
+    const total=Number($('manualTimeHours').value)*60+Number($('manualTimeMinutes').value);
+    document.querySelectorAll('[data-time-preset]').forEach(button=>
+      button.setAttribute('aria-pressed',String(Number(button.dataset.timePreset)===total)));
+  }
+  $('addHoursQuick').addEventListener('click',()=>{
+    openPanel('time');
+    const panel=$('timeEntryPanel');
+    panel.open=true;
+    panel.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
+  $('manualTimeForm').addEventListener('click',event=>{
+    const button=event.target.closest('[data-time-preset]');
+    if(!button)return;
+    const value=Number(button.dataset.timePreset);
+    if(![15,30,60,90,120,180].includes(value))return;
+    $('manualTimeHours').value=String(Math.floor(value/60));
+    $('manualTimeMinutes').value=String(value%60);
+    updateTimePresetButtons();
+  });
+  for(const id of ['manualTimeHours','manualTimeMinutes'])
+    $(id).addEventListener('input',updateTimePresetButtons);
   function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
     $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(Number(timeTotals.submitted))
@@ -745,8 +760,10 @@
     const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
     if(staffEditable){
       const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
-        ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
-          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
+        ?'<details class="candidate-options" data-ui-key="candidate-'+id+'"><summary>Kandidato prieiga (bandomoji)</summary>'
+          +'<button class="outline" type="button" data-candidate-task="'+id+'">'
+          +(task.candidate_safe?'Atšaukti kandidato galimybę':'Leisti bandomąją užduotį kandidatui')
+          +'</button></details>':'';
       if(task.status==='proposed'){
         markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
           +safeButton+'</div>';
@@ -821,11 +838,17 @@
         const importance=t.priority==='high'?'Svarbi':t.priority==='low'?'Mažesnė':'Įprasta';
         const due=t.due_at?'<p class="small"><b>Terminas:</b> '
           +escapeHTML(window.giDeadlines.display(t.due_at)+' (Vilniaus laiku)')+'</p>':'';
+        const source=String(t.source_ref||'');
+        const gmail=/^agent:gmail\/([0-9a-f]{16})$/.exec(source);
+        const sourceLink=gmail
+          ?'<p class="small"><a href="https://mail.google.com/mail/u/?authuser=giriuinspekcija%40gmail.com#all/'
+            +encodeURIComponent(gmail[1])+'" target="_blank" rel="noopener noreferrer">Atidaryti šaltinio laišką (tik su GI Gmail prieiga)</a></p>'
+          :'';
         return '<article class="task" data-ai-task="'+escapeHTML(t.id)+'">'
-          +'<div class="row"><span class="tag proposed">ChatGPT pasiūlymas</span>'
+          +'<div class="row"><span class="tag proposed">'+(gmail?'Iš GI Gmail':'ChatGPT pasiūlymas')+'</span>'
           +'<span class="small">'+escapeHTML(importance)+'</span></div>'
           +'<h3>'+escapeHTML(t.title)+'</h3>'
-          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+due
+          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+sourceLink+due
           +'<div class="actions"><button type="button" data-ai-approve="'+escapeHTML(t.id)+'">Patvirtinti į fondą</button></div></article>';
       }).join('')
       :'<p class="small">Kol kas nėra naujų ChatGPT pasiūlymų. Paprašykite ChatGPT pateikti užduotis GI komandai ir atnaujinkite šį sąrašą.</p>';
@@ -1296,7 +1319,11 @@
   }
   $('switchAccount').addEventListener('click',switchAccount);
   $('logout').addEventListener('click',switchAccount);
-  $('refresh').addEventListener('click',refreshWorkspace);
+  $('refresh').addEventListener('click',async()=>{
+    if(loading)return;
+    const done=busy($('refresh'),'Atnaujinama…');
+    try{await refreshWorkspace();}finally{done();}
+  });
   $('dueReminderButtons').addEventListener('click',e=>{
     const button=e.target.closest('[data-when]');
     if(!button||loading)return;
@@ -1815,6 +1842,9 @@
       $('manualTimeForm').reset();
       $('manualTimeDate').value=$('manualTimeDate').max;
       updateManualActivityMode();
+      updateTimePresetButtons();
+      $('timeEntryPanel').open=false;
+      $('timeHistoryPanel').open=true;
     }
   });
   function caseActions(incident){
@@ -2054,10 +2084,14 @@
       resetIncident();
     },submit?'Pranešimas pateiktas patikrai.':'Juodraštis išsaugotas.').then(ok=>{controls.forEach(c=>c.disabled=false);$('incidentProgress').textContent='';if(ok)$('incidentEditor').open=false;});
   });
+  let lastAutoRefreshAt=Date.now();
   function refreshWhenIdle(){
+    // Focus and visibility events often fire together; don't repeat full data loads.
+    if(Date.now()-lastAutoRefreshAt<60000 || loading)return;
     // A native date picker can blur the window; replacing its card discards the edit.
     if(mutationInFlight || document.querySelector('#taskList details[open]') ||
        document.activeElement?.closest('#workspace form,#documentList [data-body]') || document.querySelector('#documentList textarea[data-dirty]'))return;
+    lastAutoRefreshAt=Date.now();
     refreshWorkspace();
   }
   if(client){

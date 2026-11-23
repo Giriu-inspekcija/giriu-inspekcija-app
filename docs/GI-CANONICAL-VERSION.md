@@ -39,3 +39,15 @@
 - Nepermeta po prisijungimo į `netlify.app`.
 - PWA iOS/Android atsinaujina (versijos keitimas `pilot/sw.js`).
 - Tikri asmens duomenys ir realios bylos **dar neleidžiami**, kol užbaigtos RLS/Storage, atsarginės kopijos ir privatumo patikros.
+
+## 2026-11-23 – Gmail veiksmų pasiūlymų bandymas
+
+Gautų organizacijos Gmail pranešimų santraukos peržiūrėtos prisijungus per Gmail. **Sukurti 9 idempotentiški bandomieji `agent:gmail/<message-id>` pasiūlymai `public.gi_tasks`**, `status=proposed`, `is_demo=true`, neskiriant vykdytojų ir neviešinant priedų. Šaltinio el. pašto nuoroda GI koordinatoriaus pasiūlymo kortelėje atidaroma tik esant teisei skaityti organizacijos Gmail. Šaltinio laiško kopija, PDF ir ADOC nepatenka į Supabase.
+
+Pasiūlymus reikia peržiūrėti ir tik tada patvirtinti į užduočių fondą. Iki tikrų bylų modulio ir jo RLS/privacy patikros šių įrašų negalima laikyti tikromis bylomis ar siųsti institucijoms. Jau egzistuojančio LTSA siuntimo užduoties nedubliuoti: papildomas pasiūlymas yra tik gauto LTSA atsakymo peržiūra. Teismo nutarties priedai neperkelti. Nebuvo automatinių Gmail siuntimų, mokėjimų ar savanorių paskyrimų.
+
+UI patobulintas: `+ Pridėti laiką`, 15/30/60/90/120/180 min. įvedimo parinktys, atskirai sutraukti ankstesni laiko įrašai ir koordinatoriaus peržiūra, kandidatų teisės paslėptos po papildomais nustatymais, Gmail pasiūlymai rodomi sutraukiamame bloke.
+
+2026-11-23 našumo pataisa: nepriklausomos darbo vietos užklausos į Supabase vykdomos lygiagrečiai, o automatinis atnaujinimas po pasikartojančių telefono fokusavimo / matomumo įvykių ribojamas (60 s). Rankinis „Atnaujinti“ ir duomenų atnaujinimas po įrašymo neblokuojami. Ši pataisa nekeičia RLS ar duomenų bazės struktūros. Trukmė įvedama per šešis sparčiuosius pasirinkimus arba ranka; telefone parinktys telpa į dvi eilutes. PWA shell v22.
+
+Toliau: saugus tikrų atvejų susiejimas su Gmail / Drive, kai būsimas realių bylų modulis turės tikslinį RLS ir naudotojų teises; atskiras procesas. 
