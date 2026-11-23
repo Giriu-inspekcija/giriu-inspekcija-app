@@ -21,16 +21,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 age -d -i "$GI_AGE_IDENTITY" -o "$tmp/snapshot.tar.gz" "$archive"
-# Even encrypted archives must not be allowed to write outside the temp directory.
-tar -tzf "$tmp/snapshot.tar.gz" | python3 -c '
-import sys
+# An attacker who knows the PUBLIC recipient can encrypt arbitrary data;
+# reject links, special files and traversal before extracting any archive.
+python3 - "$tmp/snapshot.tar.gz" <<'PY'
+import sys, tarfile
 from pathlib import PurePosixPath
-for raw in sys.stdin:
-  item = raw.rstrip("\n")
-  p = PurePosixPath(item)
-  if p.is_absolute() or not p.parts or p.parts[0] != "snapshot" or ".." in p.parts:
-    raise SystemExit("Unsafe archive path")
-'
+with tarfile.open(sys.argv[1], "r:gz") as archive:
+    for item in archive:
+        path = PurePosixPath(item.name)
+        if path.is_absolute() or not path.parts or path.parts[0] != "snapshot" or ".." in path.parts:
+            raise SystemExit("Unsafe archive path")
+        if not (item.isfile() or item.isdir()):
+            raise SystemExit("Archive contains a link or special file")
+        if item.size > 30 * 1024**3:
+            raise SystemExit("Suspiciously large archive entry")
+PY
 tar -C "$tmp" --no-same-owner --no-same-permissions -xzf "$tmp/snapshot.tar.gz"
 cd "$tmp/snapshot"
 sha256sum --quiet --check CHECKSUMS.sha256
