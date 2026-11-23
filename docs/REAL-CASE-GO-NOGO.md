@@ -10,6 +10,15 @@
 - Naujasis atskiro realių atvejų modelio prototipas (šiame PR): `gi_real_cases`, `gi_real_case_access`, `gi_real_case_events`, privatus failų bucket `gi-real-evidence`. Visi sintetinių duomenų galiojantys apribojimai lieka.
 - Atskiro prototipo RLS testai: administratorius/koordinatorius, savanoris tik su individualiu leidimu, pašalinis savanoris, kandidatas, ribotas atvejis, atšaukta prieiga, bylos priedai. Veikiantys testai yra `tests/acceptance/real_cases.py` ir paleidžiami tik su vienkartine lokalia Supabase.
 
+## Patikrinta atsarginių kopijų rizika – SUSTABDYMO SĄLYGA
+2026-11-23 Supabase `get_organization` parodė, kad GI projektas veikia **Free** plane. Oficialioje [Supabase atsarginių kopijų dokumentacijoje](https://supabase.com/docs/guides/platform/backups) nurodyta, kad automatinės kasdienės DB kopijos priskirtos Pro/Team/Enterprise, o Free naudotojai turi patys eksportuoti ir saugoti kopijas kitoje vietoje. **Net mokamas DB backup NEAPIMA Storage objektų baitų**, tik jų metaduomenis.
+
+Prieš tikrus atvejus būtina:
+- pasirinkti patikimą kasdienio PostgreSQL eksporto į atskirą saugyklą strategiją (arba Pro plano DB kopijas) ir atskirai apsaugoti Storage failus;
+- patikrinti faktinį automatinį backup grafiką, stebėseną, šifravimą ir prieigos teises;
+- izoliuotoje aplinkoje bent kartą pilnai atstatyti DB ir kelis originalius priedus bei sutikrinti sumas/hash;
+- paskirti atsakingą asmenį ir nustatyti realius RPO/RTO. Kol tai neįrodyta – **NO-GO**.
+
 ## Kritiniai leidimo vartai
 | # | GO kriterijus | Dabartinė būsena |
 |---|---|---|
