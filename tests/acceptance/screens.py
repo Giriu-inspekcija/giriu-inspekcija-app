@@ -62,7 +62,7 @@ def exercise(user,password):
                 if management.count() and not management.is_visible():
                     raise AssertionError('Task management toggle must be visible')
                 if management.count() and not management.evaluate('(element) => element.open'):
-                    management.locator('summary').click()
+                    management.locator(':scope > summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 field=card.get_by_label('Užduoties terminas')
                 expect(field).to_have_value(date+'T09:05')
@@ -105,7 +105,7 @@ def exercise(user,password):
                 if management.count() and not management.is_visible():
                     raise AssertionError('Task management toggle must be visible')
                 if management.count() and not management.evaluate('(element) => element.open'):
-                    management.locator('summary').click()
+                    management.locator(':scope > summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 due_button=card.get_by_role('button',name='Išsaugoti terminą')
                 field=card.get_by_label('Užduoties terminas')
