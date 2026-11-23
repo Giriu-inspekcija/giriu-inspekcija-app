@@ -69,6 +69,6 @@ age -r "$GI_BACKUP_AGE_RECIPIENT" -o "$out" "$tmp/snapshot.tar.gz"
 test -s "$out"
 head -c 32 "$out" | grep -aq 'age-encryption.org'
 echo "Encrypted snapshot ready: $(basename "$out") ($(stat -c%s "$out") bytes)"
-if [[ -n "$GITHUB_OUTPUT" ]]; then
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "snapshot_file=$(basename "$out")" >> "$GITHUB_OUTPUT"
 fi
