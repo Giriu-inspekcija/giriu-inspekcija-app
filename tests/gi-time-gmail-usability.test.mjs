@@ -16,13 +16,14 @@ test('time view has a discoverable quick-add action and compact expandable histo
   assert.match(app,/panel\.scrollIntoView\(\{block:'nearest',behavior:'smooth'\}\)/);
 });
 test('quick durations update BOTH input fields and allow manual override',()=>{
-  for(const val of [15,30,60,120])assert.match(html,new RegExp('data-time-preset="'+val+'"'));
+  for(const val of [15,30,60,90,120,180])assert.match(html,new RegExp('data-time-preset="'+val+'"'));
   assert.match(app,/Math\.floor\(value\/60\)/);
   assert.match(app,/String\(value%60\)/);
   assert.match(app,/function updateTimePresetButtons\(\)/);
   assert.match(app,/aria-pressed/);
   assert.match(app,/\$\('timeHistoryPanel'\)\.open=true/);
   assert.match(app,/gi_record_dated_time/);
+  assert.match(app,/\[15,30,60,90,120,180\]/);
   assert.match(app,/p_request:timeRequest\.id|params\.p_request=timeRequest\.id/);
 });
 test('candidate-only privilege is tucked away and retains RLS checked RPC',()=>{
@@ -41,8 +42,13 @@ test('Gmail proposals remain staff-only, reviewable, and link to authorized mail
   assert.match(app,/gi_task_action/);
   assert.doesNotMatch(html,/1a2089422577695f|1a208853eee2cb4b/);
 });
+test('parallel, bounded workspace refresh avoids long chains and focus-trigger duplication',()=>{
+  assert.match(app,/const \[totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs\]=await Promise\.all/);
+  assert.match(app,/const \[feedbackResult,queue,reminder\]=await Promise\.all/);
+  assert.match(app,/lastAutoRefreshAt<60000/);
+});
 test('PWA cache changed without caching private API calls',()=>{
-  assert.match(sw,/v21-mobile-time-gmail-review/);
+  assert.match(sw,/v22-mobile-time-fast-refresh/);
   assert.match(sw,/NEVER cache Supabase requests/);
   assert.doesNotMatch(sw,/supabase\.co/);
   assert.doesNotThrow(()=>new Function(app));
