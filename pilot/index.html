@@ -157,7 +157,7 @@ button[aria-busy="true"]{opacity:.72;cursor:progress}
 .candidate-options{margin-top:8px;padding:8px 10px;border:1px solid #dae6db;border-radius:9px;background:#f7faf6}
 .candidate-options summary{font-size:12px;color:#365d44}
 .candidate-options button{margin-top:9px;background:#eff4ee;color:#205742;border:1px solid #c9dacd;font-weight:600}
-@media(max-width:540px){.time-header{flex-wrap:wrap}.time-header h2{flex:1}.time-presets button{flex:1 1 auto}}
+@media(max-width:540px){.time-header{flex-wrap:wrap}.time-header h2{flex:1}.time-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.time-presets .small{grid-column:1/-1}.time-presets button{padding:8px 3px}}
 /* iOS Safari quick-feedback dialog must remain in viewport, not page scroll. */
 #quickFeedbackDialog{overscroll-behavior:contain}
 @media(max-width:720px){
@@ -338,7 +338,9 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
         <button type="button" class="outline" data-time-preset="15">15 min.</button>
         <button type="button" class="outline" data-time-preset="30" aria-pressed="true">30 min.</button>
         <button type="button" class="outline" data-time-preset="60">1 val.</button>
-        <button type="button" class="outline" data-time-preset="120">2 val.</button></div>
+        <button type="button" class="outline" data-time-preset="90">90 min.</button>
+        <button type="button" class="outline" data-time-preset="120">2 val.</button>
+        <button type="button" class="outline" data-time-preset="180">3 val.</button></div>
       <div class="grid">
         <label class="field">Valandos <input id="manualTimeHours" type="number" min="0" max="12" value="0" required></label>
         <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
