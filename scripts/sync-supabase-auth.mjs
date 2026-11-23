@@ -76,13 +76,16 @@ export function makePatch(current, templates = loadTemplates()) {
   const site = current.site_url;
   if (typeof site !== 'string') throw Error('Missing current site_url: refusing to modify Auth');
   const patch = {...templates};
-  // The pilot must not break later production URLs. Only replace the old local-dev default.
+  // Now that the GI Cloudflare custom domain is live, use it as the fallback
+  // for OAuth/email links that omit redirectTo. Keep the old Netlify URLs
+  // ALLOWED so existing users may still sign in during the transition.
+  // Never overwrite an unknown external production domain.
   if (['http://localhost:3000','http://localhost:3000/',PREVIEW_URL,LIVE_URL].includes(site)) {
-    patch.site_url = LIVE_URL;
+    patch.site_url = CLOUDFLARE_URL;
   } else {
     const candidate = new URL(site);
     if (candidate.protocol !== 'https:') throw Error('Unexpected insecure site_url; review manually');
-    // Preserve any configured production URL rather than silently replacing it.
+    // Preserve known custom URL or any independently configured production URL.
   }
   const allowed = normalizeAllowedURLs(current.uri_allow_list);
   if (!allowed.includes(PREVIEW_URL)) allowed.push(PREVIEW_URL);
@@ -147,7 +150,7 @@ async function main() {
   console.log('GI Auth: checked ' + TEMPLATE_SETTINGS.length + ' Lithuanian templates / official logo / secure links');
   if (action === '--check') {
     const sample = makePatch({site_url:'http://localhost:3000',uri_allow_list:''},templates);
-    if (sample.site_url !== LIVE_URL || ![PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].every(url=>sample.uri_allow_list.split(',').includes(url))) throw Error('Offline configuration test failed');
+    if (sample.site_url !== CLOUDFLARE_URL || ![PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].every(url=>sample.uri_allow_list.split(',').includes(url))) throw Error('Offline configuration test failed');
     console.log('Offline validation passed; no network request, no Auth change');
     return;
   }
