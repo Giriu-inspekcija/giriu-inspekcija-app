@@ -325,6 +325,7 @@
         :'Paskyra aktyvi. Po patikros koordinatorius suteiks tinkamą vaidmenį.';
       $('withdrawRegistration').hidden=regState!=='active';
       $('teamNav').hidden=!staff();
+      $('realCasesNav').hidden=!['volunteer','coordinator','admin'].includes(profile?.role);
       $('documentsNav').hidden=!canWriteDocuments();
       openPanel(activePanel);
       $('activateMaster').hidden = true;
