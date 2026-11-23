@@ -30,10 +30,13 @@ def make_icon(size: int, proportion: float, output: str) -> None:
     canvas.convert("RGB").save(ROOT / output, "PNG", optimize=True)
     print(f"{output}: {size}x{size}, official GI emblem, {int(proportion*100)}% safe area")
 
-make_icon(192, 0.90, "icon-192.png")
-make_icon(512, 0.90, "icon-512.png")
-# Android maskable icons need the emblem entirely inside the center safe circle.
-make_icon(192, 0.72, "icon-192-maskable.png")
-make_icon(512, 0.72, "icon-512-maskable.png")
-make_icon(180, 0.87, "apple-touch-icon.png")
-make_icon(64, 0.90, "favicon-64.png")
+# Fill more of the visible home-screen tile while retaining square, white-backed,
+# undistorted icons. iOS rounds the outer corners; emblem edges stay clear.
+make_icon(192, 0.94, "icon-192.png")
+make_icon(512, 0.94, "icon-512.png")
+# Android maskable icons may be clipped to a circle/other shape by launchers.
+# Keep a wider safety margin than for iOS or regular PWA icons.
+make_icon(192, 0.76, "icon-192-maskable.png")
+make_icon(512, 0.76, "icon-512-maskable.png")
+make_icon(180, 0.95, "apple-touch-icon.png")
+make_icon(64, 0.93, "favicon-64.png")
