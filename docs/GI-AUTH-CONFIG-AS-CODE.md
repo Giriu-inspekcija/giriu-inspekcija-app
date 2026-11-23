@@ -42,7 +42,7 @@ Jeigu automatinis paleidimas nepavyko arba buvo praleistas, atidarykite https://
 `Site URL` keičiamas iš `http://localhost:3000` arba seno PR peržiūros adreso į:
 `https://starlit-shortbread-a38110.netlify.app/pilot/`
 
-Į leidžiamus `Redirect URLs` įrašomi **abu** tikslūs adresai: pagrindinis `/pilot/` ir `https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/`. Kiti esami adresai išsaugomi, jau nustatytas atskiras HTTPS produkcinis `Site URL` neperrašomas. Kai GI oficialiai pereis į `app.giriuinspekcija.lt`, reikės atskiro PR ir įrašo į leidžiamas nuorodas.
+Į leidžiamus `Redirect URLs` įrašomi **abu** tikslūs adresai: pagrindinis `/pilot/` ir `https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/`. Kiti esami adresai išsaugomi, jau nustatytas atskiras HTTPS produkcinis `Site URL` neperrašomas. 2026-11-23 pridėtos naujo Cloudflare domeno `https://komanda.giriuinspekcija.lt/pilot/` ir Pages peržiūros `https://giriu-inspekcija-app.pages.dev/pilot/` nuorodos. Netlify nuorodos išlieka kaip atsarginės. `Site URL` šiame etape NEKEIČIAMAS: keisti į nuolatinį domeną tik kai HTTPS sertifikatas aktyvus ir OAuth, el. pašto patvirtinimas bei slaptažodžio atkūrimas išbandyti. Jei GitHub Auth workflow negali pritaikyti PATCH (nėra tokeno ar apsaugotos aplinkos leidimo), Supabase Dashboard → Authentication → URL Configuration → Redirect URLs įtraukti abi nuorodas rankiniu būdu, senų neištrinti. Po to patikrinti login ir redirect realiame telefone.
 
 **NB:** šis PR nenustato Netlify svetainės matomumo. Jei matote `This site is private`, savanoris negalės atidaryti peržiūros net po sėkmingo Auth diegimo. Tikro testavimo metu svetainė turi būti atvira, o privačius duomenis saugo Supabase Auth ir RLS.
 

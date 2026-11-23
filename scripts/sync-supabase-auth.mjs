@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 export const PROJECT_REF = 'mkhxokzuietqgjdpkcqq';
 export const PREVIEW_URL = 'https://deploy-preview-5--starlit-shortbread-a38110.netlify.app/pilot/';
 export const LIVE_URL = 'https://starlit-shortbread-a38110.netlify.app/pilot/';
+export const CLOUDFLARE_URL = 'https://komanda.giriuinspekcija.lt/pilot/';
+export const CLOUDFLARE_PAGES_URL = 'https://giriu-inspekcija-app.pages.dev/pilot/';
 const MANAGEMENT_URL = 'https://api.supabase.com/v1/projects/' + PROJECT_REF + '/config/auth';
 const TEMPLATE_SETTINGS = Object.freeze([
   {
@@ -85,6 +87,8 @@ export function makePatch(current, templates = loadTemplates()) {
   const allowed = normalizeAllowedURLs(current.uri_allow_list);
   if (!allowed.includes(PREVIEW_URL)) allowed.push(PREVIEW_URL);
   if (!allowed.includes(LIVE_URL)) allowed.push(LIVE_URL);
+  if (!allowed.includes(CLOUDFLARE_URL)) allowed.push(CLOUDFLARE_URL);
+  if (!allowed.includes(CLOUDFLARE_PAGES_URL)) allowed.push(CLOUDFLARE_PAGES_URL);
   patch.uri_allow_list = allowed.join(',');
   // Explicitly exclude SMTP credentials and user privilege controls from the patch.
   const keys = Object.keys(patch);
@@ -143,7 +147,7 @@ async function main() {
   console.log('GI Auth: checked ' + TEMPLATE_SETTINGS.length + ' Lithuanian templates / official logo / secure links');
   if (action === '--check') {
     const sample = makePatch({site_url:'http://localhost:3000',uri_allow_list:''},templates);
-    if (sample.site_url !== LIVE_URL || !sample.uri_allow_list.includes(PREVIEW_URL) || !sample.uri_allow_list.includes(LIVE_URL)) throw Error('Offline configuration test failed');
+    if (sample.site_url !== LIVE_URL || ![PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].every(url=>sample.uri_allow_list.split(',').includes(url))) throw Error('Offline configuration test failed');
     console.log('Offline validation passed; no network request, no Auth change');
     return;
   }
