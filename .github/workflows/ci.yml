@@ -3,6 +3,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # Cheap read-only tests twice daily, in UTC; no Netlify build or deploy.
+    - cron: '37 4,16 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: synthetic-static-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   static-checks:
     runs-on: ubuntu-latest
