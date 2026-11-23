@@ -127,6 +127,10 @@ class Storage:
             with self.request("GET", endpoint, stream=True) as result:
                 h = hashlib.sha256()
                 size = 0
+                # Content-Type is returned by authenticated Storage download.
+                # Preserve it; inferring from names breaks allowed_mime_types.
+                content_type = result.headers.get("Content-Type", "application/octet-stream")
+                content_type = content_type.split(";", 1)[0].strip().lower()
                 with part.open("xb") as stream:
                     for block in result.iter_content(CHUNK):
                         if block:
@@ -136,13 +140,13 @@ class Storage:
                             stream.write(block)
                             h.update(block)
             os.replace(part, destination)
-            return size, h.hexdigest()
+            return size, h.hexdigest(), content_type
         finally:
             part.unlink(missing_ok=True)
 
-    def upload(self, bucket, key, path, isolated_restore=False):
+    def upload(self, bucket, key, path, isolated_restore=False, content_type=None):
         endpoint = "object/" + quote(bucket, safe="") + "/" + quote(key, safe="/")
-        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        content_type = content_type or mimetypes.guess_type(key)[0] or "application/octet-stream"
         with path.open("rb") as stream:
             self.request("POST", endpoint, data=stream, headers={
                 "Content-Type": content_type, "x-upsert": "true" if isolated_restore else "false"
@@ -186,10 +190,10 @@ def snapshot(args):
             remaining = args.max_bytes - total
             if remaining < 0:
                 raise RuntimeError("Maximum backup size reached")
-            size, digest = api.download(bid, object_key, filename, remaining)
+            size, digest, content_type = api.download(bid, object_key, filename, remaining)
             total += size
             objects.append({"bucket": bid, "key": object_key,
-                            "size": size, "sha256": digest})
+                            "size": size, "sha256": digest, "content_type": content_type})
     manifest = {"format_version": 1, "source_url": api.url,
                 "buckets": metadata, "objects": objects,
                 "object_count": len(objects), "total_bytes": total}
@@ -246,7 +250,8 @@ def restore(args):
         # The SQL restore already re-created storage.objects metadata. Isolated
         # target restore must put the missing object BYTES back, not reject the
         # existing metadata row with a 409. The original project is forbidden.
-        api.upload(item["bucket"], item["key"], path, isolated_restore=True)
+        api.upload(item["bucket"], item["key"], path, isolated_restore=True,
+                   content_type=item.get("content_type"))
     print(f"Isolated target Storage restored: {len(meta['objects'])} objects")
 
 
