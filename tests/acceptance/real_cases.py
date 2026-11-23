@@ -41,8 +41,8 @@ def exercise(chief_id,chief,coord,vol_id,vol):
     assert rows('gi_real_cases',candidate,'select=id')==[]
     # Row-level security applies also to direct API calls with guessed UUIDs.
     assert rows('gi_real_cases',vol,'select=id&id=eq.'+restricted)==[]
-    assert rows('gi_real_case_access',vol,'select=user_id')==[
-      {'user_id':vol_id},{'user_id':vol_id}]
+    # Even individual grant metadata stays staff-only to avoid revealing restricted cases.
+    assert rows('gi_real_case_access',vol,'select=user_id')==[]
     assert rows('gi_real_case_access',stranger,'select=user_id')==[]
     # Never allow a case initially marked restricted to be silently downgraded.
     request('PATCH',case_url+'?id=eq.'+restricted,chief,{'sensitivity':'internal'},expected={400,403})
