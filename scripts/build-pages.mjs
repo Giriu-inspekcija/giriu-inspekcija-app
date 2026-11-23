@@ -2,7 +2,7 @@
 // Cloudflare Pages: publish ONLY approved static PWA assets.
 // This repository is public and also contains SQL, tools, workflows and docs.
 // Never point Pages' output directory at repository root.
-import {copyFileSync,existsSync,lstatSync,mkdirSync,rmSync} from 'node:fs';
+import {copyFileSync,existsSync,lstatSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {join,resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -30,5 +30,19 @@ for(const name of [...required,...present]){
   copyFileSync(src,target);
 }
 copyFileSync(join(root,'cloudflare','_headers'),join(output,'_headers'));
+// Only the Cloudflare public build gets this landing redirect. The source
+// index.html remains a developer demo; never let it confuse GI volunteers.
+// Use a real HTML document as a safe fallback even without JavaScript.
+writeFileSync(join(output,'index.html'),`<!doctype html>
+<html lang="lt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=/pilot/">
+<title>Girių inspekcija – GI komanda</title>
+<script>window.location.replace('/pilot/');</script>
+</head><body>
+<p>Atidaroma Girių inspekcijos savanorių darbo vieta…
+<a href="/pilot/">Atidaryti GI komandą</a></p>
+</body></html>`);
 console.log('Cloudflare public bundle prepared in dist/ ('+
             (required.length+present.length+1)+' allowlisted files)');
