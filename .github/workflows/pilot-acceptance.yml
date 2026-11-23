@@ -9,6 +9,9 @@ on:
     - cron: "17 5 * * 1,3,5"
 permissions:
   contents: read
+concurrency:
+  group: gi-pilot-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   isolated-pilot:
     runs-on: ubuntu-24.04
