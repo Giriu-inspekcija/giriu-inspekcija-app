@@ -14,7 +14,7 @@ test('scheduled backup never publishes SQL or touches Netlify',()=>{
   assert.match(workflow,/GI_BACKUP_DB_URL: \$\{\{ secrets\.GI_BACKUP_DB_URL \}\}/);
   assert.match(workflow,/GI_BACKUP_AGE_RECIPIENT: \$\{\{ vars\.GI_BACKUP_AGE_RECIPIENT \}\}/);
   assert.match(workflow,/actions\/upload-artifact@v4/);
-  assert.match(workflow,/encrypted-gi\/\*\.age/);
+  assert.match(workflow,/gi-encrypted\/\*\.age/);
   assert.doesNotMatch(workflow,/path: .*\.sql/);
   assert.match(workflow,/retention-days: 30/);
   assert.doesNotMatch(workflow,/AGE-SECRET-KEY-/);
