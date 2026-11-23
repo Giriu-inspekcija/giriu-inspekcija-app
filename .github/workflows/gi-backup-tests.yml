@@ -51,7 +51,14 @@ jobs:
           if GI_AGE_IDENTITY="$temp/identity.txt" GI_RESTORE_CONFIRM=not-authorised bash scripts/gi_restore.sh "$temp/snapshot.tar.gz.age" --restore-isolated; then
             echo "::error::Unapproved restore unexpectedly succeeded"; exit 1
           fi
-          printf 'X' >> "$temp/snapshot.tar.gz.age"
+          python3 - "$temp/snapshot.tar.gz.age" <<'PY'
+          from pathlib import Path
+          import sys
+          path=Path(sys.argv[1])
+          data=bytearray(path.read_bytes())
+          data[len(data)//2] ^= 1
+          path.write_bytes(data)
+          PY
           if GI_AGE_IDENTITY="$temp/identity.txt" bash scripts/gi_restore.sh "$temp/snapshot.tar.gz.age" --verify-only; then
             echo "::error::Tampered encrypted artifact unexpectedly verified"; exit 1
           fi
