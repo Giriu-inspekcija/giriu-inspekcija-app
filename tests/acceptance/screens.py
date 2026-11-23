@@ -61,7 +61,7 @@ def exercise(user,password):
                 management=card.locator('details[data-ui-key^="manage-"]')
                 if management.count() and not management.is_visible():
                     raise AssertionError('Task management toggle must be visible')
-                if management.count() and not management.get_attribute('open'):
+                if management.count() and not management.evaluate('(element) => element.open'):
                     management.locator('summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 field=card.get_by_label('Užduoties terminas')
@@ -104,7 +104,7 @@ def exercise(user,password):
                 management=card.locator('details[data-ui-key^="manage-"]')
                 if management.count() and not management.is_visible():
                     raise AssertionError('Task management toggle must be visible')
-                if management.count() and not management.get_attribute('open'):
+                if management.count() and not management.evaluate('(element) => element.open'):
                     management.locator('summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 due_button=card.get_by_role('button',name='Išsaugoti terminą')
