@@ -32,27 +32,40 @@ ALTER TABLE public.gi_real_case_access ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.gi_real_case_access FROM PUBLIC,anon,authenticated;
 GRANT SELECT,INSERT,UPDATE ON TABLE public.gi_real_case_access TO authenticated;
 
--- Membership cannot be read by other volunteers, or by pending candidates.
+-- Do not expose access grant metadata to volunteers: even a case UUID can
+-- leak that a restricted investigation exists.
 CREATE POLICY gi_real_access_read ON public.gi_real_case_access FOR SELECT TO authenticated
-USING ((SELECT private.gi_role()) IN ('admin','coordinator')
-       OR ((SELECT private.gi_role())='volunteer' AND user_id=(SELECT auth.uid())));
+USING ((SELECT private.gi_role()) IN ('admin','coordinator'));
 CREATE POLICY gi_real_access_insert ON public.gi_real_case_access FOR INSERT TO authenticated
 WITH CHECK ((SELECT private.gi_role()) IN ('admin','coordinator') AND granted_by=(SELECT auth.uid()));
 CREATE POLICY gi_real_access_update ON public.gi_real_case_access FOR UPDATE TO authenticated
 USING ((SELECT private.gi_role()) IN ('admin','coordinator'))
 WITH CHECK ((SELECT private.gi_role()) IN ('admin','coordinator'));
 
+-- Predicate used by case/storage RLS. SECURITY DEFINER avoids exposing the
+-- private membership table to volunteers. Only the caller's OWN membership is
+-- checked, and it returns a boolean, never names or case metadata.
+CREATE FUNCTION private.gi_real_has_access(p_case uuid,p_upload boolean DEFAULT false)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $f$
+  SELECT (SELECT private.gi_role())='volunteer'
+    AND EXISTS (
+      SELECT 1 FROM public.gi_real_case_access a
+      WHERE a.case_id=p_case AND a.user_id=(SELECT auth.uid())
+        AND a.revoked_at IS NULL
+        AND (NOT p_upload OR a.can_upload)
+    )
+$f$;
+REVOKE ALL ON FUNCTION private.gi_real_has_access(uuid,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_real_has_access(uuid,boolean) TO authenticated;
+
 -- Staff can see all assigned case records. Volunteers see only an explicitly
 -- granted, unrevoked "internal" case, and never "restricted" cases.
 CREATE POLICY gi_real_case_read ON public.gi_real_cases FOR SELECT TO authenticated
 USING (
   (SELECT private.gi_role()) IN ('admin','coordinator')
-  OR (sensitivity='internal' AND (SELECT private.gi_role())='volunteer'
-      AND EXISTS (
-        SELECT 1 FROM public.gi_real_case_access a
-        WHERE a.case_id=gi_real_cases.id AND a.user_id=(SELECT auth.uid())
-          AND a.revoked_at IS NULL
-      ))
+  OR (sensitivity='internal'
+      AND private.gi_real_has_access(gi_real_cases.id,false))
 );
 CREATE POLICY gi_real_case_create ON public.gi_real_cases FOR INSERT TO authenticated
 WITH CHECK ((SELECT private.gi_role()) IN ('admin','coordinator')
@@ -157,12 +170,7 @@ WITH CHECK (
     WHERE c.id::text=split_part(name,'/',1)
       AND (
         (SELECT private.gi_role()) IN ('admin','coordinator')
-        OR (c.sensitivity='internal' AND (SELECT private.gi_role())='volunteer'
-          AND EXISTS(
-            SELECT 1 FROM public.gi_real_case_access a
-            WHERE a.case_id=c.id AND a.user_id=(SELECT auth.uid())
-              AND a.revoked_at IS NULL AND a.can_upload
-          ))
+        OR (c.sensitivity='internal' AND private.gi_real_has_access(c.id,true))
       )
   )
 );
