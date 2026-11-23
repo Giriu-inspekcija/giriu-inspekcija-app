@@ -1,23 +1,25 @@
-GIRIŲ INSPEKCIJA — SINTETINIS DEMO | 2026-11-22
+GIRIŲ INSPEKCIJA – GI KOMANDA | VIENINTELĖ TOBULINAMA CLOUDFLARE VERSIJA
+Būsena nuo 2026-11-23
 
-GREITAS BANDYMAS
-1. Atverkite https://starlit-shortbread-a38110.netlify.app/ telefone ar kompiuteryje.
-2. Viršuje pasirinkite "Koordinatorius (demo)"; per "Valdymas" sukurkite išgalvotą užduotį.
-3. Pasirinkite "Asta (savanorė)" ir atsidarykite "Darbai". Priimkite užduotį, pradėkite ir pateikite rezultatą.
-4. Grįžę prie koordinatoriaus patvirtinkite rezultatą.
-5. Išbandykite "Pranešti", "Laikas" ir "Pastabos".
+SVARBIAUSIOS NUORODOS
+- Tikroji bandomoji savanorių darbo vieta: https://komanda.giriuinspekcija.lt/pilot/
+- Trumpasis adresas: https://komanda.giriuinspekcija.lt/ (nukreipia į /pilot/)
+- GitHub kodo šaltinis: https://github.com/Giriu-inspekcija/giriu-inspekcija-app
+- Vystymo šaka: main; naujos funkcijos tik per patikrintus PR.
+- Cloudflare Pages projektas: giriu-inspekcija-app, automatiškai publikuojamas iš main.
+- Supabase (Auth / duomenų bazė / Storage): mkhxokzuietqgjdpkcqq.
 
-KĄ BŪTINA ŽINOTI
-- Tai DEMONSTRACIJA, ne realus savanorių prisijungimas. Vaidmenų keitimas skirtas vien ekrano bandymui.
-- Duomenys saugomi tik naudotojo naršyklėje; skirtinguose telefonuose užduotys nesinchronizuojamos.
-- Nenaudokite realių GI bylų, tikrų asmens duomenų, slaptų koordinačių ir nuotraukų.
-- Tikras prisijungimas ir bendra duomenų bazė bus atskiras etapas.
+SVARBU PROGRAMUOTOJAMS IR AI AGENTAMS
+1. Pagrindinė programėlė yra pilot/index.html, pilot/app.js, pilot/team-thread.js ir pilot/sw.js.
+2. Šakninis index.html yra senoji lokalios demonstracijos versija. Jo nelaikyti realia GI komanda, jo netobulinti kaip pagrindinio produkto.
+3. Cloudflare build komanda npm run build:pages generuoja dist/ tik su leistinais viešais failais; dist/index.html nukreipia į /pilot/.
+4. Netlify yra paliktas atsargai, tačiau neturi būti naudojamas kaip kanoninis adresas.
+5. Visi bandomieji atvejai yra sintetiniai. Tikrų bylų ir asmens duomenų naudoti negalima iki atskiro saugumo patvirtinimo.
+6. Pakeitimų ciklas: nauja pastaba -> GitHub PR -> testai -> main -> Cloudflare Pages auto-deploy -> telefono patikra.
+7. Neišsaugokite slaptų raktų ar asmens duomenų public GitHub.
 
-PWA ĮDIEGIMAS Į TELEFONĄ
-- Pakeitimai, įkelti į GitHub „main“ šaką, automatiškai publikuojami esamame Netlify projekte.
-- Android Chrome: atverkite nuorodą > meniu > Įdiegti programą / Pridėti į pagrindinį ekraną.
-- iPhone Safari: atverkite nuorodą > Bendrinti > Įtraukti į pradžios ekraną.
-- Kai programa atsidaro pirmą kartą per HTTPS, joje įdiegtas service worker leidžia ją atidaryti ir be interneto (po sėkmingo talpyklos užpildymo).
-- iOS įdiegiamumą ir naršyklės saugyklos elgseną būtina patikrinti fiziniame telefone.
-
-Paskirtis: tik greitas UX išbandymas, be atitikties produkcinei duomenų saugai garantijų.
+IŠSAMIAI
+- docs/GI-CANONICAL-VERSION.md – architektūra ir priėmimo kriterijai.
+- docs/GI-FEEDBACK-TRIAGE-20261123.md – užfiksuotos 11 naudotojo pastabų ir darbų skirstymas.
+- docs/GI-BACKUP-RESTORE.md – šifruotos atsarginės kopijos ir atkūrimas.
+- docs/CLOUDFLARE-PAGES-MIGRATION.md – istorinis pradinės migracijos planas, ne dabartinė operacinė instrukcija.
