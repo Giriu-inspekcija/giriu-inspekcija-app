@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/synthetic-task-pool-backend-v1
+      - feat/gi-enlarge-pwa-icons-20261123
     paths:
       - 'scripts/generate_brand_icons.py'
       - 'logo.png'
