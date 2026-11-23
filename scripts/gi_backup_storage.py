@@ -61,7 +61,11 @@ class Storage:
             raise ValueError("Missing service role key")
         self.url = url.rstrip("/")
         self.http = requests.Session()
-        self.http.headers.update({"apikey": key, "Authorization": "Bearer " + key})
+        # Supabase's newer sb_secret_* keys authenticate through apikey.
+        # Legacy service_role JWTs also require the Authorization bearer header.
+        self.http.headers["apikey"] = key
+        if not key.startswith("sb_secret_"):
+            self.http.headers["Authorization"] = "Bearer " + key
         adapter = HTTPAdapter(max_retries=Retry(
             total=3, backoff_factor=0.8, status_forcelist=[429, 502, 503, 504],
             allowed_methods=frozenset(["GET", "POST"])
