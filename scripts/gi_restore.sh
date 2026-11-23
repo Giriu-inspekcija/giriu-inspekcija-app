@@ -44,12 +44,13 @@ if [[ "$mode" == "--verify-only" ]]; then
   echo "Verification only. NO database or files were changed."
   exit 0
 fi
-if [[ "$GI_RESTORE_CONFIRM" != "RESTORE_TO_ISOLATED_GI_TEST" ]]; then
+if [[ "${GI_RESTORE_CONFIRM:-}" != "RESTORE_TO_ISOLATED_GI_TEST" ]]; then
   echo "Explicit isolated restore confirmation missing" >&2; exit 2
 fi
-if [[ -z "$GI_RESTORE_DB_URL" || -z "$GI_RESTORE_SUPABASE_URL" || -z "$GI_RESTORE_SERVICE_ROLE_KEY" ]]; then
+if [[ -z "${GI_RESTORE_DB_URL:-}" || -z "${GI_RESTORE_SUPABASE_URL:-}" || -z "${GI_RESTORE_SERVICE_ROLE_KEY:-}" ]]; then
   echo "Isolated DB and Storage restore credentials required" >&2; exit 2
 fi
+command -v psql >/dev/null
 if [[ "$GI_RESTORE_DB_URL" == *"mkhxokzuietqgjdpkcqq"* ]] ||
    [[ "$GI_RESTORE_SUPABASE_URL" == "https://mkhxokzuietqgjdpkcqq.supabase.co" ]]; then
   echo "REFUSED: source and restore target must be different projects" >&2; exit 2
@@ -63,6 +64,9 @@ if url.scheme not in ("postgresql", "postgres") or not url.hostname:
     raise SystemExit("Invalid restore database URI")
 if api.scheme != "https" or not api.hostname or not api.hostname.endswith(".supabase.co"):
     raise SystemExit("Invalid isolated Supabase Storage URI")
+ref = api.hostname.split(".")[0]
+if ref not in ((url.hostname or "") + " " + (url.username or "")):
+    raise SystemExit("Storage target and database target are not the same project")
 PY
 # A fresh Supabase project must be prepared first (extensions, webhooks).
 # Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
