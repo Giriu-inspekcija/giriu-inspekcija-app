@@ -540,6 +540,28 @@
     if(!independent)$('manualTimeActivity').value='';
   }
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
+  function updateTimePresetButtons(){
+    const total=Number($('manualTimeHours').value)*60+Number($('manualTimeMinutes').value);
+    document.querySelectorAll('[data-time-preset]').forEach(button=>
+      button.setAttribute('aria-pressed',String(Number(button.dataset.timePreset)===total)));
+  }
+  $('addHoursQuick').addEventListener('click',()=>{
+    openPanel('time');
+    const panel=$('timeEntryPanel');
+    panel.open=true;
+    panel.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
+  $('manualTimeForm').addEventListener('click',event=>{
+    const button=event.target.closest('[data-time-preset]');
+    if(!button)return;
+    const value=Number(button.dataset.timePreset);
+    if(![15,30,60,120].includes(value))return;
+    $('manualTimeHours').value=String(Math.floor(value/60));
+    $('manualTimeMinutes').value=String(value%60);
+    updateTimePresetButtons();
+  });
+  for(const id of ['manualTimeHours','manualTimeMinutes'])
+    $(id).addEventListener('input',updateTimePresetButtons);
   function renderWorkLogs(){
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
     $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(Number(timeTotals.submitted))
@@ -745,8 +767,10 @@
     const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
     if(staffEditable){
       const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
-        ?'<button class="outline" type="button" data-candidate-task="'+id+'">'
-          +(task.candidate_safe?'Nebesiūlyti kandidatui':'Leisti kandidatui (demo)')+'</button>':'';
+        ?'<details class="candidate-options" data-ui-key="candidate-'+id+'"><summary>Kandidato prieiga (bandomoji)</summary>'
+          +'<button class="outline" type="button" data-candidate-task="'+id+'">'
+          +(task.candidate_safe?'Atšaukti kandidato galimybę':'Leisti bandomąją užduotį kandidatui')
+          +'</button></details>':'';
       if(task.status==='proposed'){
         markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
           +safeButton+'</div>';
@@ -821,11 +845,17 @@
         const importance=t.priority==='high'?'Svarbi':t.priority==='low'?'Mažesnė':'Įprasta';
         const due=t.due_at?'<p class="small"><b>Terminas:</b> '
           +escapeHTML(window.giDeadlines.display(t.due_at)+' (Vilniaus laiku)')+'</p>':'';
+        const source=String(t.source_ref||'');
+        const gmail=/^agent:gmail\/([0-9a-f]{16})$/.exec(source);
+        const sourceLink=gmail
+          ?'<p class="small"><a href="https://mail.google.com/mail/u/?authuser=giriuinspekcija%40gmail.com#all/'
+            +encodeURIComponent(gmail[1])+'" target="_blank" rel="noopener noreferrer">Atidaryti šaltinio laišką (tik su GI Gmail prieiga)</a></p>'
+          :'';
         return '<article class="task" data-ai-task="'+escapeHTML(t.id)+'">'
-          +'<div class="row"><span class="tag proposed">ChatGPT pasiūlymas</span>'
+          +'<div class="row"><span class="tag proposed">'+(gmail?'Iš GI Gmail':'ChatGPT pasiūlymas')+'</span>'
           +'<span class="small">'+escapeHTML(importance)+'</span></div>'
           +'<h3>'+escapeHTML(t.title)+'</h3>'
-          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+due
+          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+sourceLink+due
           +'<div class="actions"><button type="button" data-ai-approve="'+escapeHTML(t.id)+'">Patvirtinti į fondą</button></div></article>';
       }).join('')
       :'<p class="small">Kol kas nėra naujų ChatGPT pasiūlymų. Paprašykite ChatGPT pateikti užduotis GI komandai ir atnaujinkite šį sąrašą.</p>';
@@ -1815,6 +1845,9 @@
       $('manualTimeForm').reset();
       $('manualTimeDate').value=$('manualTimeDate').max;
       updateManualActivityMode();
+      updateTimePresetButtons();
+      $('timeEntryPanel').open=false;
+      $('timeHistoryPanel').open=true;
     }
   });
   function caseActions(incident){
