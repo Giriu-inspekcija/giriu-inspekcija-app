@@ -19,7 +19,7 @@ jobs:
       GI_BACKUP_DB_URL: ${{ secrets.GI_BACKUP_DB_URL }}
       GI_BACKUP_SERVICE_ROLE_KEY: ${{ secrets.GI_BACKUP_SERVICE_ROLE_KEY }}
       GI_BACKUP_AGE_RECIPIENT: ${{ vars.GI_BACKUP_AGE_RECIPIENT }}
-      GI_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/encrypted-gi
+      GI_BACKUP_OUTPUT_DIR: /tmp/gi-encrypted
       GI_BACKUP_RCLONE_CONFIG_B64: ${{ secrets.GI_BACKUP_RCLONE_CONFIG_B64 }}
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gi-encrypted-backup-${{ github.run_id }}
-          path: ${{ runner.temp }}/encrypted-gi/*.age
+          path: /tmp/gi-encrypted/*.age
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
