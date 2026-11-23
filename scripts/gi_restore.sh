@@ -76,7 +76,7 @@ psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file sch
 psql --single-transaction --variable ON_ERROR_STOP=1 --file migration-schema.sql \
   --file migration-data.sql --dbname "$GI_RESTORE_DB_URL"
 
-GI_RESTORE_TO_ISOLATED_TARGET=YES python3 "$GITHUB_WORKSPACE/scripts/gi_backup_storage.py" restore \
-  --directory "$tmp/snapshot/storage-export" --url "$GI_RESTORE_SUPABASE_URL" \
-  --key "$GI_RESTORE_SERVICE_ROLE_KEY"
+GI_RESTORE_TO_ISOLATED_TARGET=YES GI_SUPABASE_SERVICE_ROLE_KEY="$GI_RESTORE_SERVICE_ROLE_KEY" \
+python3 "$SCRIPT_DIR/gi_backup_storage.py" restore \
+  --directory "$tmp/snapshot/storage-export" --url "$GI_RESTORE_SUPABASE_URL"
 echo "Isolated restore completed. Now audit RLS and sign-in before declaring GO."
