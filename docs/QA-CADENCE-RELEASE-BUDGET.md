@@ -8,7 +8,7 @@ Aiškiai atskirti kodo / funkcinių scenarijų testavimą nuo AI audito ir Netli
 - ChatGPT: kas valandą tik jei yra neperžiūrėtų pasiūlymų pagal `private.gi_ai_feedback_summary()`; be pasiūlymų nedaryti kodo analizės.
 - GitHub Actions `ci.yml`: kas 12 val. (04:37 ir 16:37 UTC), taip pat kai keičiasi kodas: Node sintaksė ir `npm test`. Kodo nekeičia, Netlify nereikalinga.
 - GitHub Actions `pilot-acceptance.yml`: pirmadienį, trečiadienį ir penktadienį 05:17 UTC: izoliuotas vietinis Supabase, Chromium/WebKit naršyklės ir naudotojo scenarijų testai. Jokio realių GI bylų ar produkcinio Supabase naudojimo.
-- AI kokybės auditas: 1 kartas per savaitę – rezultatų vertinimas, naudotojo srautų / telefono naudojimo kokybė, testavimo spragų nustatymas, nedidelių pataisų PR. Pirmą mėnesio savaitę pridėti rinkos ir gerųjų praktikų peržiūrą; neskelbti nepatikrintų naujienų.
+- AI kokybės auditas: 1 kartas per savaitę (penktadienį nuo 10:00 LT) – **jau aktyvios valandinės ChatGPT automatikos viduje**, o ne nauja automatika (pasiektas paskyros 5 aktyvių automatikų limitas). Pigus pirmas SQL patikrinimas `private.gi_ai_feedback_summary()` pateikia `weekly_audit_due`; idempotentinis `private.gi_ai_weekly_audit_claim()` saugo nuo pakartotinio to paties savaitinio audito. Pirmą mėnesio penktadienį pridėti rinkos ir gerųjų praktikų peržiūrą; neskelbti nepatikrintų naujienų. Jei AI neturi grafinės naršyklės, remiasi CI rezultatais ir atvirai nurodo ribą.
 - Netlify: diegti pagrindinę versiją įprastai daugiausia 1 kartą per savaitę, išskyrus patvirtintus kritinius P0/P1 sutrikimus, ir tik po testų bei žmogaus sprendimo. Didelius pakeitimus grupuoti.
 
 ## Ekonomika
@@ -25,3 +25,8 @@ Pagal Netlify kreditų planų dokumentaciją, production deploy 15 kreditų, o d
 
 ## Metrikos
 Kartą per savaitę: įvykdyti testai, nepraėję scenarijai, atvirų aukštos svarbos klaidų skaičius, PR skaičius, production deploy skaičius, Netlify kreditai, faktinės AI analizės sąnaudos jei matomos. Jei nėra patikimo sąnaudų šaltinio – nurodyti „nepatikrinta“.
+
+## Valdymas ir vienkartinio diegimo taupymas
+- Papildoma DB migracija `20261123014500_gi_ai_weekly_audit_gate.sql` yra realiai įdiegta Supabase ir išbandoma privačiu SQL; įprastas `gi-feedback-filter-15min` lieka aktyvus.
+- Dėl ".github/workflows" ar dokumentacijos pakeitimų galime į GitHub sujungti PR su commit tekstu `[skip netlify]`. Netlify oficialiai palaiko tokį pranešimą, ir neturėtų kurti production deploy. Tai nepanaikina GitHub Actions testų ir nekeičia programėlės frontend failų.
+- GitHub Actions schedule veikia tik tada, kai workflow jau yra default/main šakoje; PR su pakeitimais nėra aktyvus grafikas iki sujungimo.
