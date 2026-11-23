@@ -46,8 +46,14 @@ def exercise(chief_id,chief,coord,vol_id,vol):
     assert rows('gi_real_case_access',stranger,'select=user_id')==[]
     # Never allow a case initially marked restricted to be silently downgraded.
     request('PATCH',case_url+'?id=eq.'+restricted,chief,{'sensitivity':'internal'},expected={400,403})
-    request('PATCH',case_url+'?id=eq.'+internal,vol,{'summary':'Attempt unauthorized change'},expected={401,403})
-    request('DELETE',case_url+'?id=eq.'+internal,chief,expected={401,403,405})
+    # PostgREST may return 204 for an UPDATE/DELETE matching zero RLS rows.
+    # Only a verified unchanged row proves authorization protection.
+    original=rows('gi_real_cases',chief,'select=summary&id=eq.'+internal)[0]['summary']
+    request('PATCH',case_url+'?id=eq.'+internal,vol,
+            {'summary':'Attempt unauthorized change'},expected={204,401,403})
+    assert rows('gi_real_cases',chief,'select=summary&id=eq.'+internal)[0]['summary']==original
+    request('DELETE',case_url+'?id=eq.'+internal,chief,expected={204,401,403,405})
+    assert rows('gi_real_cases',chief,'select=id&id=eq.'+internal)==[{'id':internal}]
     assert len(rows('gi_real_case_events',chief,'select=id&case_id=eq.'+internal))>=2
 
     def file_url(case,user):
