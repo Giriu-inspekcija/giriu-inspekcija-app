@@ -21,7 +21,8 @@ test('volunteer sees only assigned internal cases while restricted stays staff-o
   assert.match(real,/sensitivity='internal'/);
   assert.match(real,/gi_real_case_access/);
   assert.match(real,/a\.revoked_at IS NULL/);
-  assert.match(real,/private\.gi_role\(\)\)='volunteer'/);
+  assert.match(real,/private\.gi_real_has_access\(gi_real_cases\.id,false\)/);
+  assert.match(real,/gi_real_access_read[\s\S]+?USING \(\(SELECT private\.gi_role\(\)\) IN \('admin','coordinator'\)\)/);
   assert.match(real,/restricted cases cannot be downgraded|Restricted cases cannot be downgraded/);
   assert.match(integration,/assert visible==\[\{'id':internal\}\]/);
   assert.match(integration,/restricted/);
