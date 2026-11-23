@@ -112,6 +112,7 @@
   }
   let feedbackGroups=[],cases=[],documents=[],documentRequest=null,caseRequest=new Map();
   const taskHistoryCache=new Map();
+  const taskHistoryRequests=new Set();
   const taskEventLabels={create:'Sukurta',agent_propose:'DI pasiūlymas',propose:'Pasiūlyta',
     publish:'Paskelbta fonde',assign:'Priskirta',claim:'Pasiimta',accept:'Priimta',
     decline:'Atsisakyta',unassign:'Paskyrimas atšauktas',start:'Pradėta',
@@ -192,7 +193,7 @@
     feedbackVisibleCount=4;feedbackShowResolved=false;
     activePanel='tasks';
     nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
-    taskHistoryCache.clear();
+    taskHistoryCache.clear();taskHistoryRequests.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
     $('incidentForm').reset();$('incidentId').value='';$('incidentsList').replaceChildren();
     reviewableLogs.clear();
@@ -445,6 +446,7 @@
       documents=docs.data||[];
       if(currentUser?.id!==actor)return false;
       renderDocuments();
+      renderNewTaskAssignees();
       renderAiProposals();
       renderTasks();
       renderWorkLogs();
@@ -497,11 +499,31 @@
     $('quickFeedbackContext').textContent='Pastaba apie: '+feedbackQuickOrigin;
     const dialog=$('quickFeedbackDialog');
     if(!dialog.open)dialog.showModal();
-    dialog.querySelector('textarea[name="message"]').focus({preventScroll:true});
+    // Prevent iOS Safari from jumping the viewport when its keyboard appears.
+    dialog.scrollTop=0;
+    $('quickFeedbackClose').focus({preventScroll:true});
   }
   $('quickFeedback').addEventListener('click',openQuickFeedback);
   $('threadQuickFeedback').addEventListener('click',openQuickFeedback);
   $('quickFeedbackClose').addEventListener('click',()=>$('quickFeedbackDialog').close());
+
+  function updateNewTaskDestination(){
+    const assigned=$('newTaskDestination').value==='assigned';
+    $('newTaskAssigneeWrap').hidden=!assigned;
+    $('newTaskAssignee').required=assigned;
+  }
+  function renderNewTaskAssignees(){
+    const select=$('newTaskAssignee'),previous=select.value;
+    const eligible=members.filter(m=>['volunteer','coordinator','admin'].includes(m.role)
+      && memberEmails[m.id]?.verified===true);
+    select.innerHTML='<option value="">Pasirinkite savanorį</option>'
+      +eligible.map(m=>'<option value="'+escapeHTML(m.id)+'">'
+        +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('');
+    if(eligible.some(m=>m.id===previous))select.value=previous;
+    updateNewTaskDestination();
+  }
+  $('newTaskDestination').addEventListener('change',updateNewTaskDestination);
+
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
   function renderManualTimeTaskOptions(){
     const select=$('manualTimeTask'),old=select.value;
@@ -860,6 +882,7 @@
   // the updated button disappears after a status transition.
   async function run(call,successMessage='Veiksmas išsaugotas.') {
     if(mutationInFlight)return false;
+    if(navigator.onLine===false){toast('Nėra interneto ryšio. Bandykite prisijungę.',true);return false;}
     mutationInFlight=true;
     const button=lastControl?.isConnected?lastControl:document.activeElement?.closest('button');
     const clearBusy=busy(button,button?.closest('#incidentForm')?(button.value==='submit'?'Pateikiama…':'Saugomas juodraštis…'):'Saugoma…');
@@ -868,10 +891,22 @@
       notice('');
       const result=await call();
       if(result?.error)throw result.error;
-      if(loading)await refreshFinished;
-      const refreshed=await refreshWorkspace();
-      if(!refreshed)throw Error('Pakeitimas išsaugotas, tačiau būsenos atnaujinti nepavyko. Spauskite „Atnaujinti“.');
+      // The server already confirmed the write. A later UI refresh failure must
+      // never be reported as a failed write (which invites accidental retries).
+      taskHistoryCache.clear();
       const msg=typeof successMessage==='function'?successMessage(result?.data):successMessage;
+      let refreshed=false;
+      try{
+        if(loading)await refreshFinished;
+        refreshed=await refreshWorkspace();
+      }catch(refreshError){
+        if(expiredSession(refreshError))endExpiredSession();
+      }
+      if(!refreshed){
+        toast(msg);
+        notice('Veiksmas išsaugotas serveryje, bet ekranas neatsinaujino. Spauskite „Atnaujinti“; to paties veiksmo nekartokite.',true);
+        return true;
+      }
       toast(msg);
       return true;
     } catch(error) {
@@ -1340,8 +1375,19 @@
 
   $('proposalForm').addEventListener('submit',event=>{
     event.preventDefault();
-    if(!staff()) return;
-    const form=event.currentTarget, fd=new FormData(form);
+    if(!staff())return;
+    const form=event.currentTarget,fd=new FormData(form);
+    const destination=String(fd.get('destination')||'pool');
+    const assignee=String(fd.get('assignee')||'');
+    if(!['pool','assigned','proposed'].includes(destination))
+      return toast('Pasirinkite, kur dėti užduotį.',true);
+    const chosen=members.find(m=>m.id===assignee);
+    if(destination==='assigned' && (!chosen
+       || !['volunteer','coordinator','admin'].includes(chosen.role)
+       || memberEmails[assignee]?.verified!==true)){
+      $('newTaskAssignee').focus();
+      return toast('Pasirinkite patvirtintą savanorį.',true);
+    }
     run(async()=>{
       const deadline=String(fd.get('due')||'');
       if(!proposalRef)proposalRef=crypto.randomUUID();
@@ -1351,9 +1397,33 @@
         p_priority:String(fd.get('priority')||'normal'),
         p_source_ref:'web-'+proposalRef
       });
-      if(!result.error){form.reset();proposalRef=null;}
+      if(result.error)return result;
+      const id=result.data;
+      if(destination!=='proposed'){
+        // Existing RPCs are idempotently resumed on retry if a later step fails.
+        // Keep the local source ref and form draft until ALL steps are confirmed.
+        const lookup=await client.from('gi_tasks').select('status,assigned_to').eq('id',id).maybeSingle();
+        if(lookup.error)return lookup;
+        if(!lookup.data)return {error:Error('Užduotis sukurta, bet jos būsenos patikrinti nepavyko. Atnaujinkite sąrašą.')};
+        let status=lookup.data.status;
+        if(status==='proposed'){
+          const published=await client.rpc('gi_task_action',{p_id:id,p_action:'publish',p_note:null});
+          if(published.error)return {error:Error('Užduotis sukurta, bet nepaskelbta: '+published.error.message+'. Galima bandyti dar kartą.')};
+          status='pool';
+        }
+        if(destination==='pool' && status!=='pool')
+          return {error:Error('Užduotis jau turi kitą būseną. Atnaujinkite sąrašą.')};
+        if(destination==='assigned' && !(status==='assigned' && lookup.data.assigned_to===assignee)){
+          if(status!=='pool')return {error:Error('Užduotis jau paskirta arba pakeista. Atnaujinkite sąrašą.')};
+          const assigned=await client.rpc('gi_assign_task',{p_id:id,p_volunteer:assignee});
+          if(assigned.error)return {error:Error('Užduotis sukurta fonde, bet nepavyko priskirti: '+assigned.error.message+'. Galite bandyti dar kartą.')};
+        }
+      }
+      form.reset();proposalRef=null;updateNewTaskDestination();
       return result;
-    },'Užduotis sukurta.');
+    },destination==='assigned'?'Užduotis sukurta ir paskirta savanoriui.'
+      :destination==='pool'?'Užduotis paskelbta bendrame fonde.'
+      :'Užduoties pasiūlymas išsaugotas.');
   });
   async function submitFeedback(form,origin,button){
     if(!currentUser||!approved()||mutationInFlight)return;
