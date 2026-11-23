@@ -50,7 +50,7 @@ test('acknowledged writes never become a false failure due to subsequent UI refr
   assert.match(app,/if\(result\?\.error\)throw result\.error/);
   assert.match(app,/if\(!refreshed\)\{/);
   assert.match(app,/Veiksmas išsaugotas serveryje, bet ekranas neatsinaujino/);
-  assert.match(sw,/v22-mobile-time-fast-refresh/);
+  assert.match(sw,/v23-feedback-mobile-navigation/);
   assert.doesNotMatch(app,/service_role|sb_secret_/);
 });
 
