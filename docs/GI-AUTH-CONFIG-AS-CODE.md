@@ -60,3 +60,11 @@ Jeigu automatinis paleidimas nepavyko arba buvo praleistas, atidarykite https://
 - https://supabase.com/docs/guides/auth/auth-email-templates
 - https://supabase.com/docs/guides/auth/redirect-urls
 - https://docs.github.com/en/actions/reference/security/secure-use
+
+## 2026-11-23: galutinis Cloudflare domenas – OAuth numatytasis grįžimo adresas
+- Incidentas: po prisijungimo iš `komanda.giriuinspekcija.lt` vartotojas atsidurdavo `netlify.app` svetainėje, nors `uri_allow_list` jau turėjo Cloudflare adresus.
+- Supabase Auth `site_url` yra atsarginis grįžimo adresas, jei prisijungimo maršrutas neperduoda / nepalaiko `redirectTo`. Įjungus Cloudflare domeną, jį nustatome į `https://komanda.giriuinspekcija.lt/pilot/`.
+- Visi tikslūs seno `Netlify` ir naujo `Cloudflare Pages` adresai lieka `uri_allow_list` (neblokuojame jau atidarytų sesijų / atsarginio talpinimo).
+- Jokių SQL, RLS, Google OAuth kliento rakto, pašto siuntėjo, teisių ar slaptažodžių pakeitimų.
+- Patikra po `GitHub Actions gi-auth-config.yml`: `Requested key changes: site_url`, tada `PASS ... verified by readback`.
+- Realus bandymas: naujame Safari privačiame lange atidaryti `https://komanda.giriuinspekcija.lt/pilot/`, jungtis su Google, patikrinti galutinį adresą. Vėliau patikrinti el. pašto patvirtinimą bei slaptažodžio atkūrimą. Jei vis dar nukreipia į `netlify.app`, pažymėti tikslų prisijungimo būdą ir kur pasikeitė adresas; dar vieno `site_url` keitimo nedaryti.

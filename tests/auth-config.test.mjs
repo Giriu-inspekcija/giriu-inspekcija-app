@@ -24,10 +24,10 @@ test('3 Lithuanian emails have correct confirmation tokens, no active html', () 
   }
 });
 
-test('old localhost default changes to live pilot and keeps preview and existing redirects', () => {
+test('old localhost fallback becomes GI Cloudflare and keeps preview, Netlify and existing redirects', () => {
   const current={site_url:'http://localhost:3000',uri_allow_list:'https://example.org/auth,https://app.giriuinspekcija.lt/'};
   const p=makePatch(current);
-  assert.equal(p.site_url,LIVE_URL);
+  assert.equal(p.site_url,CLOUDFLARE_URL);
   assert.ok(p.uri_allow_list.includes('https://example.org/auth'));
   assert.ok(p.uri_allow_list.includes('https://app.giriuinspekcija.lt/'));
   assert.ok(p.uri_allow_list.includes(PREVIEW_URL));
@@ -43,8 +43,14 @@ test('configured production site URL is preserved', () => {
   assert.deepEqual(p.uri_allow_list,[PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].join(','));
 });
 
+test('old Netlify Site URL now defaults to permanent GI domain without removing old logins',()=>{
+  const patch=makePatch({site_url:LIVE_URL,uri_allow_list:LIVE_URL});
+  assert.equal(patch.site_url,CLOUDFLARE_URL);
+  assert.ok(patch.uri_allow_list.split(',').includes(LIVE_URL));
+  assert.ok(patch.uri_allow_list.split(',').includes(CLOUDFLARE_URL));
+});
 test('second run is idempotent', () => {
-  const current={site_url:LIVE_URL,uri_allow_list:[PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].join(',')};
+  const current={site_url:CLOUDFLARE_URL,uri_allow_list:[PREVIEW_URL,LIVE_URL,CLOUDFLARE_URL,CLOUDFLARE_PAGES_URL].join(',')};
   const patch=makePatch(current);
   assert.deepEqual(diffKeys({...current,...patch},patch),[]);
   assert.deepEqual(verifyConfig({...current,...patch},patch),[]);
