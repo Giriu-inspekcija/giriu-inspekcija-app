@@ -131,12 +131,12 @@ class Storage:
         finally:
             part.unlink(missing_ok=True)
 
-    def upload(self, bucket, key, path):
+    def upload(self, bucket, key, path, isolated_restore=False):
         endpoint = "object/" + quote(bucket, safe="") + "/" + quote(key, safe="/")
         content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
         with path.open("rb") as stream:
             self.request("POST", endpoint, data=stream, headers={
-                "Content-Type": content_type, "x-upsert": "false"
+                "Content-Type": content_type, "x-upsert": "true" if isolated_restore else "false"
             })
 
     def ensure_private_bucket(self, metadata):
@@ -234,7 +234,10 @@ def restore(args):
         api.ensure_private_bucket(bucket)
     for item in meta["objects"]:
         path = root.joinpath("storage", item["bucket"], *safe_key(item["key"]))
-        api.upload(item["bucket"], item["key"], path)
+        # The SQL restore already re-created storage.objects metadata. Isolated
+        # target restore must put the missing object BYTES back, not reject the
+        # existing metadata row with a 409. The original project is forbidden.
+        api.upload(item["bucket"], item["key"], path, isolated_restore=True)
     print(f"Isolated target Storage restored: {len(meta['objects'])} objects")
 
 
