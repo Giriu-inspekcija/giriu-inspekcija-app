@@ -61,6 +61,25 @@ def exercise(user,password):
                 field=card.get_by_label('Užduoties terminas')
                 expect(field).to_have_value(date+'T09:05')
                 field.fill(date+'T18:45')
+                # Re-fetch with a focused date input, as happens after a mobile sync.
+                # The field, draft date and viewport must not jump or lose focus.
+                before=field.evaluate("""el => {
+                    el.focus({preventScroll:true});
+                    return {scroll:scrollY,top:el.getBoundingClientRect().top};
+                }""")
+                page.evaluate("""() => {
+                    window.__giOldTaskCard=document.querySelector('#taskList article.task');
+                    document.querySelector('#refresh').click();
+                }""")
+                page.wait_for_function(
+                    "() => window.__giOldTaskCard !== document.querySelector('#taskList article.task')",
+                    timeout=20000)
+                expect(field).to_have_value(date+'T18:45')
+                expect(field).to_be_focused()
+                after=field.evaluate(
+                    "el => ({scroll:scrollY,top:el.getBoundingClientRect().top})")
+                assert abs(after['top']-before['top'])<18, (
+                    'Focus/viewport jumped during refresh '+name+': '+str((before,after)))
                 deadline_requests=[]
                 page.on('request',lambda req: deadline_requests.append(1) if '/rpc/gi_change_task_due' in req.url else None)
                 save=card.get_by_role('button',name='Išsaugoti terminą')
