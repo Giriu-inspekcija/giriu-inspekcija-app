@@ -13,9 +13,10 @@ mode="--verify-only"
 [[ $# -lt 2 ]] || mode="$2"
 [[ "$mode" == "--verify-only" || "$mode" == "--restore-isolated" ]] || usage
 [[ -f "$archive" ]] || { echo "Backup archive not found" >&2; exit 2; }
+: "${GI_AGE_IDENTITY:?Set path to offline private age identity}"
 [[ -f "$GI_AGE_IDENTITY" ]] || { echo "Private recovery identity missing" >&2; exit 2; }
 command -v age >/dev/null
-command -v psql >/dev/null
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
