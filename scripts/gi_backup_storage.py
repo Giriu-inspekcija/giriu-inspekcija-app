@@ -142,7 +142,9 @@ class Storage:
     def ensure_private_bucket(self, metadata):
         bucket = safe_bucket(metadata["id"])
         try:
-            self.request("GET", "bucket/" + quote(bucket, safe=""))
+            existing = self.request("GET", "bucket/" + quote(bucket, safe="")).json()
+            if existing.get("public") is not False:
+                raise RuntimeError("Refusing to restore evidence into a public bucket")
         except RuntimeError as error:
             if "404" not in str(error):
                 raise
