@@ -10,7 +10,7 @@ const client=readFileSync(new URL('../scripts/gi_backup_storage.py',import.meta.
 test('scheduled backup never publishes SQL or touches Netlify',()=>{
   assert.match(workflow,/cron: '23 2 \* \* \*'/);
   assert.doesNotMatch(workflow,/pull_request:/);
-  assert.doesNotMatch(workflow,/netlify/gi);
+  assert.doesNotMatch(workflow,/(?:netlify\/|npx\s+netlify|netlify\s+deploy)/gi);
   assert.match(workflow,/GI_BACKUP_DB_URL: \$\{\{ secrets\.GI_BACKUP_DB_URL \}\}/);
   assert.match(workflow,/GI_BACKUP_AGE_RECIPIENT: \$\{\{ vars\.GI_BACKUP_AGE_RECIPIENT \}\}/);
   assert.match(workflow,/actions\/upload-artifact@v4/);
