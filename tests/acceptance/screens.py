@@ -119,7 +119,7 @@ def test_forms(page):
     import zipfile
     from xml.etree import ElementTree
     expect(page.locator('#documentsNav')).to_be_visible()
-    page.get_by_text('Užduotys iš ChatGPT arba pokalbio',exact=True).click()
+    page.get_by_text('Atsarginis rankinis užduočių importas',exact=True).click()
     page.locator('#batchJson').fill('Palyginti išvykos schemas – sutikrinti žemėlapį')
     page.locator('#batchPreview').click()
     expect(page.locator('#batchReview')).to_contain_text('Palyginti išvykos schemas')
