@@ -15,7 +15,7 @@ concurrency:
 jobs:
   isolated-pilot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
@@ -37,6 +37,7 @@ jobs:
           supabase start -x studio,vector,logflare,imgproxy,realtime,edge-runtime
       - name: Install browser test tools
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age
           command -v pdftotext || (sudo apt-get update -qq && sudo apt-get install -y poppler-utils)
           pip install requests==2.32.5 playwright==1.60.0
           python -m playwright install --with-deps chromium webkit
@@ -55,3 +56,11 @@ jobs:
           source "$RUNNER_TEMP/gi-backup-local.env"
           set +a
           bash tests/acceptance/backup_cli_smoke.sh "$DB_URL"
+      - name: Restore a real encrypted synthetic snapshot into a second isolated Supabase stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/gi-backup-local.env"
+          set +a
+          bash tests/acceptance/isolated_restore_smoke.sh "$DB_URL" "$API_URL" "$SERVICE_ROLE_KEY"

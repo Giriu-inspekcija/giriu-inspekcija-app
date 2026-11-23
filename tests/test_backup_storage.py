@@ -81,6 +81,8 @@ class BackupTests(unittest.TestCase):
             manifest = json.loads((path/"storage-manifest.json").read_text())
             self.assertEqual(manifest["object_count"], 2)
             self.assertEqual(manifest["total_bytes"],len(PHOTO)+len(DOC))
+            self.assertEqual(manifest["objects"][0]["content_type"],"image/png")
+            self.assertEqual(manifest["objects"][1]["content_type"],"application/pdf")
             self.assertEqual(manifest["objects"][0]["sha256"],
                              hashlib.sha256(PHOTO).hexdigest())
             self.assertEqual((path/"storage/photos/2026/wood.png").read_bytes(),PHOTO)

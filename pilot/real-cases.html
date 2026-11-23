@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#143d30">
+<title>GI · Ribotos prieigos bylos</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#233a30;background:#eff4ef}
+*{box-sizing:border-box}body{margin:0}button,input,textarea,select{font:inherit}button{cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}button:active{filter:brightness(.88)}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #78ba90;outline-offset:3px}
+[hidden]{display:none!important}.page{max-width:820px;margin:0 auto;min-height:100dvh;background:#f8faf8}
+header{padding:17px 18px;background:#163f32;color:white}.header-row,.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+header a{color:#f0faf2}main{padding:14px 14px 60px}.card{background:#fff;border:1px solid #dbe6df;border-radius:14px;padding:17px;margin:13px 0;box-shadow:0 3px 15px #173e2810}
+h1{font-size:22px;line-height:1.2;margin:10px 0}h2{font-size:18px;margin:3px 0 11px}h3{font-size:16px;margin:5px 0}
+p{margin:8px 0 12px}small,.muted{color:#64796b}.badge{background:#fff0d0;color:#805a13;padding:4px 8px;border-radius:10px;font-size:12px;font-weight:750}
+.alert{padding:12px;border-radius:10px;background:#fff3d9;color:#614f25;border:1px solid #ebd5a3;margin:12px 0}
+.error{background:#fce8e8;color:#8a2828;border-color:#efb9b9}#status{white-space:pre-wrap}
+button{border:0;background:#205942;color:#fff;padding:11px 15px;border-radius:10px;font-weight:650;min-height:44px}
+button.secondary{background:#edf5ee;color:#1f543b;border:1px solid #d2e2d5}
+label{display:block;margin:11px 0;font-size:14px;font-weight:650}
+input,textarea,select{width:100%;display:block;padding:11px;margin-top:5px;border:1px solid #c8d7cc;border-radius:10px;background:white;font-weight:400}
+textarea{min-height:100px;resize:vertical}input[type=file]{padding:12px}
+.stack{display:grid;gap:10px}.case{border:1px solid #dde8e1;border-radius:12px;background:white;padding:15px;text-align:left;width:100%;color:#263e30}
+.case p{color:#51685a;margin-bottom:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.case.active{border-color:#276a48;background:#f3faf5}.row{flex-wrap:wrap}.row button{flex:0 0 auto}
+form{margin:0}.actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.actions button{flex:1 1 140px}
+.history{padding-left:21px;margin:5px 0 16px}.history li{padding:6px 0;border-bottom:1px solid #e2eae3}
+.file-item{padding:9px 0;border-bottom:1px solid #e2eae3;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.file-item button{flex:0 0 auto}.file-item span{min-width:0;overflow-wrap:anywhere}
+dialog{width:min(95vw,680px);max-height:85dvh;overflow:auto;border:1px solid #bfcfc4;border-radius:16px;padding:18px;background:white}
+dialog::backdrop{background:#0f241eb5}
+@media(max-width:520px){header{padding:13px}main{padding:11px 11px 75px}.card{padding:14px}h1{font-size:20px}dialog{width:100vw;height:90dvh;max-height:90dvh;border-radius:16px 16px 0 0;margin:auto 0 0}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
+<script defer src="./real-cases.js"></script>
+</head>
+<body><div class="page">
+<header><div class="header-row"><strong>Girių inspekcija · Bylos</strong><a href="./">← Darbo vieta</a></div></header>
+<main>
+<h1>Atskira bylų aplinka</h1>
+<p class="alert"><strong>Ruošiamas ribotos prieigos modulis.</strong> Kol nepatvirtintas atkūrimas ir privatumo auditas, tikrų žmonių duomenų ar bylų čia nekelkite. Bandymams naudokite tik išgalvotus duomenis.</p>
+<p id="status" role="status" aria-live="polite">Tikrinama prieiga…</p>
+<div id="secured" hidden>
+  <div class="row"><h2>Bylų registras</h2><button id="refresh" class="secondary" type="button">Atnaujinti</button></div>
+  <section id="list" class="stack" aria-label="Bylų sąrašas"></section>
+  <section id="create" class="card" hidden>
+    <h2>Nauja byla</h2>
+    <form id="createForm">
+      <label>Išorinis bylos numeris (unikalus)<input name="external_ref" maxlength="120" minlength="5" required autocomplete="off"></label>
+      <label>Pavadinimas<input name="title" maxlength="180" minlength="5" required></label>
+      <label>Trumpas aprašymas<textarea name="summary" maxlength="6000" minlength="5" required></textarea></label>
+      <label>Jautrumas<select name="sensitivity"><option value="restricted">Ribota – tik koordinatoriams</option><option value="internal">Vidinė – galima priskirti savanoriui</option></select></label>
+      <button type="submit" id="createSubmit">Sukurti bylą</button>
+    </form>
+  </section>
+  <section id="detail" class="card" hidden aria-live="polite">
+    <div class="row"><h2 id="caseTitle"></h2><button id="closeDetail" class="secondary" type="button">Uždaryti</button></div>
+    <p id="caseMeta" class="muted"></p><p id="caseSummary"></p>
+    <h3>Veiksmų istorija</h3><ol id="history" class="history"></ol>
+    <section id="accessSection">
+      <h3>Prieigos savanoriams</h3><p class="muted">Tik individualiai patvirtintos teisės vidinei bylai. Ribotos bylos lieka neprieinamos savanoriams.</p>
+      <div id="grants"></div>
+      <form id="grantForm" hidden>
+        <label>Savanoris<select id="grantUser" required></select></label>
+        <label><input style="display:inline;width:auto" id="canUpload" type="checkbox"> Leisti įkelti bylos failus</label>
+        <button type="submit">Suteikti prieigą</button>
+      </form>
+    </section>
+    <h3>Privatūs priedai</h3>
+    <div id="files" aria-live="polite"></div>
+    <form id="uploadForm" hidden>
+      <label>Nuotraukos / PDF (ne daugiau kaip 10 vienu kartu; iki 10 MB vienam)
+      <input id="evidenceFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+      <p class="muted">Prieš įkeldami pašalinkite nereikalingus GPS/EXIF duomenis. Sistema kol kas automatiškai jų nešalina.</p>
+      <button type="submit">Įkelti priedus</button>
+    </form>
+  </section>
+</div>
+</main></div></body></html>
