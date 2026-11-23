@@ -164,6 +164,8 @@ def main():
     print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
     from workflows import case_and_document
     case_and_document(chief,coord,vol,other,uid)
+    from real_cases import exercise as exercise_real_case
+    exercise_real_case(chief_id,chief,coord,uid,vol)
     # The recovery link comes from the local mail sink, independent of the signup link.
     request('POST',AUTH+'/recover',None,{'email':email})
     recovery=confirm_local_email(email,'recovery')
