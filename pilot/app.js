@@ -157,6 +157,20 @@
     try{await navigator.clipboard.writeText(value);return true;}
     catch{await ask('Pažymėkite ir nukopijuokite tekstą.',{action:label,input:true,value});return false;}
   }
+  function showTaskToastLink(id){
+    // Visible only after a confirmed server mutation; no additional privileges.
+    if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))return;
+    const host=$('actionToast');
+    if(host.hidden||host.classList.contains('error'))return;
+    const url=new URL(location.pathname,location.origin);
+    url.searchParams.set('task',id);
+    const a=document.createElement('a');
+    a.href=url.href;a.dataset.thread='task';a.dataset.key=id;
+    a.textContent='Atverti užduotį';
+    host.append(document.createTextNode(' · '),a);
+    if(toastTimer)clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>{host.hidden=true;toastTimer=null;},11000);
+  }
   function notice(msg, error = false) {
     const el = $('notice');
     if(!msg) {el.hidden = true; return;}
@@ -768,9 +782,7 @@
         markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
           +safeButton+'</div>';
       }else{
-        if(task.status==='pool'&&!task.assigned_to){
-          markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button></div>';
-        }
+        // One-tap "Prisiimti sau" is displayed on the card face instead.
         const selectable=members.filter(m=>{
           const allowed=['volunteer','coordinator','admin'].includes(m.role)
             || (m.role==='candidate'&&task.candidate_safe);
@@ -855,12 +867,18 @@
   }
   function renderTasks(){
     const list=$('taskList');
+    const currentView=taskFilter==='pool'&&!ownerFilter&&!searchText&&dueFilter==='all'?'pool'
+      :taskFilter==='all'&&ownerFilter==='mine'&&!searchText&&dueFilter==='all'?'mine'
+      :taskFilter==='all'&&!ownerFilter&&!searchText&&dueFilter==='all'?'all':null;
+    $('taskQuickViews').querySelectorAll('[data-task-view]').forEach(button=>
+      button.setAttribute('aria-pressed',String(button.dataset.taskView===currentView)));
     const mine=tasks.filter(t=>t.assigned_to===currentUser?.id);
     const pool=tasks.filter(t=>t.status==='pool'&&!t.assigned_to).length;
     const active=mine.filter(t=>['assigned','accepted','in_progress','returned'].includes(t.status)).length;
     const submitted=staff()?tasks.filter(t=>t.status==='submitted').length
       :mine.filter(t=>t.status==='submitted').length;
-    $('taskSummary').innerHTML='<span><b>Mano aktyvios:</b> '+active+'</span>'
+    $('taskSummary').innerHTML='<span><b>Rodomų:</b> '+tasks.length+'</span>'
+      +'<span><b>Mano aktyvios:</b> '+active+'</span>'
       +'<span><b>Užduočių fonde:</b> '+pool+'</span>'
       +'<span><b>Rezultatų peržiūra:</b> '+submitted+'</span>';
     if(!tasks.length){
@@ -881,18 +899,25 @@
           +'<details data-ui-key="description-'+escapeHTML(t.id)+'"><summary>Rodyti visą aprašymą</summary>'
           +'<p class="task-description">'+escapeHTML(t.details)+'</p></details>'
         :'<p class="task-description">'+escapeHTML(t.details||'')+'</p>';
+      const compactDescription=staff()&&String(t.details||'').length>135
+        ?'<p class="task-description">'+escapeHTML(t.details.slice(0,125))+'…</p>'
+        :description;
+      const controls=buttonsFor(t)+timeEntry(t);
+      const collapsed=staff()&&t.assigned_to!==currentUser?.id;
       return '<article class="task" data-task="'+escapeHTML(t.id)+'">'
         +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
           +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
-        +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+description+due
+        +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+compactDescription+due
         +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
         +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
         +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
-        +buttonsFor(t)+timeEntry(t)
+        +(staff()&&t.status==='pool'&&!t.assigned_to
+          ?'<div class="actions"><button type="button" data-step="claim" data-id="'+escapeHTML(t.id)+'">Prisiimti sau</button></div>':'')
+        +(collapsed?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Tvarkyti / priskirti</b></summary>'+controls+'</details>':controls)
         +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
         +'<summary>Veiksmų istorija</summary>'
         +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Bandyti dar kartą / atnaujinti</button>'
@@ -1359,6 +1384,19 @@
       p_id:form.dataset.feedbackCreate,p_action:'task',p_title:title,p_note:note,p_priority:'normal'
     }),'Sukurta užduotis koordinatoriaus peržiūrai.');
   });
+  $('taskQuickViews').addEventListener('click',event=>{
+    const button=event.target.closest('[data-task-view]');
+    if(!button||!approved()||loading)return;
+    const view=button.dataset.taskView;
+    if(!['mine','pool','all'].includes(view))return;
+    taskFilter=view==='pool'?'pool':'all';
+    ownerFilter=view==='mine'?'mine':'';
+    searchText='';dueFilter='all';taskCursor=null;tasks=[];
+    $('taskSearchForm').reset();
+    $('taskStatusFilter').value=taskFilter;
+    $('taskOwnerFilter').value=ownerFilter;
+    refreshWorkspace();
+  });
   $('taskSearchForm').addEventListener('submit',event=>{
     event.preventDefault();
     if(!approved()||loading)return;
@@ -1471,7 +1509,7 @@
       form.reset();
       if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
       feedbackOrigin='feedback';
-      toast('Pastaba išsiųsta GI koordinatoriams.');
+      toast('Pastaba išsiųsta.');
       // Refresh only the currently visible feedback view; do not jump away
       // from the task or document the author was reviewing.
       if(activePanel==='feedback')await refreshWorkspace();
@@ -1776,7 +1814,8 @@
     const labels={claim:'Užduotis priskirta jums.',accept:'Užduotis priimta.',start:'Užduotis pradėta.',
       decline:'Užduotis grąžinta į bendrą fondą.',unassign:'Paskyrimas atšauktas.',
       publish:'Užduotis paskelbta fonde.',return:'Rezultatas grąžintas taisyti.'};
-    run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}),labels[action]||'Užduotis atnaujinta.');
+    run(()=>client.rpc('gi_task_action',{p_id:id,p_action:action,p_note:note}),labels[action]||'Užduotis atnaujinta.')
+      .then(ok=>{if(ok&&(action==='claim'||action==='accept'))showTaskToastLink(id);});
   });
   $('taskList').addEventListener('submit',event=>{
     const form=event.target;

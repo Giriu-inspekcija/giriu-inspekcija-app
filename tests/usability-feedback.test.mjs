@@ -29,7 +29,7 @@ test('feedback is available from every authenticated workspace section with sour
   assert.match(app,/feedbackOrigin=activePanel/);
   assert.match(app,/const message=origin\?'\['\+origin\+'\] '\+raw:raw/);
   assert.match(app,/gi_feedback'\)\.insert\(/);
-  assert.match(app,/Pastaba išsiųsta GI koordinatoriams/);
+  assert.match(app,/Pastaba išsiųsta\./);
 });
 
 test('refresh preserves expanded task controls, unsaved drafts and scroll position',()=>{
@@ -73,5 +73,35 @@ test('new UI controls have matching DOM elements and IDs are unique',()=>{
   assert.equal(ids.size,found.length);
   const references=[...app.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(x=>x[1]);
   for(const ref of new Set(references))assert.ok(ids.has(ref),'Missing DOM ID '+ref);
-  assert.match(sw,/v22-mobile-time-fast-refresh/);
+  assert.match(sw,/v23-feedback-mobile-navigation/);
+});
+
+test('task view shortcuts use the existing protected API filters',()=>{
+  for(const view of ['mine','pool','all']) assert.match(html,new RegExp('data-task-view="'+view+'"'));
+  assert.match(html,/class="task-quick-views"/);
+  assert.match(app,/\$\('taskQuickViews'\)\.addEventListener\('click'/);
+  assert.match(app,/taskFilter=view==='pool'\?'pool':'all'/);
+  assert.match(app,/ownerFilter=view==='mine'\?'mine':''/);
+  assert.match(app,/gi_search_tasks_page/);
+});
+test('coordinator sees a compact task preview with a direct self-claim and preserved task links',()=>{
+  assert.match(app,/compactDescription=staff\(\)/);
+  assert.match(app,/thread\.link\('task',t\.id,t\.title\)/);
+  assert.match(app,/data-ui-key="manage-/);
+  assert.match(app,/Prisiimti sau/);
+  assert.match(app,/const controls=buttonsFor\(t\)\+timeEntry\(t\)/);
+});
+test('claim and accept offer a brief direct link to the newly assigned task',()=>{
+  assert.match(app,/function showTaskToastLink\(id\)/);
+  assert.match(app,/a\.dataset\.thread='task'/);
+  assert.match(app,/showTaskToastLink\(id\)/);
+  assert.match(app,/action==='claim'\|\|action==='accept'/);
+});
+test('incident editor keeps two clear actions and retains hidden new-draft utility',()=>{
+  assert.match(html,/value="draft"[^>]*>Išsaugoti juodraštį/);
+  assert.match(html,/value="submit"[^>]*>Pateikti pranešimą/);
+  assert.match(html,/class="incident-advanced"/);
+  assert.match(html,/id="incidentClear"/);
+  assert.match(html,/Tik demonstracija/);
+  assert.match(app,/\$\('incidentClear'\)\.addEventListener/);
 });

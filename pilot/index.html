@@ -158,6 +158,11 @@ button[aria-busy="true"]{opacity:.72;cursor:progress}
 .candidate-options summary{font-size:12px;color:#365d44}
 .candidate-options button{margin-top:9px;background:#eff4ee;color:#205742;border:1px solid #c9dacd;font-weight:600}
 @media(max-width:540px){.time-header{flex-wrap:wrap}.time-header h2{flex:1}.time-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.time-presets .small{grid-column:1/-1}.time-presets button{padding:8px 3px}}
+.task-quick-views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 11px}
+.task-quick-views button{min-height:46px;min-width:0;padding:8px 5px;border:1px solid #d0dfd3;border-radius:10px;background:#eef4ee;color:#28553b;font-size:13px;font-weight:700}
+.task-quick-views button[aria-pressed="true"]{background:#205742;color:white;border-color:#205742}
+.action-toast a{color:#fff;text-decoration:underline;text-underline-offset:3px;display:inline-block;padding:5px 1px;font-weight:800}
+.incident-advanced{margin-top:5px;padding-top:6px}
 /* iOS Safari quick-feedback dialog must remain in viewport, not page scroll. */
 #quickFeedbackDialog{overscroll-behavior:contain}
 @media(max-width:720px){
@@ -279,6 +284,11 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
   <section id="tasksSection" class="workspace-section">
   <div class="row"><h2 id="tasksHeading">Mano užduotys</h2><button id="refresh" class="outline">Atnaujinti</button></div>
   <div id="dueReminder" class="alert" hidden><b>Mano terminai</b><div class="actions" id="dueReminderButtons"></div></div>
+  <div id="taskQuickViews" class="task-quick-views" role="group" aria-label="Rodyti užduotis">
+    <button type="button" data-task-view="mine" aria-pressed="false">Mano darbai</button>
+    <button type="button" data-task-view="pool" aria-pressed="false">Laisvos</button>
+    <button type="button" data-task-view="all" aria-pressed="true">Visos</button>
+  </div>
   <div id="taskSummary" class="task-summary small" aria-live="polite"></div>
   <details class="card" id="taskFilterPanel" hidden><summary>Paieška ir filtrai</summary>
    <form id="taskSearchForm"><label class="field">Ieškoti užduoties<input id="taskSearch" type="search" maxlength="100" placeholder="Pavadinimas ar aprašymas"></label><div class="grid"><label class="field">Būsena<select id="taskStatusFilter">
@@ -375,9 +385,13 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       <p class="small">Iki 10 JPG, PNG arba WebP vaizdų, po 5 MB. Naudokite tik išgalvotą vietą ir demonstracinius vaizdus.</p>
       <div class="actions">
         <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
-        <button type="submit" name="action" value="submit">Pateikti bandomąjį pranešimą</button>
-        <button type="button" class="outline" id="incidentClear">Naujas juodraštis</button>
-      </div><p role="status" id="incidentProgress" class="small"></p>
+        <button type="submit" name="action" value="submit">Pateikti pranešimą</button>
+      </div>
+      <p class="small">Išsaugotus juodraščius rasite žemiau, pranešimų sąraše.</p>
+      <details class="incident-advanced"><summary>Kitas juodraštis</summary>
+        <button type="button" class="outline" id="incidentClear">Išvalyti formą ir pradėti naują</button>
+      </details>
+      <p role="status" id="incidentProgress" class="small"></p>
     </form>
     </details><h3>Pranešimų sąrašas</h3><div id="incidentsList"></div>
   </section>
