@@ -75,6 +75,18 @@ jobs:
           echo "### GI encrypted backup" >> "$GITHUB_STEP_SUMMARY"
           echo "Database SQL, auth records, Storage metadata and object bytes exported and encrypted." >> "$GITHUB_STEP_SUMMARY"
           echo "Encrypted GitHub artifact retained for 30 days; Google Drive mirror requires configured rclone credentials." >> "$GITHUB_STEP_SUMMARY"
+      - name: Resolve stale backup failure alert after a verified successful backup
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          current="$(gh issue list --state open --search 'GI BACKUP FAILED in:title' --json number --jq '.[0].number' 2>/dev/null)"
+          if [[ -n "$current" ]]; then
+            gh issue comment "$current" --body "Šifruota duomenų bazės ir Storage kopija šiame vykdyme sėkmingai įkelta į atskirą saugyklą. Tai NĖRA pilno atkūrimo testo įrodymas: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            gh issue close "$current"
+          fi
       - name: Create or update one visible failure issue
         if: failure()
         shell: bash
