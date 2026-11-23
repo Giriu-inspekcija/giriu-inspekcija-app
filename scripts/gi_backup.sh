@@ -65,7 +65,13 @@ Storage objects: storage-export/ (with SHA256 metadata).
 Restore only into an isolated approved target; never overwrite live GI.
 EOF
 tar -C "$tmp" -czf "$tmp/snapshot.tar.gz" snapshot
-age -r "$GI_BACKUP_AGE_RECIPIENT" -o "$out" "$tmp/snapshot.tar.gz"
+# Add an ephemeral second recipient to prove decryption works on the real snapshot.
+# The test identity never leaves this runner and is deleted with the temp files.
+age-keygen -o "$tmp/test-identity.txt" >/dev/null 2>&1
+test_recipient="$(age-keygen -y "$tmp/test-identity.txt")"
+age -r "$GI_BACKUP_AGE_RECIPIENT" -r "$test_recipient" -o "$out" "$tmp/snapshot.tar.gz"
+age -d -i "$tmp/test-identity.txt" -o "$tmp/roundtrip.tar.gz" "$out"
+cmp -s "$tmp/snapshot.tar.gz" "$tmp/roundtrip.tar.gz"
 test -s "$out"
 head -c 32 "$out" | grep -aq 'age-encryption.org'
 echo "Encrypted snapshot ready: $(basename "$out") ($(stat -c%s "$out") bytes)"
