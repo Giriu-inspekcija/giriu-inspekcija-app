@@ -57,6 +57,12 @@ def exercise(user,password):
                 form.locator('button').click()
                 card=page.locator('article.task').filter(has=page.get_by_role('heading',name=title,exact=True))
                 expect(card).to_contain_text('09:05')
+                # The coordinator's secondary actions are intentionally collapsed on mobile.
+                management=card.locator('details[data-ui-key^="manage-"]')
+                if management.count() and not management.is_visible():
+                    raise AssertionError('Task management toggle must be visible')
+                if management.count() and not management.evaluate('(element) => element.open'):
+                    management.locator(':scope > summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 field=card.get_by_label('Užduoties terminas')
                 expect(field).to_have_value(date+'T09:05')
@@ -94,6 +100,12 @@ def exercise(user,password):
                 sign_in()
                 card=page.locator('article.task').filter(has=page.get_by_role('heading',name=title,exact=True))
                 expect(card).to_contain_text('18:45')
+                # The coordinator's secondary actions are intentionally collapsed on mobile.
+                management=card.locator('details[data-ui-key^="manage-"]')
+                if management.count() and not management.is_visible():
+                    raise AssertionError('Task management toggle must be visible')
+                if management.count() and not management.evaluate('(element) => element.open'):
+                    management.locator(':scope > summary').click()
                 card.get_by_text('Keisti terminą',exact=True).click()
                 due_button=card.get_by_role('button',name='Išsaugoti terminą')
                 field=card.get_by_label('Užduoties terminas')
@@ -155,7 +167,7 @@ def test_forms(page):
     page.locator('#incidentCoords').fill('0.0, 0.0')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
-    send=page.get_by_role('button',name='Pateikti bandomąjį pranešimą')
+    send=page.get_by_role('button',name='Pateikti pranešimą')
     assert send.evaluate("(b)=>{b.click();return b.disabled && b.getAttribute('aria-busy')==='true' && b.textContent==='Pateikiama…'}")
     incident=page.locator('#incidentsList article').filter(has_text='Naršyklės demonstracinė patikra')
     expect(incident).to_contain_text('Pateikta')
