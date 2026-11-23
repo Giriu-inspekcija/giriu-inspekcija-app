@@ -50,8 +50,7 @@ for item in roles.sql schema.sql data.sql migration-schema.sql migration-data.sq
     echo "::error::Empty or missing backup component" >&2; exit 1
   fi
 done
-python3 scripts/gi_backup_storage.py backup --directory "$tmp/snapshot/storage-export" \
-  --url "$GI_SUPABASE_URL" --key "$GI_SUPABASE_SERVICE_ROLE_KEY"
+python3 scripts/gi_backup_storage.py backup --directory "$tmp/snapshot/storage-export"
 
 (
   cd "$tmp/snapshot"
