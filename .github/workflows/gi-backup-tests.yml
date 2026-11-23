@@ -1,0 +1,58 @@
+name: GI backup and restore synthetic verification
+on:
+  pull_request:
+    paths:
+      - 'scripts/gi_backup*'
+      - 'scripts/gi_restore.sh'
+      - 'tests/test_backup_storage.py'
+      - '.github/workflows/gi-backup-tests.yml'
+      - 'docs/GI-BACKUP-RESTORE.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install minimal backup test dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age
+          python -m pip install requests==2.32.5
+      - name: Validate shell scripts and Storage API behavior
+        run: |
+          bash -n scripts/gi_backup.sh scripts/gi_restore.sh
+          python -m unittest discover -s tests -p 'test_backup_storage.py' -v
+      - name: Encrypt, decrypt, verify and reject unapproved restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          temp="$(mktemp -d)"
+          trap 'rm -rf "$temp"' EXIT
+          mkdir -p "$temp/snapshot/storage-export"
+          for item in roles.sql schema.sql data.sql migration-schema.sql migration-data.sql; do
+            printf 'SELECT 1;\n' > "$temp/snapshot/$item"
+          done
+          printf '%s\n' '{"format_version":1,"source_url":"https://source.example","buckets":[],"objects":[],"object_count":0,"total_bytes":0}' > "$temp/snapshot/storage-export/storage-manifest.json"
+          (
+            cd "$temp/snapshot"
+            sha256sum roles.sql schema.sql data.sql migration-schema.sql migration-data.sql storage-export/storage-manifest.json > CHECKSUMS.sha256
+          )
+          age-keygen -o "$temp/identity.txt" >/dev/null
+          recipient="$(age-keygen -y "$temp/identity.txt")"
+          tar -C "$temp" -czf "$temp/snapshot.tar.gz" snapshot
+          age -r "$recipient" -o "$temp/snapshot.tar.gz.age" "$temp/snapshot.tar.gz"
+          GI_AGE_IDENTITY="$temp/identity.txt" bash scripts/gi_restore.sh "$temp/snapshot.tar.gz.age" --verify-only
+          if GI_AGE_IDENTITY="$temp/identity.txt" GI_RESTORE_CONFIRM=not-authorised bash scripts/gi_restore.sh "$temp/snapshot.tar.gz.age" --restore-isolated; then
+            echo "::error::Unapproved restore unexpectedly succeeded"; exit 1
+          fi
+          printf 'X' >> "$temp/snapshot.tar.gz.age"
+          if GI_AGE_IDENTITY="$temp/identity.txt" bash scripts/gi_restore.sh "$temp/snapshot.tar.gz.age" --verify-only; then
+            echo "::error::Tampered encrypted artifact unexpectedly verified"; exit 1
+          fi
+          echo "PASS: synthetic backup encryption, decryption, file hashes and isolation guard"
