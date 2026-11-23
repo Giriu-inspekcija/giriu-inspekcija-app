@@ -1,0 +1,15 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/pilot/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, must-revalidate
+
+/pilot/index.html
+  Cache-Control: no-cache, must-revalidate

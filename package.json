@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "Girių inspekcija – synthetic PWA pilot (no real GI cases)",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:pages": "node scripts/build-pages.mjs"
   },
   "engines": {
     "node": ">=20"
