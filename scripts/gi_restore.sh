@@ -67,11 +67,20 @@ url = urlparse(os.environ["GI_RESTORE_DB_URL"])
 api = urlparse(os.environ["GI_RESTORE_SUPABASE_URL"])
 if url.scheme not in ("postgresql", "postgres") or not url.hostname:
     raise SystemExit("Invalid restore database URI")
-if api.scheme != "https" or not api.hostname or not api.hostname.endswith(".supabase.co"):
-    raise SystemExit("Invalid isolated Supabase Storage URI")
-ref = api.hostname.split(".")[0]
-if ref not in ((url.hostname or "") + " " + (url.username or "")):
-    raise SystemExit("Storage target and database target are not the same project")
+# Local CI may restore into a SECOND disposable, loopback-only Supabase
+# instance. This exception is never valid for remote HTTP endpoints.
+local = (os.environ.get("GI_RESTORE_ALLOW_LOOPBACK") == "YES"
+         and api.scheme == "http"
+         and api.hostname in ("127.0.0.1", "localhost")
+         and url.hostname in ("127.0.0.1", "localhost"))
+remote = (api.scheme == "https" and api.hostname
+          and api.hostname.endswith(".supabase.co"))
+if not (local or remote):
+    raise SystemExit("Restore target must be a verified Supabase project or explicitly local CI")
+if remote:
+    ref = api.hostname.split(".")[0]
+    if ref not in ((url.hostname or "") + " " + (url.username or "")):
+        raise SystemExit("Storage target and database target are not the same project")
 PY
 # A fresh Supabase project must be prepared first (extensions, webhooks).
 # Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
