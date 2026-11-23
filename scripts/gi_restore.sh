@@ -34,7 +34,7 @@ for raw in sys.stdin:
 tar -C "$tmp" --no-same-owner --no-same-permissions -xzf "$tmp/snapshot.tar.gz"
 cd "$tmp/snapshot"
 sha256sum --quiet --check CHECKSUMS.sha256
-python3 "$GITHUB_WORKSPACE/scripts/gi_backup_storage.py" verify --directory storage-export
+python3 "$SCRIPT_DIR/gi_backup_storage.py" verify --directory storage-export
 for file in roles.sql schema.sql data.sql migration-schema.sql migration-data.sql; do
   test -s "$file"
 done
