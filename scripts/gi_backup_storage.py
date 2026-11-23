@@ -78,7 +78,16 @@ class Storage:
                               timeout=(10, 90), allow_redirects=False, **kwargs)
         if not 200 <= r.status_code < 300:
             # Never echo API errors: they may contain confidential object keys.
-            raise RuntimeError("Storage API " + method + " returned " + str(r.status_code))
+            # A bounded machine-readable error code is safe for CI diagnosis;
+            # never print provider messages, which may contain private object names.
+            try:
+                payload = r.json()
+                code = payload.get("code") or payload.get("errorCode") or payload.get("error") or ""
+            except (ValueError, AttributeError):
+                code = ""
+            code = re.sub(r"[^A-Za-z0-9_-]", "", str(code))[:40]
+            raise RuntimeError("Storage API " + method + " returned " + str(r.status_code)
+                               + ((" [" + code + "]") if code else ""))
         return r
 
     def buckets(self):
