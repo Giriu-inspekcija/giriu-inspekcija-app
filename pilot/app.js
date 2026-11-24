@@ -534,10 +534,13 @@
   const clockDuration=minutes=>Math.floor(minutes/60)+' val. '+(minutes%60)+' min.';
   function renderManualTimeTaskOptions(){
     const select=$('manualTimeTask'),old=select.value;
+    const term=$('manualTimeTaskSearch').value.trim().toLocaleLowerCase('lt-LT');
+    const matching=timeOwnTasks.filter(t=>!term||String(t.title||'').toLocaleLowerCase('lt-LT').includes(term)||t.id===old);
     select.innerHTML='<option value="">Kita savanorystės veikla (be užduoties)</option>'
-      +timeOwnTasks.map(t=>'<option value="'+escapeHTML(t.id)+'">'
+      +matching.map(t=>'<option value="'+escapeHTML(t.id)+'">'
         +escapeHTML(t.title)+' ('+escapeHTML(statusNames[t.status]||t.status)+')</option>').join('');
-    if(timeOwnTasks.some(t=>t.id===old))select.value=old;
+    if(matching.some(t=>t.id===old))select.value=old;
+    $('manualTimeTaskHint').textContent=term?(matching.length?'Rasta užduočių: '+matching.length:'Nerasta. Pakeiskite paiešką.'):('Naujausios užduotys: '+timeOwnTasks.length+' (iki 25).');
     updateManualActivityMode();
   }
   function updateManualActivityMode(){
@@ -547,6 +550,7 @@
     if(!independent)$('manualTimeActivity').value='';
   }
   $('manualTimeTask').addEventListener('change',updateManualActivityMode);
+  $('manualTimeTaskSearch').addEventListener('input',renderManualTimeTaskOptions);
   function updateTimePresetButtons(){
     const total=Number($('manualTimeHours').value)*60+Number($('manualTimeMinutes').value);
     document.querySelectorAll('[data-time-preset]').forEach(button=>
@@ -768,11 +772,11 @@
     renderFeedback();
   });
 
-  function buttonsFor(task){
+  function buttonsFor(task,{management=true,personal=true}={}){
     const id=escapeHTML(task.id);
     let markup='';
     const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
-    if(staffEditable){
+    if(staffEditable&&management){
       const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
         ?'<details class="candidate-options" data-ui-key="candidate-'+id+'"><summary>Kandidato prieiga (bandomoji)</summary>'
           +'<button class="outline" type="button" data-candidate-task="'+id+'">'
@@ -795,11 +799,11 @@
             +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
           +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div>'
           +'</details>'
-          +(task.status==='assigned'?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
+          +(task.status==='assigned'&&task.assigned_to!==currentUser?.id?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
           +safeButton;
       }
     }
-    if(staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
+    if(management&&staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
       markup+='<details data-ui-key="due-'+id+'"><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
         +'<label class="field">Data ir laikas Vilniuje<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
         +(task.due_at?' value="'+window.giDeadlines.inputValue(task.due_at)+'"':'')+'></label>'
@@ -807,11 +811,11 @@
         +(task.due_at?'<button class="outline" type="button" data-clear-due="'+id+'">Pašalinti terminą</button>':'')
         +'</div></details>';
     }
-    if(!staff() && !task.assigned_to && task.status==='pool' &&
+    if(personal&&!staff() && !task.assigned_to && task.status==='pool' &&
       (profile?.role!=='candidate'||task.candidate_safe)){
       markup+='<div class="actions"><button type="button" data-step="claim" data-id="'+id+'">Pasiimti užduotį</button></div>';
     }
-    if(task.assigned_to===currentUser?.id){
+    if(personal&&task.assigned_to===currentUser?.id){
       if(task.status==='assigned')markup+='<div class="actions">'
         +'<button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button>'
         +'<button type="button" class="outline" data-step="decline" data-id="'+id+'">Atsisakyti užduoties</button></div>';
@@ -821,14 +825,14 @@
         +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
-    if(staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
+    if(personal&&staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
       markup+='<p class="small">Galite kartu patvirtinti jums leidžiamus laiko įrašus arba atskirai peržiūrėti valandas.</p>'
         +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
         +'Patvirtinti rezultatą ir laiką</button>'
         +'<button type="button" class="outline" data-step="approve" data-id="'+id+'">Patvirtinti tik rezultatą</button>'
         +'<button type="button" class="outline" data-step="return" data-id="'+id+'">Grąžinti taisyti</button></div>';
     }
-    if(staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
+    if(personal&&staff()&&task.status==='submitted'&&task.assigned_to===currentUser?.id)
       markup+='<p class="small">Jūsų rezultatą turi patvirtinti kitas koordinatorius.</p>';
     return markup;
   }
@@ -899,16 +903,17 @@
           +'<details data-ui-key="description-'+escapeHTML(t.id)+'"><summary>Rodyti visą aprašymą</summary>'
           +'<p class="task-description">'+escapeHTML(t.details)+'</p></details>'
         :'<p class="task-description">'+escapeHTML(t.details||'')+'</p>';
-      const compactDescription=staff()&&String(t.details||'').length>135
+      const compactDescription=String(t.details||'').length>135
         ?'<p class="task-description">'+escapeHTML(t.details.slice(0,125))+'…</p>'
         :description;
-      const controls=buttonsFor(t)+timeEntry(t);
-      const collapsed=staff()&&t.assigned_to!==currentUser?.id;
+      const controls=buttonsFor(t,{management:false})+timeEntry(t);
+      const management=staff()?buttonsFor(t,{personal:false}):'';
+      const created=t.created_at?'<p class="task-created small">Sukurta: '+escapeHTML(window.giDeadlines.display(t.created_at))+'</p>':'';
       return '<article class="task" data-task="'+escapeHTML(t.id)+'">'
         +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
           +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
-        +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+compactDescription+due
+        +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+created+compactDescription+due
         +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
         +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
         +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
@@ -917,7 +922,8 @@
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
         +(staff()&&t.status==='pool'&&!t.assigned_to
           ?'<div class="actions"><button type="button" data-step="claim" data-id="'+escapeHTML(t.id)+'">Prisiimti sau</button></div>':'')
-        +(collapsed?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Tvarkyti / priskirti</b></summary>'+controls+'</details>':controls)
+        + (controls?'<div class="task-primary-actions">'+controls+'</div>':'')
+        +(management?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Priskirti / keisti nustatymus</b></summary>'+management+'</details>':'')
         +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
         +'<summary>Veiksmų istorija</summary>'
         +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Bandyti dar kartą / atnaujinti</button>'
@@ -1509,7 +1515,7 @@
       form.reset();
       if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
       feedbackOrigin='feedback';
-      toast('Pastaba išsiųsta.');
+      toast('Pastaba išsiųsta. Ačiū, kad padedate tobulinti programėlę!');
       // Refresh only the currently visible feedback view; do not jump away
       // from the task or document the author was reviewing.
       if(activePanel==='feedback')await refreshWorkspace();
@@ -1754,6 +1760,7 @@
       const task=tasks.find(t=>t.id===id);
       if(task && task.assigned_to===currentUser?.id){
         const select=$('manualTimeTask');
+        $('manualTimeTaskSearch').value='';renderManualTimeTaskOptions();
         if(![...select.options].some(o=>o.value===id)){
           const extra=document.createElement('option');extra.value=id;extra.textContent=task.title;
           select.add(extra);
@@ -1879,6 +1886,7 @@
     if(ok){
       timeRequest=null;
       $('manualTimeForm').reset();
+      renderManualTimeTaskOptions();
       $('manualTimeDate').value=$('manualTimeDate').max;
       updateManualActivityMode();
       updateTimePresetButtons();

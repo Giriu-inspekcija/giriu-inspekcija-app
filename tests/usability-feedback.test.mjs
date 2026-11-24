@@ -73,7 +73,7 @@ test('new UI controls have matching DOM elements and IDs are unique',()=>{
   assert.equal(ids.size,found.length);
   const references=[...app.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(x=>x[1]);
   for(const ref of new Set(references))assert.ok(ids.has(ref),'Missing DOM ID '+ref);
-  assert.match(sw,/v23-feedback-mobile-navigation/);
+  assert.match(sw,/v24-task-clarity/);
 });
 
 test('task view shortcuts use the existing protected API filters',()=>{
@@ -85,11 +85,11 @@ test('task view shortcuts use the existing protected API filters',()=>{
   assert.match(app,/gi_search_tasks_page/);
 });
 test('coordinator sees a compact task preview with a direct self-claim and preserved task links',()=>{
-  assert.match(app,/compactDescription=staff\(\)/);
+  assert.match(app,/compactDescription=String\(t.details/);
   assert.match(app,/thread\.link\('task',t\.id,t\.title\)/);
   assert.match(app,/data-ui-key="manage-/);
   assert.match(app,/Prisiimti sau/);
-  assert.match(app,/const controls=buttonsFor\(t\)\+timeEntry\(t\)/);
+  assert.match(app,/const controls=buttonsFor\(t,\{management:false\}\)\+timeEntry\(t\)/);
 });
 test('claim and accept offer a brief direct link to the newly assigned task',()=>{
   assert.match(app,/function showTaskToastLink\(id\)/);
