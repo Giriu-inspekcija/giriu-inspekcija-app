@@ -274,7 +274,7 @@ def test_forms(page):
     assert '?incident=' in page.url
     thread.get_by_role('button',name='Uždaryti').click()
     page.locator('#documentsNav').click()
-    page.get_by_text('Sukurti juodraštį',exact=True).click()
+    page.locator('#documentsSection summary').filter(has_text='Sukurti juodraštį').click()
     form=page.locator('#documentCreate')
     form.locator('[name=title]').fill('Naršyklės pažyma')
     form.locator('[name=task]').select_option(label='Naršyklės atvejo užduotis')
