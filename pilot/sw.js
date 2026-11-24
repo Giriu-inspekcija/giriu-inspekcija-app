@@ -1,6 +1,6 @@
 // Cache only public PWA shell. NEVER cache Supabase requests, user data or auth tokens.
-const CACHE='gi-pilot-shell-20261123-v26-compact-cards';
-const ASSETS=['./','./index.html','./app.js','./team-thread.js','./deadlines.js','./document-export.js','./vendor/fflate-0.8.2.js','./manifest.webmanifest','../logo.png','../icon-192.png','../icon-512.png','../icon-192-maskable.png','../icon-512-maskable.png','../apple-touch-icon.png','../favicon-64.png'];
+const CACHE='gi-pilot-shell-20261123-v27-location-map';
+const ASSETS=['./','./index.html','./app.js','./team-thread.js','./incident-location.js','./deadlines.js','./document-export.js','./vendor/fflate-0.8.2.js','./manifest.webmanifest','../logo.png','../icon-192.png','../icon-512.png','../icon-192-maskable.png','../icon-512-maskable.png','../apple-touch-icon.png','../favicon-64.png'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
