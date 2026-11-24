@@ -248,10 +248,24 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #mapTiles{will-change:transform}
 #incidentMap{user-select:none;-webkit-user-select:none}
 #incidentMap img{user-select:none;-webkit-user-drag:none}
+#mapScene{position:absolute;inset:0;will-change:transform;pointer-events:none}
+#mapPin,.map-extra-pin{position:absolute;z-index:3;display:grid;place-items:center;width:23px;height:23px;transform:translate(-50%,-50%);background:#b73b32;color:white;border:2px solid white;border-radius:50%;font-size:12px;font-weight:700;text-shadow:none;pointer-events:none}
+#mapPin[hidden]{display:none}
+#mapExtraPins{position:absolute;inset:0;pointer-events:none}
+#mapGpsDot{z-index:4}
+.point-row{display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:12px}
+.point-row button{width:44px;min-height:44px;padding:4px;font-size:20px}
+#mapPointMode[aria-pressed=true]{background:#205742;color:white}
+#incidentPointCount:empty{display:none}
+.map-top{justify-content:space-between}
+body.map-lock{overflow:hidden}
+#incidentMapPanel.map-fullscreen{position:fixed;inset:0;z-index:10000;background:#f9fbf8;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:4px;overflow:auto}
+#incidentMapPanel.map-fullscreen #incidentMap{flex:1 1 auto;height:auto;max-height:none;min-height:160px}
+#incidentMapPanel.map-fullscreen p{margin:2px 0}
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v29</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v30</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
 <main>
 <div class="pilot-info"><b>Ribotas duomenų režimas.</b> Nekelkite tikrų bylų ar jautrių duomenų. <a href="./privatumas.html">Plačiau</a></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
@@ -453,16 +467,16 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       <label class="field">Įvykio laikas <input type="datetime-local" id="incidentObserved" required></label>
       <fieldset class="location-panel"><legend>Įvykio vieta</legend>
         <div class="location-actions"><button type="button" id="incidentGps">◎ Nustatyti GPS</button><button type="button" class="outline" id="incidentMapOpen">Žemėlapis</button></div>
-        <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p>
+        <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p><p id="incidentPointCount" class="small" aria-live="polite"></p>
         <div id="incidentMapPanel" hidden>
-          <p class="small">Mėlyna – jūs. Raudona – įvykis. Paspauskite vietą, jei reikia patikslinti.</p>
-          <div class="map-controls"><button type="button" class="outline" id="mapZoomOut" aria-label="Atitolinti">−</button><button type="button" class="outline" id="mapZoomIn" aria-label="Priartinti">+</button><button type="button" class="outline" id="mapCenter" aria-label="Pasirinkti žemėlapio centrą">Pasirinkti centrą</button><button type="button" class="outline" id="mapMyLocation">◎ Mano vieta</button></div>
-          <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, Enter pasirinkite centrą."><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">●</div><span class="map-cross" aria-hidden="true">+</span></div>
+          <div class="map-controls map-top"><button type="button" class="outline" id="mapFullscreen" aria-pressed="false">⛶ Visas ekranas</button><button type="button" id="mapDone">Baigti</button></div><p class="small">Mėlyna – jūs. Raudona – įvykio taškai.</p>
+          <div class="map-controls"><button type="button" class="outline" id="mapZoomOut" aria-label="Atitolinti">−</button><button type="button" class="outline" id="mapZoomIn" aria-label="Priartinti">+</button><button type="button" class="outline" id="mapCenter" aria-label="Pasirinkti žemėlapio centrą">Pasirinkti centrą</button><button type="button" class="outline" id="mapMyLocation">◎ Mano vieta</button></div><div class="map-controls"><button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Keli taškai</button><button type="button" class="outline" id="mapAddGps">+ GPS taškas</button></div>
+          <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div></div><span class="map-cross" aria-hidden="true">+</span></div>
           <p class="small"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · viešas žemėlapio pagrindas</p>
-          <p id="incidentMapStatus" role="status" class="small"></p>
+          <p id="incidentMapStatus" role="status" class="small"></p><p class="small"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto – atverti Geoportal</a></p>
         </div>
         <details class="location-advanced"><summary>Koordinatės ir kitos parinktys</summary>
-          <label class="field">Koordinatės <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label>
+          <label class="field">Pirmo taško koordinatės <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label><div id="incidentPointList"></div>
           <button type="button" class="outline" id="incidentLocationClear">Išvalyti vietą</button>
         </details>
       </fieldset>

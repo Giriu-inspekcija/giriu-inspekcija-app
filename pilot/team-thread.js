@@ -113,6 +113,7 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         +'<p class="task-description">'+html(incident?row.description:row.details)+'</p>'
         +(incident&&row.observed_at?'<p>Stebėjimo laikas · '+html(when(row.observed_at))+'</p>':'')
         +(incident&&row.latitude!==null?'<p>Koordinatės · '+html(row.latitude)+', '+html(row.longitude)+'</p>':'')
+        +(incident&&row.extra_points?.length?'<ol>'+row.extra_points.map(p=>'<li>'+html(p[0])+', '+html(p[1])+'</li>').join('')+'</ol>':'')
         +(!incident&&row.due_at?'<p>Terminas · '+html(when(row.due_at))+'</p>':'')
         +(!incident&&row.result_text?'<p>Rezultatas · '+html(row.result_text)+'</p>':'')
         +(parent?'<p>'+threadLink('incident',parent.incident_id,'Atverti susietą atvejį')+'</p>':'')

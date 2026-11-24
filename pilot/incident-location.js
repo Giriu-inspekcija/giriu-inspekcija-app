@@ -4,7 +4,7 @@
 window.giIncidentLocation=function(){
   const el=id=>document.getElementById(id), map=el('incidentMap'), tiles=el('mapTiles'), pin=el('mapPin'),
     input=el('incidentCoords'), panel=el('incidentMapPanel'), gps=el('incidentGps'), gpsStatus=el('incidentGpsStatus'),
-    status=el('incidentMapStatus'),gpsDot=el('mapGpsDot'),gpsCircle=el('mapGpsCircle');
+    status=el('incidentMapStatus'),gpsDot=el('mapGpsDot'),gpsCircle=el('mapGpsCircle'),scene=el('mapScene'),extraLayer=el('mapExtraPins'),pointList=el('incidentPointList');
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const wrap=(n,m)=>((n%m)+m)%m;
   const maxLat=85.05112878;
@@ -20,12 +20,33 @@ window.giIncidentLocation=function(){
   let center=[55.2,24.0],zoom=8,selected=null,generation=0,drag=null;
   let best=null,watch=null,timer=null,searching=false;
   const tileNodes=new Map();
-  const movingLayers=[tiles,gpsDot,gpsCircle,pin];
-  function shift(dx=0,dy=0){
-    tiles.style.transform='translate3d('+dx+'px,'+dy+'px,0)';
-    for(const node of movingLayers.slice(1)){
-      node.style.translate=dx+'px '+dy+'px';
-    }
+  let extras=[],multi=false,gpsIndex=0,pinch=null,gestureConsumed=false;
+  const pointers=new Map();
+  function shift(dx=0,dy=0,scale=1,origin=null){
+    scene.style.transformOrigin=origin?origin[0]+'px '+origin[1]+'px':'50% 50%';
+    scene.style.transform='translate3d('+dx+'px,'+dy+'px,0) scale('+scale+')';
+  }
+  function allPoints(){return selected?[selected,...extras]:[];}
+  function updatePoints(){
+    const points=allPoints();
+    el('incidentPointCount').textContent=points.length?('Pažymėta: '+points.length+' iš 20'):'';
+    el('mapPointMode').setAttribute('aria-pressed',String(multi));
+    el('mapPointMode').textContent=multi?'✓ Keli taškai':'+ Keli taškai';
+    pointList.replaceChildren(...points.map((p,i)=>{
+      const row=document.createElement('div');row.className='point-row';
+      const label=document.createElement('span');label.textContent=(i+1)+'. '+format(p);
+      const b=document.createElement('button');b.type='button';b.className='outline';b.textContent='×';b.dataset.removePoint=String(i);b.setAttribute('aria-label','Pašalinti tašką '+(i+1));row.append(label,b);return row;
+    }));
+  }
+  function writePoint(p,index){
+    if(index===0){selected=p;input.value=format(p);}
+    else extras[index-1]=p;
+    updatePoints();
+  }
+  function chooseIndex(){
+    if(!multi||!selected)return 0;
+    if(allPoints().length>=20){status.textContent='Galima pažymėti iki 20 taškų.';return -1;}
+    return allPoints().length;
   }
   const format=p=>p.map(n=>Number(n).toFixed(6)).join(', ');
   function parse(raw){
@@ -61,29 +82,37 @@ window.giIncidentLocation=function(){
       const [px,py]=project(...p,zoom),dx=wrap(px-cx+world(zoom)/2,world(zoom))-world(zoom)/2;
       node.style.left=(w/2+dx)+'px';node.style.top=(h/2+py-cy)+'px';node.hidden=false;
     }
-    if(selected)position(pin,selected);else pin.hidden=true;
+    if(selected){position(pin,selected);pin.textContent='1';}else pin.hidden=true;
+    extraLayer.replaceChildren(...extras.map((p,i)=>{
+      const marker=document.createElement('span');marker.className='map-extra-pin';marker.textContent=String(i+2);
+      position(marker,p);return marker;
+    }));
     if(best){
       position(gpsDot,best.point);position(gpsCircle,best.point);
       const metresPerPixel=40075016.686*Math.cos(clamp(best.point[0],-maxLat,maxLat)*Math.PI/180)/world(zoom);
       const diameter=clamp(2*best.accuracy/metresPerPixel,10,100000);
       gpsCircle.style.width=gpsCircle.style.height=diameter+'px';
     }else{gpsDot.hidden=true;gpsCircle.hidden=true;}
-    el('mapZoomOut').disabled=zoom<=3;el('mapZoomIn').disabled=zoom>=17;
+    el('mapZoomOut').disabled=zoom<=3;el('mapZoomIn').disabled=zoom>=19;
   }
   function choose(p){
-    stop();selected=p;input.value=format(p);
+    const index=chooseIndex();if(index<0)return;
+    stop();writePoint(p,index);
     gpsStatus.textContent='Vieta pasirinkta žemėlapyje.';
-    status.textContent='Įvykiui pasirinkta: '+input.value;
+    status.textContent='Pasirinkta taškų: '+allPoints().length;
     render();
   }
-  function sync(){
+  function sync(savedExtras){
     selected=parse(input.value);
+    if(Array.isArray(savedExtras))extras=savedExtras.filter(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=90&&Math.abs(p[1])<=180).slice(0,19);
+    if(!selected)extras=[];
+    updatePoints();
     if(selected){center=[...selected];zoom=16;status.textContent='Įvykiui pasirinkta: '+format(selected);}
     else status.textContent='Įvykiui vieta dar nepasirinkta.';
     render();
   }
   function closeMap(){
-    panel.hidden=true;tiles.replaceChildren();tileNodes.clear();shift();drag=null;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
+    fullscreen(false);panel.hidden=true;tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
     el('incidentMapOpen').textContent='Žemėlapis';
   }
   function stop(){
@@ -95,7 +124,7 @@ window.giIncidentLocation=function(){
   function reset(){
     stop();best=null;
     gpsStatus.textContent='Vieta nepasirinkta.';
-    selected=null;center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
+    selected=null;extras=[];multi=false;updatePoints();center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
   }
   function showFix(){
     if(!best)return;
@@ -106,7 +135,8 @@ window.giIncidentLocation=function(){
   }
   gps.addEventListener('click',()=>{
     if(!navigator.geolocation){gpsStatus.textContent='GPS nepalaikomas. Galite naudoti žemėlapį arba rankines koordinates.';return;}
-    stop();best=null;const token=generation;searching=true;
+    const index=chooseIndex();if(index<0)return;
+    stop();best=null;gpsIndex=index;const token=generation;searching=true;
     gps.disabled=true;gps.textContent='Tikslinama…';
     gpsStatus.textContent='Ieškoma vietos. Jei prašoma, suteikite vietos leidimą.';
     function finish(message){
@@ -119,9 +149,9 @@ window.giIncidentLocation=function(){
       const {latitude,longitude,accuracy}=coords;
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||!Number.isFinite(accuracy)||accuracy<=0||Math.abs(latitude)>90||Math.abs(longitude)>180)return;
       if(!best||accuracy<best.accuracy){best={point:[latitude,longitude],accuracy};
-        selected=[...best.point];input.value=format(selected);showFix();
-        status.textContent='Pasirinkta: '+input.value;
-        if(!panel.hidden&&!drag){center=[...best.point];zoom=16;render();}}
+        writePoint([...best.point],gpsIndex);showFix();
+        status.textContent='Pasirinkta taškų: '+allPoints().length;
+        if(!panel.hidden&&!drag&&!pinch){center=[...best.point];zoom=16;render();}}
       if(best.accuracy<=15)finish('');
     };
     const fail=error=>{if(token!==generation)return;if(error.code===1||!best)finish(({1:'Vietos leidimas nesuteiktas. Patikrinkite tikslios vietos leidimą.',2:'GPS vieta nepasiekiama. Bandykite atviroje vietoje.',3:'GPS paieškos laikas baigėsi. Bandykite dar kartą.'}[error.code]||'Nepavyko nustatyti vietos.')+' Galima pasirinkti tašką ranka.');};
@@ -142,34 +172,81 @@ window.giIncidentLocation=function(){
     status.textContent=selected?'Įvykiui pasirinkta: '+format(selected):'Įvykiui vieta dar nepasirinkta.';
   });
   el('mapMyLocation').addEventListener('click',()=>{
-    if(best){stop();choose([...best.point]);showFix();openMapAt(best.point);}else gps.click();
+    if(best){if(!multi){stop();writePoint([...best.point],0);showFix();}openMapAt(best.point);}else gps.click();
   });
   input.addEventListener('change',()=>{stop();sync();gpsStatus.textContent=input.value?'Vieta pasirinkta ranka.':'Vieta nepasirinkta.';});
+  el('mapPointMode').addEventListener('click',()=>{multi=!multi;updatePoints();status.textContent=multi?'Palieskite žemėlapį arba pridėkite GPS tašką.':'Vieno taško režimas: keičiamas pirmas taškas.';});
+  el('mapAddGps').addEventListener('click',()=>{multi=true;updatePoints();gps.click();});
+  pointList.addEventListener('click',e=>{
+    const b=e.target.closest('[data-remove-point]');if(!b)return;
+    stop();const points=allPoints();points.splice(Number(b.dataset.removePoint),1);
+    selected=points.shift()||null;extras=points;input.value=selected?format(selected):'';updatePoints();render();
+    gpsStatus.textContent=selected?'Vieta pasirinkta.':'Vieta nepasirinkta.';
+  });
+  function fullscreen(on){
+    panel.classList.toggle('map-fullscreen',on);document.body.classList.toggle('map-lock',on);
+    el('mapFullscreen').textContent=on?'↙ Uždaryti visą ekraną':'⛶ Visas ekranas';
+    el('mapFullscreen').setAttribute('aria-pressed',String(on));
+    if(!panel.hidden)requestAnimationFrame(render);
+  }
+  el('mapFullscreen').addEventListener('click',()=>fullscreen(!panel.classList.contains('map-fullscreen')));
+  el('mapDone').addEventListener('click',()=>{closeMap();el('incidentMapOpen').focus({preventScroll:true});});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel.classList.contains('map-fullscreen')){e.preventDefault();fullscreen(false);}});
   el('incidentLocationClear').addEventListener('click',()=>{input.value='';reset();});
-  el('mapZoomIn').addEventListener('click',()=>{zoom=clamp(zoom+1,3,17);render();});
-  el('mapZoomOut').addEventListener('click',()=>{zoom=clamp(zoom-1,3,17);render();});
+  el('mapZoomIn').addEventListener('click',()=>{zoom=clamp(zoom+1,3,19);render();});
+  el('mapZoomOut').addEventListener('click',()=>{zoom=clamp(zoom-1,3,19);render();});
   el('mapCenter').addEventListener('click',()=>choose(center));
+  const local=e=>{const r=map.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
+  const pair=()=>{const [a,b]=[...pointers.values()];return {mid:[(a[0]+b[0])/2,(a[1]+b[1])/2],distance:Math.max(1,Math.hypot(a[0]-b[0],a[1]-b[1]))};};
+  function startPinch(){
+    const {mid,distance}=pair(),[cx,cy]=project(...center,zoom);
+    pinch={mid,distance,anchor:unproject(cx+mid[0]-map.clientWidth/2,cy+mid[1]-map.clientHeight/2,zoom),scale:1,last:mid};
+    drag=null;gestureConsumed=true;shift();
+  }
   map.addEventListener('pointerdown',e=>{
-    if(e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};map.setPointerCapture(e.pointerId);
+    if(e.button!==0||pointers.size>=2)return;
+    pointers.set(e.pointerId,local(e));map.setPointerCapture(e.pointerId);
+    if(pointers.size===2){startPinch();return;}
+    gestureConsumed=false;drag={id:e.pointerId,x:e.clientX,y:e.clientY};
   });
   map.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;
+    pointers.set(e.pointerId,local(e));
+    if(pinch&&pointers.size===2){
+      const {mid,distance}=pair();pinch.scale=clamp(distance/pinch.distance,2**(3-zoom),2**(19-zoom));pinch.last=mid;
+      shift(mid[0]-pinch.mid[0],mid[1]-pinch.mid[1],pinch.scale,pinch.mid);return;
+    }
     if(!drag||drag.id!==e.pointerId)return;
     shift(e.clientX-drag.x,e.clientY-drag.y);
   });
-  map.addEventListener('pointercancel',()=>{drag=null;shift();});
-  map.addEventListener('lostpointercapture',()=>{if(drag){drag=null;shift();}});
-  map.addEventListener('pointerup',e=>{
+  function release(e,cancelled){
+    if(!pointers.has(e.pointerId))return;
+    pointers.delete(e.pointerId);
+    if(pinch){
+      const p=pinch;pinch=null;
+      if(!cancelled){
+        zoom=clamp(Math.round(zoom+Math.log2(p.scale)),3,19);
+        const [x,y]=project(...p.anchor,zoom);
+        center=unproject(x-p.last[0]+map.clientWidth/2,y-p.last[1]+map.clientHeight/2,zoom);
+      }
+      shift();render();return;
+    }
+    if(gestureConsumed){if(!pointers.size)gestureConsumed=false;return;}
     if(!drag||drag.id!==e.pointerId)return;
     const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag=null;shift();
+    if(cancelled){render();return;}
     const [cx,cy]=project(...center,zoom);
     if(Math.hypot(dx,dy)>8){center=unproject(cx-dx,cy-dy,zoom);render();}
     else{const r=map.getBoundingClientRect();choose(unproject(cx+e.clientX-r.left-r.width/2,cy+e.clientY-r.top-r.height/2,zoom));}
-  });
+  }
+  map.addEventListener('pointerup',e=>release(e,false));
+  map.addEventListener('pointercancel',e=>release(e,true));
+  map.addEventListener('lostpointercapture',e=>release(e,true));
   map.addEventListener('keydown',e=>{
     const delta={ArrowLeft:[-80,0],ArrowRight:[80,0],ArrowUp:[0,-80],ArrowDown:[0,80]}[e.key];
     if(delta){e.preventDefault();const [x,y]=project(...center,zoom);center=unproject(x+delta[0],y+delta[1],zoom);render();}
     else if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(center);}
   });
   window.addEventListener('resize',render);
-  return {reset,sync,stop};
+  return {reset,sync,stop,getExtra:()=>extras.map(p=>[...p])};
 };
