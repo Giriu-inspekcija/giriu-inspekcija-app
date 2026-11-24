@@ -35,10 +35,6 @@ jobs:
               exit 1
             fi
           done
-          if [[ "$GI_BACKUP_DRIVE_REQUIRED" == true && ( -z "$GI_BACKUP_RCLONE_CONFIG_B64" || -z "$GI_BACKUP_DRIVE_FOLDER_ID" ) ]]; then
-            echo '::error::Required Drive mirror lacks credentials or explicit folder ID'
-            exit 1
-          fi
       - uses: supabase/setup-cli@v1
         with:
           version: 2.83.0
@@ -63,6 +59,14 @@ jobs:
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
+      - name: Check required Drive configuration after retaining GitHub snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GI_BACKUP_DRIVE_REQUIRED" == true && ( -z "$GI_BACKUP_RCLONE_CONFIG_B64" || -z "$GI_BACKUP_DRIVE_FOLDER_ID" ) ]]; then
+            echo '::error::Required Drive mirror lacks credentials or explicit folder ID'
+            exit 1
+          fi
       - name: Optional offsite copy to GI Google Drive folder
         if: env.GI_BACKUP_RCLONE_CONFIG_B64 != ''
         shell: bash
