@@ -75,6 +75,28 @@ def case_and_document(chief,coord,reporter,other_staff,owner_id):
     rpc('gi_document_step',params,reporter,{400,403})
     assert rpc('gi_document_step',params,coord)==doc
     assert rows('gi_documents',reporter,'select=id&id=eq.'+doc)==[]
+    # Staff explicitly share the entire incident context, including its document drafts and versions.
+    doc_q='select=id&id=eq.'+doc
+    versions_q='select=revision&document_id=eq.'+doc
+    assert rows('gi_documents',helper,doc_q)==[]
+    assert rows('gi_document_versions',helper,versions_q)==[]
+    rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':True},chief)
+    for reader in (reporter,helper):
+        assert rows('gi_documents',reader,doc_q)==[{'id':doc}]
+        assert rows('gi_document_versions',reader,versions_q)==[{'revision':1}]
+        rpc('gi_document_step',dict(params,p_revision=1,p_action='save'),reader,{400,403})
+    rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':False},chief)
+    for reader in (reporter,helper):
+        assert rows('gi_documents',reader,doc_q)==[]
+        assert rows('gi_document_versions',reader,versions_q)==[]
+    # An explicitly assigned volunteer retains only the assigned incident context.
+    delegated_doc=rpc('gi_delegate_incident',{'p_incident':incident,'p_ref':'delegation-document-test','p_details':'Patikrinti susietus dokumentus','p_volunteer':helper_id},coord)
+    assert rows('gi_documents',helper,doc_q)==[{'id':doc}]
+    assert rows('gi_document_versions',helper,versions_q)==[{'revision':1}]
+    rpc('gi_task_action',{'p_id':delegated_doc,'p_action':'unassign','p_note':None},coord)
+    assert rows('gi_documents',helper,doc_q)==[]
+    assert rows('gi_document_versions',helper,versions_q)==[]
+    print('PASS explicit team sharing and assignment include case documents and versions, revocation removes access',flush=True)
     def action(rev,step,token,expected=None,**extra):
         return rpc('gi_document_step',{'p_id':doc,'p_revision':rev,'p_action':step,**extra},token,expected)
     action(1,'submit',coord,p_body='Pirmoji bandomoji redakcija')
