@@ -13,7 +13,7 @@ const required=[
   'icon-512-maskable.png','apple-touch-icon.png','favicon-64.png',
   'pilot/index.html','pilot/app.js','pilot/sw.js',
   'pilot/manifest.webmanifest','pilot/privatumas.html',
-  'pilot/team-thread.js','pilot/deadlines.js','pilot/document-export.js',
+  'pilot/team-thread.js','pilot/deadlines.js','pilot/document-export.js','pilot/incident-location.js',
   'pilot/vendor/fflate-0.8.2.js','pilot/vendor/fflate-LICENSE.txt'
 ];
 const optional=['pilot/real-cases.html','pilot/real-cases.js'];

@@ -225,10 +225,20 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #threadDialog .thread-top button{white-space:nowrap}
 #threadContent .actions{gap:6px;margin:6px 0}
 #threadContent .thread-secondary{margin:6px 0;padding-top:6px}
+/* v27: explicit map opt-in and compact field location controls. */
+.location-panel{min-width:0;border:1px solid #d4dfd6;border-radius:12px;padding:10px;margin:12px 0}
+.location-panel legend{font-weight:700;color:#205742;padding:0 4px}
+.location-actions,.map-controls{display:flex;flex-wrap:wrap;gap:6px}
+.location-actions button,.map-controls button,#incidentLocationClear{min-height:44px;padding:7px 10px;font-size:13px}
+#incidentMap{height:300px;max-height:48dvh;min-height:190px;background:#e4ebe4;position:relative;overflow:hidden;touch-action:none;border-radius:9px;border:1px solid #bdcfc0;margin:7px 0;cursor:crosshair;isolation:isolate}
+#mapTiles{position:absolute;inset:0;pointer-events:none}
+#mapTiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
+#mapPin{position:absolute;z-index:2;transform:translate(-50%,-50%);color:#bf3a32;font-size:34px;line-height:1;text-shadow:0 0 3px white;pointer-events:none}
+.map-cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:27px;color:#205742;text-shadow:0 0 3px white;pointer-events:none}
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v26</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v27</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
 <main>
 <div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
@@ -428,7 +438,19 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
         <label class="field">Būsena <select id="incidentEventState"><option value="unknown">Nežinau</option><option value="ongoing">Vyksta</option><option value="past">Jau įvyko</option><option value="needs_check">Reikia patikrinti</option></select></label>
       </div>
       <label class="field">Įvykio data ir laikas Vilniuje <input type="datetime-local" id="incidentObserved" required></label>
-      <label class="field">Bandomosios koordinatės <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label>
+      <fieldset class="location-panel"><legend>Įvykio vieta</legend>
+        <div class="location-actions"><button type="button" id="incidentGps">◎ Nustatyti GPS</button><button type="button" class="outline" id="incidentMapOpen">Žemėlapis</button></div>
+        <p id="incidentGpsStatus" role="status" class="small">GPS patikra: tik jūsų telefone, į bandomą įvykį neįrašoma.</p>
+        <div id="incidentMapPanel" hidden>
+          <p class="small">Paspauskite išgalvotą vietą. Žemėlapį galima stumdyti ir priartinti.</p>
+          <div class="map-controls"><button type="button" class="outline" id="mapZoomOut" aria-label="Atitolinti">−</button><button type="button" class="outline" id="mapZoomIn" aria-label="Priartinti">+</button><button type="button" class="outline" id="mapCenter" aria-label="Pasirinkti žemėlapio centrą">Pasirinkti centrą</button></div>
+          <div id="incidentMap" tabindex="0" role="group" aria-label="Bandomosios vietos žemėlapis. Rodyklėmis judėkite, Enter pasirinkite centrą."><div id="mapTiles"></div><div id="mapPin" hidden aria-hidden="true">●</div><span class="map-cross" aria-hidden="true">+</span></div>
+          <p class="small"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · viešas žemėlapio pagrindas</p>
+          <p id="incidentMapStatus" role="status" class="small"></p>
+        </div>
+        <label class="field">Bandomosios koordinatės <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label>
+        <button type="button" class="outline" id="incidentLocationClear">Išvalyti vietą</button>
+      </fieldset>
       <label class="field">Demonstracinės nuotraukos <input id="incidentPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
       <p class="small">Iki 10 JPG, PNG arba WebP vaizdų, po 5 MB. Naudokite tik išgalvotą vietą ir demonstracinius vaizdus.</p>
       <div class="actions">
@@ -523,6 +545,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
  </form>
 </dialog>
 <script defer src="./team-thread.js"></script>
+<script defer src="./incident-location.js"></script>
 <script defer src="./app.js"></script>
 <script>
 if('serviceWorker' in navigator) {

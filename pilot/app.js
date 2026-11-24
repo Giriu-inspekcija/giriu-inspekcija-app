@@ -200,6 +200,7 @@
   const thread=window.giTeamThread({client,user:()=>currentUser,isStaff:staff,role:()=>profile?.role,html:escapeHTML,
     when:value=>window.giDeadlines.display(value),statuses:statusNames,actions:taskEventLabels,
     categories:incidentCategoryLabel,busy,ask,copyText,refresh:refreshWorkspace});
+  const incidentLocation=window.giIncidentLocation();
   function showLoggedOut() {
     currentUser = null; profile = null; tasks = []; agentProposals = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     thread.clear();if($('decision').open)$('decision').close('cancel');
@@ -209,7 +210,7 @@
     nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
     taskHistoryCache.clear();taskHistoryRequests.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
-    $('incidentForm').reset();$('incidentId').value='';$('incidentsList').replaceChildren();
+    $('incidentForm').reset();incidentLocation.reset();$('incidentId').value='';$('incidentsList').replaceChildren();
     reviewableLogs.clear();
     proposalRef=null;timeRequest=null;searchText='';ownerFilter='';dueFilter='all';
     $('taskSearchForm').reset();
@@ -2029,7 +2030,7 @@
       {save:'Versija išsaugota.',submit:'Dokumentas perduotas peržiūrai.',return:'Grąžinta rengėjui.',approve:'Dokumentas parengtas pasirašyti.'}[action]);
   });
   function resetIncident(){
-    $('incidentForm').reset();$('incidentId').value='';
+    $('incidentForm').reset();incidentLocation.reset();$('incidentId').value='';
     $('incidentObserved').value=window.giDeadlines.inputValue(new Date());
   }
   $('incidentClear').addEventListener('click',resetIncident);
@@ -2113,6 +2114,7 @@
     $('incidentId').value=item.id;$('incidentDescription').value=item.description;
     $('incidentCategory').value=item.category;$('incidentEventState').value=item.event_state;
     $('incidentCoords').value=item.latitude===null?'':item.latitude+', '+item.longitude;
+    incidentLocation.sync();
     $('incidentObserved').value=window.giDeadlines.inputValue(item.observed_at||item.created_at);
     $('incidentEditor').open=true;
     $('incidentForm').scrollIntoView({behavior:'smooth',block:'start'});

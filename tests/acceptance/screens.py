@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v26')
+                expect(page.locator('#appVersion')).to_have_text('v27')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -200,6 +200,27 @@ def test_forms(page):
         expect(page.locator('#taskList h3').filter(has_text='Palyginti išvykos schemas')).to_have_count(1)
     page.locator('#captureIncident').click()
     page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
+    # Simulate GPS without touching real device position or synthetic DB fields.
+    page.evaluate("""() => {
+      Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+        getCurrentPosition: success=>success({coords:{latitude:54.123456,longitude:25.123456,accuracy:7}})
+      }})
+    }""")
+    page.locator('#incidentGps').click()
+    expect(page.locator('#incidentGpsStatus')).to_contain_text('±7 m')
+    expect(page.locator('#incidentCoords')).to_have_value('')
+    page.route('https://tile.openstreetmap.org/**',lambda route:route.fulfill(status=200,content_type='image/png',
+        body=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')))
+    page.locator('#incidentMapOpen').click()
+    expect(page.locator('#incidentMap')).to_be_visible()
+    page.locator('#mapCenter').click()
+    expect(page.locator('#incidentCoords')).to_have_value('55.200000, 24.000000')
+    page.locator('#incidentMap').click(position={'x':50,'y':50})
+    assert page.locator('#incidentCoords').input_value()!='55.200000, 24.000000'
+    page.locator('#incidentLocationClear').click()
+    expect(page.locator('#incidentCoords')).to_have_value('')
+    expect(page.locator('#incidentMap')).to_be_hidden()
+    page.unroute('https://tile.openstreetmap.org/**')
     page.locator('#incidentCoords').fill('0.0, 0.0')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
