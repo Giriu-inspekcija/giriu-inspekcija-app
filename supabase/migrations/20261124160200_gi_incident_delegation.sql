@@ -1,18 +1,18 @@
 -- Synthetic pilot only. Read case context without publishing to all volunteers.
-CREATE FUNCTION private.gi_case_context(p_incident uuid,p_case uuid)
+CREATE FUNCTION private.gi_case_context(p_incident uuid,p_case uuid,p_include_reporter boolean DEFAULT true)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
  SELECT auth.uid() IS NOT NULL AND private.gi_role()='volunteer' AND EXISTS (
    SELECT FROM public.gi_incidents i LEFT JOIN public.gi_cases c ON c.incident_id=i.id
    WHERE i.is_demo AND i.status='submitted'
      AND ((p_incident IS NOT NULL AND i.id=p_incident) OR (p_case IS NOT NULL AND c.id=p_case))
-     AND (i.reporter_id=auth.uid() OR i.team_visible OR EXISTS (
+     AND ((p_include_reporter AND i.reporter_id=auth.uid()) OR i.team_visible OR EXISTS (
        SELECT FROM public.gi_tasks t WHERE t.case_id=c.id AND t.is_demo
          AND t.assigned_to=auth.uid() AND t.status IN ('assigned','accepted','in_progress','submitted','returned','approved')
      ))
  )
 $$;
-REVOKE ALL ON FUNCTION private.gi_case_context(uuid,uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION private.gi_case_context(uuid,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION private.gi_case_context(uuid,uuid,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION private.gi_case_context(uuid,uuid,boolean) TO authenticated;
 CREATE POLICY gi_assigned_incident_context ON public.gi_incidents FOR SELECT TO authenticated
  USING (private.gi_case_context(id,NULL));
 CREATE POLICY gi_assigned_incident_photos ON storage.objects FOR SELECT TO authenticated
@@ -21,7 +21,9 @@ CREATE POLICY gi_assigned_incident_photos ON storage.objects FOR SELECT TO authe
     AND private.gi_case_context(i.id,NULL)
  ));
 CREATE POLICY gi_linked_case_documents ON public.gi_documents FOR SELECT TO authenticated
- USING (case_id IS NOT NULL AND private.gi_case_context(NULL,case_id));
+ USING (case_id IS NOT NULL AND private.gi_case_context(NULL,case_id,false));
+-- Explicit team visibility shares case documents and their versions with approved volunteers.
+-- Assignment grants the same case-scoped read access; reporting alone does not expose staff drafts.
 -- Existing case and thread policies reference incident RLS; no extra edit rights.
 
 CREATE FUNCTION private.gi_finish_incident(p_id uuid,p_description text,p_category text,p_event_state text,
