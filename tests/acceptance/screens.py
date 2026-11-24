@@ -308,6 +308,13 @@ def test_forms(page):
     thread.locator('[name=body]').fill('Savanoris papildė patikros istoriją.')
     thread.get_by_role('button',name='Paskelbti papildymą').click()
     expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
+    thread.get_by_text('Pridėti koordinates',exact=True).click()
+    thread.locator('input[name=lat]').fill('54.125')
+    thread.locator('input[name=lon]').fill('25.125')
+    thread.get_by_role('button',name='Paskelbti papildymą').click()
+    expect(thread.locator('.thread-history')).to_contain_text('Pridėjo koordinates')
+    thread.get_by_text('Savanorių pridėtos koordinatės',exact=True).click()
+    expect(thread.get_by_text('54.125000, 25.125000',exact=False).first).to_be_visible()
     page.reload()
     expect(thread.locator('.thread-history')).to_contain_text('Savanoris papildė patikros istoriją.')
     # The identity provider returns to the allowlisted path without query parameters.
