@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v30')
+                expect(page.locator('#appVersion')).to_have_text('v31')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -233,11 +233,21 @@ def test_forms(page):
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     page.locator('#incidentMap').click(position={'x':50,'y':50})
     assert page.locator('#incidentCoords').input_value()!='54.123456, 25.123456'
+    manual=page.locator('#incidentCoords').input_value()
     page.locator('#mapMyLocation').click()
+    expect(page.locator('#incidentCoords')).to_have_value(manual)
+    page.locator('#incidentGps').click()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
+    expect(page.locator('#mapZoomIn')).to_have_count(0)
+    expect(page.locator('#mapCenter')).to_have_count(0)
+    expect(page.locator('#mapAddGps')).to_be_hidden()
     page.locator('#mapFullscreen').click()
     expect(page.locator('#incidentMapPanel')).to_have_class('map-fullscreen')
+    page.locator('#mapFullscreen').click()
+    expect(page.locator('#incidentMapPanel')).not_to_have_class('map-fullscreen')
+    page.locator('#mapFullscreen').click()
     page.locator('#mapPointMode').click()
+    expect(page.locator('#mapAddGps')).to_be_visible()
     page.locator('#incidentMap').click(position={'x':65,'y':65})
     expect(page.locator('#incidentPointCount')).to_contain_text('2 iš 20')
     expect(page.locator('#mapExtraPins span')).to_have_count(1)
