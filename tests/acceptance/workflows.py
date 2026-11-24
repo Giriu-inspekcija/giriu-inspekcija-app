@@ -37,6 +37,13 @@ def case_and_document(chief,coord,reporter,other_staff,owner_id):
     endpoint=REST+'/gi_thread_entries'
     q='select=kind&incident_id=eq.'+incident
     assert rows('gi_incidents',helper,'select=id&id=eq.'+incident)==[]
+    delegated=rpc('gi_delegate_incident',{'p_incident':incident,'p_ref':'delegation-test','p_details':'Patikrinti leidimus ir vietą','p_volunteer':helper_id},coord)
+    assert rows('gi_incidents',helper,'select=id&id=eq.'+incident)==[{'id':incident}]
+    assert download('01',helper).ok
+    assert rows('gi_cases',helper,'select=id&id=eq.'+case)==[{'id':case}]
+    rpc('gi_task_action',{'p_id':delegated,'p_action':'unassign','p_note':None},coord)
+    assert rows('gi_incidents',helper,'select=id&id=eq.'+incident)==[]
+    assert not download('01',helper).ok
     rpc('gi_set_team_visibility',{'p_kind':'incident','p_id':incident,'p_visible':True},coord)
     assert rows('gi_cases',helper,'select=id&id=eq.'+case)==[{'id':case}]
     assert download('01',helper).ok
