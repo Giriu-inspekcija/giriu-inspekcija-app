@@ -62,9 +62,21 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
     return '<a class="thread-title" href="'+html(link(kind,id))+'" data-thread="'+kind+'" data-key="'+html(id)+'">'+html(title)+'</a>';
   }
   function historyItems(items){
-    return items.map(h=>'<li><b>'+html(h.label)+'</b><time class="small">'+html(when(h.at))+'</time>'
-      +(h.body?'<p>'+html(h.body)+'</p>':'')+(h.url||'')
-      +(h.file?'<button type="button" class="outline" data-file="'+html(h.file)+'">'+html(h.name||'Priedas')+'</button>':'')+'</li>').join('');
+    return items.map(h=>{
+      const headline='<b>'+html(h.label)+'</b><time class="small">'+html(when(h.at))+'</time>';
+      const content=(h.body?'<p>'+html(h.body)+'</p>':'')+(h.url||'')
+        +(h.file?'<button type="button" class="outline" data-file="'+html(h.file)+'">'+html(h.name||'Priedas')+'</button>':'');
+      return '<li>'+(content?'<details class="thread-history-entry"><summary>'+headline+'</summary><div class="thread-history-content">'+content+'</div></details>':headline)+'</li>';
+    }).join('');
+  }
+  function contributionLabel(entry){
+    if(entry.kind!=='note')return entryName[entry.kind]||'Papildė informaciją';
+    if(entry.attachment){
+      if(/\.pdf$/i.test(entry.filename||entry.attachment))return 'Pridėjo dokumentą';
+      if(/\.(jpg|jpeg|png|webp)$/i.test(entry.filename||entry.attachment))return 'Pridėjo nuotrauką';
+      return 'Pridėjo priedą';
+    }
+    return 'Papildė informaciją';
   }
   async function open(kind,id,changeUrl=true){
     if(!user()||!Object.hasOwn(kindName,kind)||!uuid.test(id))return;
@@ -99,7 +111,7 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
       for(const e of events)history.push({at:e.created_at,label:actions[e.action]||e.action,body:e.note});
       for(const t of related)history.push({at:t.created_at,label:'Sukurta susieta užduotis',url:threadLink('task',t.id,t.title)});
       for(const d of docs)history.push({at:d.updated_at,label:'Atnaujintas dokumentas',body:d.title+' · '+({draft:'Juodraštis',review:'Peržiūrimas',changes:'Grąžintas taisyti',ready:'Parengtas pasirašyti'}[d.phase]||d.phase)});
-      for(const e of updates)history.push({at:e.created_at,label:entryName[e.kind]+' · '+e.actor_name,body:e.body,file:e.attachment,name:e.filename});
+      for(const e of updates)history.push({at:e.created_at,label:(e.actor_name||'GI komandos narys')+' · '+contributionLabel(e),body:e.body,file:e.attachment,name:e.filename});
       history.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
       view.history=history;
       const contributors=updates.filter(e=>e.kind==='help');
