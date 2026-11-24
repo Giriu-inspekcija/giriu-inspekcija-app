@@ -26,7 +26,8 @@ test('inbox reads only unapproved agent proposals, with RLS and pagination',()=>
   assert.match(app,/agentProposals=inbox\.data\|\|\[\]/);
   assert.match(app,/staff\(\)\?client\.from\('gi_tasks'\)/);
   assert.match(app,/escapeHTML\(t\.title\)/);
-  assert.match(app,/escapeHTML\(t\.details\)/);
+  assert.match(app,/taskDescription\(t,'ai-description-'\)/);
+  assert.match(app,/escapeHTML\(full\)/);
 });
 
 test('manual JSON is optional fallback; proposals are never automatically assigned',()=>{
