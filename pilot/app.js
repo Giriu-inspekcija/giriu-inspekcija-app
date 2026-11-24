@@ -336,7 +336,7 @@
       const regState=profile.registration_state||'active';
       $('pendingHeading').textContent=regState==='rejected'?'Registracija atmesta':regState==='withdrawn'?'Registracija atšaukta':'Laukiama koordinatoriaus patvirtinimo';
       $('pendingDescription').textContent=regState==='rejected'
-        ?'Koordinatorius atmetė bandomąją registraciją. Jei tai klaida, kreipkitės info@giriuinspekcija.lt.'
+        ?'Koordinatorius atmetė registraciją. Jei tai klaida, kreipkitės info@giriuinspekcija.lt.'
         :regState==='withdrawn'?'Jūsų registracija sustabdyta. Norėdami ją atkurti, susisiekite su GI koordinatoriumi.'
         :'Paskyra aktyvi. Po patikros koordinatorius suteiks tinkamą vaidmenį.';
       $('withdrawRegistration').hidden=regState!=='active';
@@ -816,15 +816,15 @@
     const staffEditable=staff()&&['proposed','pool','assigned'].includes(task.status);
     if(staffEditable&&management){
       const safeButton=(!task.assigned_to&&['proposed','pool'].includes(task.status))
-        ?'<details class="candidate-options" data-ui-key="candidate-'+id+'"><summary>Kandidato prieiga (bandomoji)</summary>'
+        ?'<details class="candidate-options" data-ui-key="candidate-'+id+'"><summary>Kandidato prieiga</summary>'
           +'<button class="outline" type="button" data-candidate-task="'+id+'">'
-          +(task.candidate_safe?'Atšaukti kandidato galimybę':'Leisti bandomąją užduotį kandidatui')
+          +(task.candidate_safe?'Atšaukti kandidato galimybę':'Leisti užduotį kandidatui')
           +'</button></details>':'';
       markup+=(task.status==='assigned'&&task.assigned_to!==currentUser?.id?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')+safeButton;
     }
     if(management&&staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
       markup+='<details data-ui-key="due-'+id+'"><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
-        +'<label class="field">Data ir laikas Vilniuje<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
+        +'<label class="field">Data ir laikas<input aria-label="Užduoties terminas" type="datetime-local" data-due="'+id+'"'
         +(task.due_at?' value="'+window.giDeadlines.inputValue(task.due_at)+'"':'')+'></label>'
         +'<div class="actions"><button type="button" data-set-due="'+id+'">Išsaugoti terminą</button>'
         +(task.due_at?'<button class="outline" type="button" data-clear-due="'+id+'">Pašalinti terminą</button>':'')
@@ -840,7 +840,7 @@
       if(['accepted','returned'].includes(task.status))markup+='<div class="actions">'
         +'<button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
       if(task.status==='in_progress')markup+='<form data-submit-result="'+id+'">'
-        +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
+        +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
     if(management&&task.assigned_to===currentUser?.id&&task.status==='assigned')
@@ -938,7 +938,7 @@
         +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+created+compactDescription+due
         +(t.assigned_to===currentUser?.id?'<p class="small task-owner"><b>Paskirta man</b></p>'
           :staff()?'<p class="small task-owner">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
-        +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
+        +(t.candidate_safe?'<p class="small">Kandidatui suteikta prieiga</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
@@ -1828,7 +1828,7 @@
     if(!action)return;
     let note=null;
     if(action==='return'||action==='decline'){
-      note=await ask(action==='return'?'Kodėl grąžini užduotį taisyti?':'Kodėl atsisakai bandomosios užduoties?',{input:true});
+      note=await ask(action==='return'?'Kodėl grąžini užduotį taisyti?':'Kodėl atsisakai užduoties?',{input:true});
       if(!note||note.trim().length<3)return notice('Įrašykite bent 3 simbolių priežastį.',true);
     }
     if(action==='approve'&&!await ask('Patvirtinti tik darbo rezultatą? Valandas galėsite peržiūrėti atskirai.'))return;

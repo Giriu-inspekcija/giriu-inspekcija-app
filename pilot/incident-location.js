@@ -1,10 +1,10 @@
 'use strict';
-// GPS stays in memory until the user explicitly selects a non-sensitive test location.
+// GPS button explicitly selects the location; saving still requires submitting the incident.
 // Map tiles are requested only on explicit map opening; never automatically on GPS acquisition.
 window.giIncidentLocation=function(){
   const el=id=>document.getElementById(id), map=el('incidentMap'), tiles=el('mapTiles'), pin=el('mapPin'),
     input=el('incidentCoords'), panel=el('incidentMapPanel'), gps=el('incidentGps'), gpsStatus=el('incidentGpsStatus'),
-    status=el('incidentMapStatus'),gpsDot=el('mapGpsDot'),gpsCircle=el('mapGpsCircle'),useGps=el('incidentUseGps');
+    status=el('incidentMapStatus'),gpsDot=el('mapGpsDot'),gpsCircle=el('mapGpsCircle');
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const wrap=(n,m)=>((n%m)+m)%m;
   const maxLat=85.05112878;
@@ -19,6 +19,14 @@ window.giIncidentLocation=function(){
   }
   let center=[55.2,24.0],zoom=8,selected=null,generation=0,drag=null;
   let best=null,watch=null,timer=null,searching=false;
+  const tileNodes=new Map();
+  const movingLayers=[tiles,gpsDot,gpsCircle,pin];
+  function shift(dx=0,dy=0){
+    tiles.style.transform='translate3d('+dx+'px,'+dy+'px,0)';
+    for(const node of movingLayers.slice(1)){
+      node.style.translate=dx+'px '+dy+'px';
+    }
+  }
   const format=p=>p.map(n=>Number(n).toFixed(6)).join(', ');
   function parse(raw){
     const m=raw.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/);
@@ -31,19 +39,24 @@ window.giIncidentLocation=function(){
     const w=map.clientWidth,h=map.clientHeight;
     if(!w||!h)return;
     const [cx,cy]=project(...center,zoom),left=cx-w/2,top=cy-h/2,n=2**zoom;
-    const nodes=[];
+    const visible=new Set();
     for(let y=Math.floor(top/256);y<=Math.floor((top+h-1)/256);y++){
       if(y<0||y>=n)continue;
       for(let x=Math.floor(left/256);x<=Math.floor((left+w-1)/256);x++){
-        const img=document.createElement('img');img.alt='';img.draggable=false;
+        const key=zoom+'/'+x+'/'+y;visible.add(key);
+        let img=tileNodes.get(key);
+        if(!img){
+          img=document.createElement('img');img.alt='';img.draggable=false;
+          img.referrerPolicy='strict-origin-when-cross-origin';
+          img.src='https://tile.openstreetmap.org/'+zoom+'/'+wrap(x,n)+'/'+y+'.png';
+          img.addEventListener('error',()=>{if(img.isConnected)status.textContent='Žemėlapio vaizdas nepasiekiamas. Koordinates galima įvesti ranka.';},{once:true});
+          tileNodes.set(key,img);tiles.append(img);
+        }
         img.style.left=(x*256-left)+'px';img.style.top=(y*256-top)+'px';
-        img.referrerPolicy='strict-origin-when-cross-origin';
-        img.src='https://tile.openstreetmap.org/'+zoom+'/'+wrap(x,n)+'/'+y+'.png';
-        img.addEventListener('error',()=>{if(img.isConnected)status.textContent='Žemėlapio vaizdas nepasiekiamas. Koordinates galima įvesti ranka.';},{once:true});
-        nodes.push(img);
       }
     }
-    tiles.replaceChildren(...nodes);
+    for(const [key,img] of tileNodes)if(!visible.has(key)){img.remove();tileNodes.delete(key);}
+    shift();
     function position(node,p){
       const [px,py]=project(...p,zoom),dx=wrap(px-cx+world(zoom)/2,world(zoom))-world(zoom)/2;
       node.style.left=(w/2+dx)+'px';node.style.top=(h/2+py-cy)+'px';node.hidden=false;
@@ -58,8 +71,8 @@ window.giIncidentLocation=function(){
     el('mapZoomOut').disabled=zoom<=3;el('mapZoomIn').disabled=zoom>=17;
   }
   function choose(p){
-    selected=p;input.value=format(p);
-    if(best)gpsStatus.textContent='GPS tikslumas ±'+Math.ceil(best.accuracy)+' m. Įvykiui pasirinktas žemėlapio taškas.';
+    stop();selected=p;input.value=format(p);
+    gpsStatus.textContent='Vieta pasirinkta žemėlapyje.';
     status.textContent='Įvykiui pasirinkta: '+input.value;
     render();
   }
@@ -70,7 +83,7 @@ window.giIncidentLocation=function(){
     render();
   }
   function closeMap(){
-    panel.hidden=true;tiles.replaceChildren();pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
+    panel.hidden=true;tiles.replaceChildren();tileNodes.clear();shift();drag=null;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
     el('incidentMapOpen').textContent='Žemėlapis';
   }
   function stop(){
@@ -80,8 +93,8 @@ window.giIncidentLocation=function(){
     gps.disabled=false;gps.textContent='◎ Nustatyti GPS';
   }
   function reset(){
-    stop();best=null;useGps.hidden=true;
-    gpsStatus.textContent='Nustatykite vietą arba pasirinkite tašką žemėlapyje.';
+    stop();best=null;
+    gpsStatus.textContent='Vieta nepasirinkta.';
     selected=null;center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
   }
   function showFix(){
@@ -89,12 +102,11 @@ window.giIncidentLocation=function(){
     const accuracy=Math.ceil(best.accuracy);
     gpsStatus.textContent=(searching?'Tikslinama… ':'GPS nustatyta. ')+'Tikslumas ±'+accuracy+' m.'
       +(accuracy>25?' Vieta apytikslė – patikrinkite žemėlapyje.':'')
-      +' GPS taškas dar neišsaugotas.';
-    useGps.hidden=false;
+      +' Vieta pasirinkta.';
   }
   gps.addEventListener('click',()=>{
     if(!navigator.geolocation){gpsStatus.textContent='GPS nepalaikomas. Galite naudoti žemėlapį arba rankines koordinates.';return;}
-    stop();best=null;useGps.hidden=true;const token=generation;searching=true;
+    stop();best=null;const token=generation;searching=true;
     gps.disabled=true;gps.textContent='Tikslinama…';
     gpsStatus.textContent='Ieškoma vietos. Jei prašoma, suteikite vietos leidimą.';
     function finish(message){
@@ -106,8 +118,10 @@ window.giIncidentLocation=function(){
       if(token!==generation)return;
       const {latitude,longitude,accuracy}=coords;
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||!Number.isFinite(accuracy)||accuracy<=0||Math.abs(latitude)>90||Math.abs(longitude)>180)return;
-      if(!best||accuracy<best.accuracy){best={point:[latitude,longitude],accuracy};showFix();
-        if(!panel.hidden){center=[...best.point];zoom=16;render();}}
+      if(!best||accuracy<best.accuracy){best={point:[latitude,longitude],accuracy};
+        selected=[...best.point];input.value=format(selected);showFix();
+        status.textContent='Pasirinkta: '+input.value;
+        if(!panel.hidden&&!drag){center=[...best.point];zoom=16;render();}}
       if(best.accuracy<=15)finish('');
     };
     const fail=error=>{if(token!==generation)return;if(error.code===1||!best)finish(({1:'Vietos leidimas nesuteiktas. Patikrinkite tikslios vietos leidimą.',2:'GPS vieta nepasiekiama. Bandykite atviroje vietoje.',3:'GPS paieškos laikas baigėsi. Bandykite dar kartą.'}[error.code]||'Nepavyko nustatyti vietos.')+' Galima pasirinkti tašką ranka.');};
@@ -121,12 +135,6 @@ window.giIncidentLocation=function(){
     panel.hidden=false;el('incidentMapOpen').textContent='Uždaryti žemėlapį';
     if(p){center=[...p];zoom=16;}render();
   }
-  useGps.addEventListener('click',()=>{
-    if(!best)return;
-    // Explicit non-sensitive test-location selection, not background location tracking.
-    stop();choose([...best.point]);gpsStatus.textContent='GPS pasirinkta įvykiui · tikslumas ±'+Math.ceil(best.accuracy)+' m. Bus išsaugota pateikus įvykį.';
-    if(!panel.hidden)openMapAt(best.point);
-  });
   el('incidentMapOpen').addEventListener('click',()=>{
     if(!panel.hidden){closeMap();return;}
     selected=parse(input.value);
@@ -134,9 +142,9 @@ window.giIncidentLocation=function(){
     status.textContent=selected?'Įvykiui pasirinkta: '+format(selected):'Įvykiui vieta dar nepasirinkta.';
   });
   el('mapMyLocation').addEventListener('click',()=>{
-    if(best)openMapAt(best.point);else gps.click();
+    if(best){stop();choose([...best.point]);showFix();openMapAt(best.point);}else gps.click();
   });
-  input.addEventListener('change',sync);
+  input.addEventListener('change',()=>{stop();sync();gpsStatus.textContent=input.value?'Vieta pasirinkta ranka.':'Vieta nepasirinkta.';});
   el('incidentLocationClear').addEventListener('click',()=>{input.value='';reset();});
   el('mapZoomIn').addEventListener('click',()=>{zoom=clamp(zoom+1,3,17);render();});
   el('mapZoomOut').addEventListener('click',()=>{zoom=clamp(zoom-1,3,17);render();});
@@ -144,10 +152,15 @@ window.giIncidentLocation=function(){
   map.addEventListener('pointerdown',e=>{
     if(e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};map.setPointerCapture(e.pointerId);
   });
-  map.addEventListener('pointercancel',()=>{drag=null;});
+  map.addEventListener('pointermove',e=>{
+    if(!drag||drag.id!==e.pointerId)return;
+    shift(e.clientX-drag.x,e.clientY-drag.y);
+  });
+  map.addEventListener('pointercancel',()=>{drag=null;shift();});
+  map.addEventListener('lostpointercapture',()=>{if(drag){drag=null;shift();}});
   map.addEventListener('pointerup',e=>{
     if(!drag||drag.id!==e.pointerId)return;
-    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag=null;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag=null;shift();
     const [cx,cy]=project(...center,zoom);
     if(Math.hypot(dx,dy)>8){center=unproject(cx-dx,cy-dy,zoom);render();}
     else{const r=map.getBoundingClientRect();choose(unproject(cx+e.clientX-r.left-r.width/2,cy+e.clientY-r.top-r.height/2,zoom));}

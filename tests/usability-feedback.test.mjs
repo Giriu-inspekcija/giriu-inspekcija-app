@@ -73,7 +73,7 @@ test('new UI controls have matching DOM elements and IDs are unique',()=>{
   assert.equal(ids.size,found.length);
   const references=[...app.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(x=>x[1]);
   for(const ref of new Set(references))assert.ok(ids.has(ref),'Missing DOM ID '+ref);
-  assert.match(sw,/v28-gps-selection/);
+  assert.match(sw,/v29-simple-location/);
 });
 
 test('task view shortcuts use the existing protected API filters',()=>{
@@ -102,6 +102,6 @@ test('incident editor keeps two clear actions and retains hidden new-draft utili
   assert.match(html,/value="submit"[^>]*>Pateikti pranešimą/);
   assert.match(html,/class="incident-advanced"/);
   assert.match(html,/id="incidentClear"/);
-  assert.match(html,/Tik demonstracija/);
+  assert.match(html,/Ribotas duomenų režimas/);
   assert.match(app,/\$\('incidentClear'\)\.addEventListener/);
 });

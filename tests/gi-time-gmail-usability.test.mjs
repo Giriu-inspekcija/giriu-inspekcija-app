@@ -28,7 +28,7 @@ test('quick durations update BOTH input fields and allow manual override',()=>{
 });
 test('candidate-only privilege is tucked away and retains RLS checked RPC',()=>{
   assert.match(app,/class="candidate-options" data-ui-key="candidate-/);
-  assert.match(app,/Kandidato prieiga \(bandomoji\)/);
+  assert.match(app,/Kandidato prieiga/);
   assert.match(app,/data-candidate-task/);
   assert.match(app,/gi_set_candidate_task/);
 });
@@ -48,7 +48,7 @@ test('parallel, bounded workspace refresh avoids long chains and focus-trigger d
   assert.match(app,/lastAutoRefreshAt<60000/);
 });
 test('PWA cache changed without caching private API calls',()=>{
-  assert.match(sw,/v28-gps-selection/);
+  assert.match(sw,/v29-simple-location/);
   assert.match(sw,/NEVER cache Supabase requests/);
   assert.doesNotMatch(sw,/supabase\.co/);
   assert.doesNotThrow(()=>new Function(app));

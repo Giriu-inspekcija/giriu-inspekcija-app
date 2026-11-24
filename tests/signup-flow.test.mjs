@@ -37,7 +37,7 @@ test('registration progress does not falsely cancel an Auth account or bypass OT
 
 test('signup text is concise, no Workspace mailbox demand, mobile fields fit',()=>{
   assert.doesNotMatch(html,/Savanoriams nereikia organizacijos Google Workspace paskyros/);
-  assert.match(html,/Bandomoji GI sistema/);
+  assert.match(html,/Ribotas duomenų režimas/);
   assert.match(html,/width:100%;max-width:100%/);
   assert.match(html,/overflow-wrap:anywhere/);
   assert.match(sw,/const CACHE='gi-pilot-shell-\d{8}-v\d+-[a-z-]+'/);

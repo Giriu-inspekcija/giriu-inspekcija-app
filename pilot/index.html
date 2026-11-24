@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light"><meta name="theme-color" content="#153f33">
-<meta name="description" content="Girių inspekcija – testinė savanorių darbo vieta tik su sintetinėmis užduotimis.">
-<title>Girių inspekcija – savanorių pilotas</title>
+<meta name="description" content="Girių inspekcija – savanorių darbo vieta.">
+<title>Girių inspekcija – komandos darbo vieta</title>
 <link rel="icon" type="image/png" sizes="64x64" href="../favicon-64.png">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -240,12 +240,20 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #mapGpsDot{z-index:4;width:17px;height:17px;background:#1975d1;border:3px solid white;box-shadow:0 0 0 1px #1760ae}
 #mapPin{z-index:3;color:#c23835;font-size:24px;transform:translate(-50%,-92%);text-shadow:0 1px 3px white}
 #incidentUseGps{min-height:44px;margin:0 0 6px}
+#incidentForm{border:0;padding:0;box-shadow:none;margin-top:8px}
+#incidentForm .field{margin:10px 0}
+.location-panel{margin:8px 0;padding:9px}
+.location-advanced{margin:4px 0;padding-top:3px}
+.location-advanced summary{font-size:12px;color:#486353}
+#mapTiles{will-change:transform}
+#incidentMap{user-select:none;-webkit-user-select:none}
+#incidentMap img{user-select:none;-webkit-user-drag:none}
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v28</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v29</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
 <main>
-<div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
+<div class="pilot-info"><b>Ribotas duomenų režimas.</b> Nekelkite tikrų bylų ar jautrių duomenų. <a href="./privatumas.html">Plačiau</a></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
 <section id="authView">
  <h1 id="authTitle">Prisijungimas</h1>
@@ -332,7 +340,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 </section>
 <section id="appView" hidden>
  <div class="row"><div><h1 id="greeting">Mano darbo vieta</h1><p id="roleName" class="muted"></p></div><button id="logout" class="outline" hidden>Atsijungti</button></div>
- <div id="pendingView" class="card" hidden><h2 id="pendingHeading">Laukiama koordinatoriaus patvirtinimo</h2><p id="pendingDescription">Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas bandomąsias užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="withdrawRegistration" class="outline" type="button">Atšaukti savo registraciją</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
+ <div id="pendingView" class="card" hidden><h2 id="pendingHeading">Laukiama koordinatoriaus patvirtinimo</h2><p id="pendingDescription">Paskyra aktyvi. Kai koordinatorius patvirtins jūsų dalyvavimą, čia matysite jums priskirtas užduotis.</p><div class="actions"><button id="pendingRefresh" class="outline">Patikrinti būseną</button><button id="withdrawRegistration" class="outline" type="button">Atšaukti savo registraciją</button><button id="activateMaster" type="button" hidden>Aktyvuoti pagrindinio administratoriaus teises</button></div></div>
  <div id="workspace" hidden>
   <div class="field-shortcut"><button type="button" id="captureIncident">＋ Fiksuoti įvykį</button></div>
   <nav id="workspaceNav" class="workspace-nav" aria-label="Darbo vietos skiltys">
@@ -369,7 +377,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
      <div id="aiProposalList" aria-live="polite"><p class="small">Pasiūlymai įkeliami prisijungus.</p></div>
    </details>
    <div class="card"><h2>Užduočių valdymas</h2><p class="small">Sukurkite naują užduotį arba priskirkite esamą.</p>
-    <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
+    <details><summary><b>Sukurti naują užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>
      <label class="field">Terminas Vilniaus laiku (nebūtina)<input name="due" type="datetime-local"></label>
@@ -379,7 +387,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       <option value="proposed">Tik išsaugoti pasiūlymą</option>
      </select></label>
      <label class="field" id="newTaskAssigneeWrap" hidden>Kam paskirti?<select id="newTaskAssignee" name="assignee"><option value="">Pasirinkite savanorį</option></select></label>
-     <p class="small">Tai tik bandomosios užduotys. Paskirtą užduotį savanoris galės priimti.</p>
+     <p class="small">Paskirtą užduotį savanoris galės priimti.</p>
      <button id="proposalSubmit" type="submit">Sukurti užduotį</button>
     </form></details>
     <details><summary><b>Atsarginis rankinis užduočių importas</b></summary>
@@ -406,7 +414,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
         <select id="manualTimeTask"><option value="">Kita savanorystės veikla (be užduoties)</option></select>
       </label>
       <p class="small" id="manualTimeTaskHint">Rodoma iki 25 naujausių jums priskirtų užduočių.</p>
-      <label class="field" id="manualTimeActivityField">Veiklos pavadinimas <input id="manualTimeActivity" minlength="5" maxlength="160" required placeholder="Pvz., bandomosios medžiagos paruošimas"></label>
+      <label class="field" id="manualTimeActivityField">Veiklos pavadinimas <input id="manualTimeActivity" minlength="5" maxlength="160" required placeholder="Pvz., medžiagos paruošimas"></label>
       <div class="time-presets" role="group" aria-label="Greitai pasirinkti trukmę"><span class="small">Trukmė:</span>
         <button type="button" class="outline" data-time-preset="15">15 min.</button>
         <button type="button" class="outline" data-time-preset="30" aria-pressed="true">30 min.</button>
@@ -420,7 +428,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
       </div>
       <label class="field">Darbo data <input type="date" id="manualTimeDate" required></label>
       <label class="field">Projektas (bendroje savanorystėje palikite tuščią) <input id="timeProject" minlength="2" maxlength="120"></label>
-      <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas bandomojo darbo aprašymas"></textarea></label>
+      <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
     </form></details>
     <details class="card" id="timeHistoryPanel"><summary><b>Mano ankstesni laiko įrašai</b></summary>
@@ -432,34 +440,34 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
   <section id="incidentsSection" class="workspace-section" hidden>
     <h2>Įvykiai ir atvejai</h2>
     <details class="card" id="incidentEditor"><summary><b>Fiksuoti įvykį</b></summary>
-    <div class="alert"><b>Tik demonstracija.</b> Naudokite išgalvotas situacijas ir tik nejautrias testines vietas. Naudokite tik demonstracines nuotraukas be žmonių ir jautrių vietovių.</div>
+    <p class="small"><b>Ribotas duomenų režimas:</b> kol kas nekelkite tikrų bylų ar jautrių duomenų. <a href="./privatumas.html">Plačiau</a></p>
     <form id="incidentForm" class="card">
       <input id="incidentId" type="hidden">
-      <label class="field">Kas nutiko? <textarea id="incidentDescription" minlength="5" maxlength="3000" required placeholder="Aprašykite išgalvotą situaciją..."></textarea></label>
+      <label class="field">Kas nutiko? <textarea id="incidentDescription" minlength="5" maxlength="3000" required placeholder="Trumpai aprašykite situaciją..."></textarea></label>
       <div class="grid">
         <label class="field">Kategorija (neprivaloma)
           <select id="incidentCategory"><option value="unknown">Nežinau</option><option value="cutting">Kirtimai</option><option value="timber_truck">Medienos vežimas</option><option value="pollution">Tarša</option><option value="tree_damage">Medžių pažeidimai</option><option value="waste">Atliekos</option><option value="other">Kita</option></select>
         </label>
         <label class="field">Būsena <select id="incidentEventState"><option value="unknown">Nežinau</option><option value="ongoing">Vyksta</option><option value="past">Jau įvyko</option><option value="needs_check">Reikia patikrinti</option></select></label>
       </div>
-      <label class="field">Įvykio data ir laikas Vilniuje <input type="datetime-local" id="incidentObserved" required></label>
+      <label class="field">Įvykio laikas <input type="datetime-local" id="incidentObserved" required></label>
       <fieldset class="location-panel"><legend>Įvykio vieta</legend>
         <div class="location-actions"><button type="button" id="incidentGps">◎ Nustatyti GPS</button><button type="button" class="outline" id="incidentMapOpen">Žemėlapis</button></div>
-        <p id="incidentGpsStatus" role="status" class="small">Nustatykite vietą arba pasirinkite tašką žemėlapyje.</p>
-        <button type="button" id="incidentUseGps" class="outline" hidden>Naudoti GPS vietą testui</button>
-        <p class="small">Testuokite tik nejautrioje viešoje vietoje. Paspaudus „Žemėlapis“, žiūrimos srities užklausas gauna OpenStreetMap.</p>
+        <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p>
         <div id="incidentMapPanel" hidden>
-          <p class="small">Mėlynas taškas – jūsų GPS vieta, apskritimas – tikslumas. Raudonas – įvykiui pasirinkta vieta. Paspauskite žemėlapį, jei reikia patikslinti.</p>
+          <p class="small">Mėlyna – jūs. Raudona – įvykis. Paspauskite vietą, jei reikia patikslinti.</p>
           <div class="map-controls"><button type="button" class="outline" id="mapZoomOut" aria-label="Atitolinti">−</button><button type="button" class="outline" id="mapZoomIn" aria-label="Priartinti">+</button><button type="button" class="outline" id="mapCenter" aria-label="Pasirinkti žemėlapio centrą">Pasirinkti centrą</button><button type="button" class="outline" id="mapMyLocation">◎ Mano vieta</button></div>
-          <div id="incidentMap" tabindex="0" role="group" aria-label="Bandomosios vietos žemėlapis. Rodyklėmis judėkite, Enter pasirinkite centrą."><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">●</div><span class="map-cross" aria-hidden="true">+</span></div>
+          <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, Enter pasirinkite centrą."><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">●</div><span class="map-cross" aria-hidden="true">+</span></div>
           <p class="small"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · viešas žemėlapio pagrindas</p>
           <p id="incidentMapStatus" role="status" class="small"></p>
         </div>
-        <label class="field">Išsaugoma įvykio vieta <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label>
-        <button type="button" class="outline" id="incidentLocationClear">Išvalyti vietą</button>
+        <details class="location-advanced"><summary>Koordinatės ir kitos parinktys</summary>
+          <label class="field">Koordinatės <input id="incidentCoords" placeholder="55.000, 24.000" maxlength="60"></label>
+          <button type="button" class="outline" id="incidentLocationClear">Išvalyti vietą</button>
+        </details>
       </fieldset>
-      <label class="field">Demonstracinės nuotraukos <input id="incidentPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
-      <p class="small">Iki 10 JPG, PNG arba WebP vaizdų, po 5 MB. Naudokite tik išgalvotą vietą ir demonstracinius vaizdus.</p>
+      <label class="field">Nuotraukos <input id="incidentPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
+      <p class="small">Iki 10 nuotraukų, po 5 MB.</p>
       <div class="actions">
         <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
         <button type="submit" name="action" value="submit">Pateikti pranešimą</button>
@@ -477,9 +485,9 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
     <div class="doc-help"><b>GI dokumentų šablonai</b>
       <div><a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/document/d/1UplisHnkyUJ5qVytzW1C4nYxvKg5bXb4FJjHwI1_UUM/edit">GI rašto šablonas „Drive“</a>
       <a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/document/d/1WBfjuFBLWWHK51_aNHVmUThmaOvNWjHRTBG8zpsAm7Y/edit">TAIS / ChatGPT užklausos šablonas</a></div>
-      <p class="small">Šablonai saugomi „Google Drive“; prieiga priklauso nuo organizacijos leidimų. Šiame pilote DI jų automatiškai neskaito, o bandomasis juodraštis nėra oficialus GI raštas.</p>
+      <p class="small">Šablonai saugomi „Google Drive“; prieiga priklauso nuo organizacijos leidimų. DI jų automatiškai neskaito. Juodraštis nėra oficialus GI raštas; nekelkite jautrių duomenų.</p>
     </div>
-    <details class="card"><summary>Sukurti paprastą bandomąjį juodraštį</summary>
+    <details class="card"><summary>Sukurti juodraštį</summary>
     <form id="documentCreate">
       <label class="field">Šablonas<select name="template"><option value="request">Informacijos prašymas</option><option value="observation">Patikros pažyma</option></select></label>
       <label class="field">Pavadinimas<input name="title" required minlength="3" maxlength="160"></label>
@@ -522,7 +530,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
  </div>
 </section>
 <button type="button" id="quickFeedback" class="feedback-fast" aria-label="Pateikti pastabą iš bet kurios skilties">✎ Pastaba</button>
-</main><footer>Girių inspekcija · Bandomoji aplinka · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
+</main><footer>Girių inspekcija · <a href="./privatumas.html">Privatumas</a> · <a href="mailto:info@giriuinspekcija.lt">Pagalba</a></footer>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2"></script>
 <section id="printDocument" aria-hidden="true"></section>
