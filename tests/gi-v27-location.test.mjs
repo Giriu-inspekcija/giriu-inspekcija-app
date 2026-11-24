@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const app=read('pilot/app.js'),html=read('pilot/index.html'),sw=read('pilot/sw.js'),loc=read('pilot/incident-location.js'),build=read('scripts/build-pages.mjs');
-test('GPS is explicit, local and never autofills incident coordinates',()=>{
- assert.match(loc,/navigator\.geolocation\.getCurrentPosition/);
+test('GPS is explicit and requires selection before saving',()=>{
+ assert.match(loc,/navigator\.geolocation\.watchPosition/);
  assert.match(loc,/enableHighAccuracy:true,timeout:20000,maximumAge:0/);
- const gps=loc.slice(loc.indexOf("gps.addEventListener('click'"),loc.indexOf("el('incidentMapOpen').addEventListener"));
- assert.doesNotMatch(gps,/input\.value|choose\(|center=|fetch\(|localStorage|sessionStorage/);
+ const gps=loc.slice(loc.indexOf("gps.addEventListener('click'"),loc.indexOf("function openMapAt"));
+ assert.doesNotMatch(gps,/input\.value|choose\(|fetch\(|localStorage|sessionStorage/);
+ assert.match(loc,/accuracy<best\.accuracy/);
+ assert.match(loc,/clearWatch/);
+ assert.match(loc,/choose\(\[\.\.\.best\.point\]\)/);
+ assert.match(html,/id="mapGpsDot"/);
  assert.match(loc,/token!==generation/);
  assert.ok(app.includes('incidentLocation.reset()'));
 });

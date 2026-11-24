@@ -611,7 +611,7 @@
         +' · '+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')
         +(staff()?'<p class="small">Pateikė: '+escapeHTML(owner?personName(owner):v.reporter_id===currentUser?.id?'Aš':'Naudotojas')+'</p>':'')
         +'<p>'+escapeHTML(v.description)+'</p>'
-        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Testinės koordinatės: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+'</p>':'')
+        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Išsaugota vieta: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+'</p>':'')
         +(v.status==='submitted'?'<p>'+thread.link('incident',v.id,'Atverti kortelę ir istoriją')+'</p>':'')
         +(v.observed_at?'<p class="small">'+escapeHTML(window.giDeadlines.display(v.observed_at))+' (Vilniaus laiku)</p>':'')
         +'<button class="outline" type="button" data-photos="'+escapeHTML(v.id)+'">Nuotraukos</button><div data-gallery></div>'
@@ -2123,6 +2123,7 @@
     event.preventDefault();
     if(mutationInFlight)return;
     const submit=event.submitter?.value==='submit',desc=$('incidentDescription').value.trim();
+    incidentLocation.stop();
     const raw=$('incidentCoords').value.trim();
     const coordinates=raw?raw.match(/^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/):null;
     if(raw&&(!coordinates||Math.abs(Number(coordinates[1]))>90||Math.abs(Number(coordinates[2]))>180))

@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v27')
+                expect(page.locator('#appVersion')).to_have_text('v28')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -200,10 +200,12 @@ def test_forms(page):
         expect(page.locator('#taskList h3').filter(has_text='Palyginti išvykos schemas')).to_have_count(1)
     page.locator('#captureIncident').click()
     page.locator('#incidentDescription').fill('Naršyklės demonstracinė patikra')
-    # Simulate GPS without touching real device position or synthetic DB fields.
+    # Simulated public test point, improving GPS accuracy, then explicit selection.
     page.evaluate("""() => {
       Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
-        getCurrentPosition: success=>success({coords:{latitude:54.123456,longitude:25.123456,accuracy:7}})
+        watchPosition: success=>{success({coords:{latitude:54.1,longitude:25.1,accuracy:57}});
+          setTimeout(()=>success({coords:{latitude:54.123456,longitude:25.123456,accuracy:7}}),50);return 1;},
+        clearWatch: ()=>{}
       }})
     }""")
     page.locator('#incidentGps').click()
@@ -213,21 +215,26 @@ def test_forms(page):
         body=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')))
     page.locator('#incidentMapOpen').click()
     expect(page.locator('#incidentMap')).to_be_visible()
-    page.locator('#mapCenter').click()
-    expect(page.locator('#incidentCoords')).to_have_value('55.200000, 24.000000')
+    expect(page.locator('#mapGpsDot')).to_be_visible()
+    expect(page.locator('#mapGpsCircle')).to_be_visible()
+    page.locator('#incidentUseGps').click()
+    expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
+    expect(page.locator('#mapPin')).to_be_visible()
     page.locator('#incidentMap').click(position={'x':50,'y':50})
-    assert page.locator('#incidentCoords').input_value()!='55.200000, 24.000000'
-    page.locator('#incidentLocationClear').click()
-    expect(page.locator('#incidentCoords')).to_have_value('')
+    assert page.locator('#incidentCoords').input_value()!='54.123456, 25.123456'
+    page.locator('#incidentUseGps').click()
+    expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
+    page.locator('#incidentMapOpen').click()
     expect(page.locator('#incidentMap')).to_be_hidden()
     page.unroute('https://tile.openstreetmap.org/**')
-    page.locator('#incidentCoords').fill('0.0, 0.0')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
     send=page.get_by_role('button',name='Pateikti pranešimą')
     assert send.evaluate("(b)=>{b.click();return b.disabled && b.getAttribute('aria-busy')==='true' && b.textContent==='Pateikiama…'}")
     incident=page.locator('#incidentsList article').filter(has_text='Naršyklės demonstracinė patikra')
     expect(incident).to_contain_text('Pateikta')
+    expect(incident).to_contain_text('54.123456')
+    expect(incident).to_contain_text('25.123456')
     incident.get_by_role('button',name='Nuotraukos').click()
     expect(incident.locator('img')).to_have_count(1)
     incident.get_by_role('button',name='Pradėti atvejo patikrą').click()
