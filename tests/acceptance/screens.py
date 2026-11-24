@@ -49,7 +49,7 @@ def exercise(user,password):
                     expect(page.locator('#tasksHeading')).to_be_visible()
                 sign_in()
                 title='Naršyklės terminas '+name
-                page.get_by_text('Sukurti naują bandomąją užduotį',exact=True).click()
+                page.get_by_text('Sukurti naują užduotį',exact=True).click()
                 form=page.locator('#proposalForm')
                 form.locator('[name=title]').fill(title)
                 form.locator('[name=details]').fill('Demonstracinė užduoties termino patikra.')
@@ -124,11 +124,11 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v28')
+                expect(page.locator('#appVersion')).to_have_text('v29')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
-                    page.get_by_text('Sukurti naują bandomąją užduotį',exact=True).click()
+                    page.get_by_text('Sukurti naują užduotį',exact=True).click()
                 create.locator('[name=title]').fill(proposal_title)
                 create.locator('[name=details]').fill('Sintetinė tiesioginio paskyrimo patikra. '*5+'Aprašymo pabaiga.')
                 create.locator('[name=destination]').select_option('proposed')
@@ -210,19 +210,25 @@ def test_forms(page):
     }""")
     page.locator('#incidentGps').click()
     expect(page.locator('#incidentGpsStatus')).to_contain_text('±7 m')
-    expect(page.locator('#incidentCoords')).to_have_value('')
+    expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
+    expect(page.locator('#incidentUseGps')).to_have_count(0)
     page.route('https://tile.openstreetmap.org/**',lambda route:route.fulfill(status=200,content_type='image/png',
         body=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')))
     page.locator('#incidentMapOpen').click()
     expect(page.locator('#incidentMap')).to_be_visible()
     expect(page.locator('#mapGpsDot')).to_be_visible()
     expect(page.locator('#mapGpsCircle')).to_be_visible()
-    page.locator('#incidentUseGps').click()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     expect(page.locator('#mapPin')).to_be_visible()
+    bounds=page.locator('#incidentMap').bounding_box()
+    x=bounds['x']+bounds['width']/2; y=bounds['y']+bounds['height']/2
+    page.mouse.move(x,y); page.mouse.down(); page.mouse.move(x+40,y+25,steps=5)
+    assert page.locator('#mapTiles').evaluate('(e)=>e.style.transform').startswith('translate3d(40px')
+    page.mouse.up()
+    expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     page.locator('#incidentMap').click(position={'x':50,'y':50})
     assert page.locator('#incidentCoords').input_value()!='54.123456, 25.123456'
-    page.locator('#incidentUseGps').click()
+    page.locator('#mapMyLocation').click()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     page.locator('#incidentMapOpen').click()
     expect(page.locator('#incidentMap')).to_be_hidden()
@@ -263,7 +269,7 @@ def test_forms(page):
     assert '?incident=' in page.url
     thread.get_by_role('button',name='Uždaryti').click()
     page.locator('#documentsNav').click()
-    page.get_by_text('Sukurti paprastą bandomąjį juodraštį',exact=True).click()
+    page.get_by_text('Sukurti juodraštį',exact=True).click()
     form=page.locator('#documentCreate')
     form.locator('[name=title]').fill('Naršyklės pažyma')
     form.locator('[name=task]').select_option(label='Naršyklės atvejo užduotis')
