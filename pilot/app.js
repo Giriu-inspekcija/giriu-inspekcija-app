@@ -455,6 +455,7 @@
       if(currentUser?.id!==actor)return false;
       renderDocuments();
       renderNewTaskAssignees();
+      renderIncidentDestination();
       renderAiProposals();
       renderTasks();
       renderWorkLogs();
@@ -1912,8 +1913,9 @@
   function caseActions(incident){
     if(!staff()||incident.status!=='submitted')return '';
     const item=cases.find(c=>c.incident_id===incident.id);
-    if(!item)return '<button type="button" data-open-case="'+escapeHTML(incident.id)+'">Pradėti atvejo patikrą</button>';
-    return '<details><summary>Atvejo užduotys</summary><p class="small">Atvejis '+escapeHTML(item.id.slice(0,8))+'</p>'
+    const delegate='<details><summary>Priskirti patikrą savanoriui</summary><form data-delegate-incident="'+escapeHTML(incident.id)+'"><label class="field">Vykdytojas<select name="person" required>'+incidentPeopleOptions()+'</select></label><label class="field">Ką patikrinti?<textarea name="details" required minlength="5" maxlength="6000"></textarea></label><button>Priskirti patikrą</button></form></details>';
+    if(!item)return delegate+'<button type="button" data-open-case="'+escapeHTML(incident.id)+'">Pradėti atvejo patikrą</button>';
+    return delegate+'<details><summary>Atvejo užduotys</summary><p class="small">Atvejis '+escapeHTML(item.id.slice(0,8))+'</p>'
       +'<form data-case-task="'+escapeHTML(item.id)+'"><label class="field">Užduoties pavadinimas<input name="title" required minlength="3" maxlength="140"></label>'
       +'<label class="field">Ką reikia patikrinti?<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>'
       +'<button type="submit">Sukurti susietą užduotį</button></form></details>';
@@ -2029,9 +2031,31 @@
       p_body:card.querySelector('[data-body]')?.value??null,p_note:note}),
       {save:'Versija išsaugota.',submit:'Dokumentas perduotas peržiūrai.',return:'Grąžinta rengėjui.',approve:'Dokumentas parengtas pasirašyti.'}[action]);
   });
+  function incidentPeopleOptions(){
+    return '<option value="">Pasirinkite savanorį</option>'+members.filter(m=>['volunteer','coordinator','admin'].includes(m.role)&&memberEmails[m.id]?.verified===true)
+      .map(m=>'<option value="'+escapeHTML(m.id)+'">'+escapeHTML(personName(m))+'</option>').join('');
+  }
+  function updateIncidentDestination(){
+    const assigned=$('incidentDestination').value==='assigned';
+    $('incidentAssigneeWrap').hidden=!assigned;
+    $('incidentAssignee').required=assigned;
+    $('incidentReviewDetails').required=assigned;
+  }
+  function renderIncidentDestination(){
+    const select=$('incidentDestination'),previous=select.value,old=$('incidentAssignee').value;
+    select.innerHTML='<option value="review">Pateikti koordinatoriams (nepriskirta)</option>'
+      +(['volunteer','coordinator','admin'].includes(profile?.role)?'<option value="team">Paskelbti komandai</option>':'')
+      +(staff()?'<option value="assigned">Priskirti savanoriui</option>':'');
+    if([...select.options].some(o=>o.value===previous))select.value=previous;
+    $('incidentAssignee').innerHTML=incidentPeopleOptions();
+    if([...$('incidentAssignee').options].some(o=>o.value===old))$('incidentAssignee').value=old;
+    updateIncidentDestination();
+  }
+  $('incidentDestination').addEventListener('change',updateIncidentDestination);
   function resetIncident(){
     $('incidentForm').reset();incidentLocation.reset();$('incidentId').value='';
     $('incidentObserved').value=window.giDeadlines.inputValue(new Date());
+    updateIncidentDestination();
   }
   $('incidentClear').addEventListener('click',resetIncident);
   const photos=()=>client.storage.from('gi-pilot-incident-photos');
@@ -2071,6 +2095,16 @@
   }
   $('incidentsList').addEventListener('submit',event=>{
     const form=event.target;
+    if(form.dataset.delegateIncident){
+      event.preventDefault();
+      const data=new FormData(form),id=form.dataset.delegateIncident,key='delegate:'+id;
+      if(!caseRequest.has(key))caseRequest.set(key,crypto.randomUUID());
+      return run(async()=>{
+        const result=await client.rpc('gi_delegate_incident',{p_incident:id,p_ref:caseRequest.get(key),p_details:data.get('details'),p_volunteer:data.get('person')});
+        if(!result.error)caseRequest.delete(key);
+        return result;
+      },'Patikra priskirta savanoriui.');
+    }
     if(!form.dataset.caseTask)return;
     event.preventDefault();
     const data=new FormData(form),caseId=form.dataset.caseTask;
@@ -2123,6 +2157,7 @@
     event.preventDefault();
     if(mutationInFlight)return;
     const submit=event.submitter?.value==='submit',desc=$('incidentDescription').value.trim();
+    const destination=$('incidentDestination').value,assignee=$('incidentAssignee').value,reviewDetails=$('incidentReviewDetails').value.trim();
     incidentLocation.stop();
     const raw=$('incidentCoords').value.trim();
     const coordinates=raw?raw.match(/^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/):null;
@@ -2142,11 +2177,11 @@
       if(draft.error)throw draft.error;
       await uploadPhotos(payload.p_id,files);
       if(submit){
-        const sent=await client.rpc('gi_save_incident',{...payload,p_submit:true});
+        const sent=destination==='review'?await client.rpc('gi_save_incident',{...payload,p_submit:true}):await client.rpc('gi_finish_incident',{...payload,p_destination:destination,p_volunteer:destination==='assigned'?assignee:null,p_details:destination==='assigned'?reviewDetails:null});
         if(sent.error)throw sent.error;
       }
       resetIncident();
-    },submit?'Pranešimas pateiktas patikrai.':'Juodraštis išsaugotas.').then(ok=>{controls.forEach(c=>c.disabled=false);$('incidentProgress').textContent='';if(ok)$('incidentEditor').open=false;});
+    },submit?(destination==='team'?'Įvykis paskelbtas komandai.':destination==='assigned'?'Patikra priskirta savanoriui.':'Pranešimas pateiktas patikrai.'):'Juodraštis išsaugotas.').then(ok=>{controls.forEach(c=>c.disabled=false);$('incidentProgress').textContent='';if(ok)$('incidentEditor').open=false;});
   });
   let lastAutoRefreshAt=Date.now();
   function refreshWhenIdle(){

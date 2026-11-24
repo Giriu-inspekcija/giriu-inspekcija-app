@@ -525,8 +525,13 @@ body.map-lock{overflow:hidden}
       </fieldset>
       <label class="field">Nuotraukos <input id="incidentPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
       <p class="small">Iki 10 nuotraukų, po 5 MB.</p>
+      <label class="field">Kas matys įvykį?<select id="incidentDestination"><option value="review">Pateikti koordinatoriams (nepriskirta)</option></select></label>
+      <div id="incidentAssigneeWrap" hidden>
+        <label class="field">Vykdytojas<select id="incidentAssignee"><option value="">Pasirinkite savanorį</option></select></label>
+        <label class="field">Ką patikrinti?<textarea id="incidentReviewDetails" minlength="5" maxlength="6000"></textarea></label>
+      </div>
       <div class="actions">
-        <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
+        <button type="submit" name="action" value="draft" class="outline" formnovalidate>Išsaugoti juodraštį</button>
         <button type="submit" name="action" value="submit">Pateikti pranešimą</button>
       </div>
       <p class="small">Išsaugotus juodraščius rasite žemiau, pranešimų sąraše.</p>
