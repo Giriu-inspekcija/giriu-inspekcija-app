@@ -96,6 +96,11 @@ main{max-width:960px;margin:0 auto}
 #roleName{font-size:12px}
 .task details{margin-top:8px;padding-top:8px}
 .task .task-actions-more{border-top:1px solid #edf1ed}
+.task .task-created{margin:3px 0 6px;color:var(--muted);font-size:12px}
+.task .task-primary-actions .actions{gap:6px;margin:6px 0}
+.task .task-primary-actions .actions>button{flex:0 1 auto;font-size:13px;padding:8px 12px;min-height:44px}
+.task .task-primary-actions form{margin:8px 0}
+.task .task-primary-actions .actions>button:focus-visible{outline:3px solid #8cc49a;outline-offset:2px}
 .feedback-fast{position:fixed;z-index:60;right:max(18px,calc((100vw - 970px)/2));bottom:calc(18px + env(safe-area-inset-bottom));background:#1c5c42;color:white;padding:12px 16px;box-shadow:0 7px 24px #1c3d2e55;border-radius:999px;font-size:14px}
 .feedback-fast:hover{background:#124831}
 body:not(.signed-in) .feedback-fast{display:none!important}
@@ -339,6 +344,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
     <details class="card" id="timeEntryPanel"><summary><b>Įrašyti darbo laiką</b></summary><form id="manualTimeForm">
       <h3>Pridėti darbo laiką</h3>
       <p class="small">Galite įrašyti laiką ir po rezultato pateikimo arba už veiklą be išankstinės užduoties.</p>
+      <label class="field">Rasti mano užduotį<input id="manualTimeTaskSearch" type="search" placeholder="Įrašykite pavadinimo dalį" maxlength="100"></label>
       <label class="field">Susieti su mano užduotimi (nebūtina)
         <select id="manualTimeTask"><option value="">Kita savanorystės veikla (be užduoties)</option></select>
       </label>

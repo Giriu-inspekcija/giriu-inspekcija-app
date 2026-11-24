@@ -108,7 +108,9 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
       el('threadName').textContent=caseRow?'Atvejo kortelė':kindName[kind];
       el('threadTitle').textContent=incident?(categories[row.category]||'Įvykis'):row.title;
       const stateLabel=incident?({ongoing:'Vyksta',past:'Jau įvyko',needs_check:'Reikia patikrinti',unknown:'Būsena nežinoma'}[row.event_state]):statuses[row.status];
-      content.innerHTML='<p class="tag">'+html(stateLabel)+'</p><p class="task-description">'+html(incident?row.description:row.details)+'</p>'
+      content.innerHTML='<p class="tag">'+html(stateLabel)+'</p>'
+        +(!incident&&row.created_at?'<p class="task-created small">Sukurta: '+html(when(row.created_at))+'</p>':'')
+        +'<p class="task-description">'+html(incident?row.description:row.details)+'</p>'
         +(incident&&row.observed_at?'<p>Stebėjimo laikas · '+html(when(row.observed_at))+'</p>':'')
         +(incident&&row.latitude!==null?'<p>Koordinatės · '+html(row.latitude)+', '+html(row.longitude)+'</p>':'')
         +(!incident&&row.due_at?'<p>Terminas · '+html(when(row.due_at))+'</p>':'')
