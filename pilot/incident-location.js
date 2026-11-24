@@ -30,13 +30,16 @@ window.giIncidentLocation=function(){
   function updatePoints(){
     const points=allPoints();
     el('incidentPointCount').textContent=points.length?('Pažymėta: '+points.length+' iš 20'):'';
+    el('incidentPointsSummary').textContent=points.length?'('+points.length+')':'';
+    el('incidentNoPoints').hidden=points.length>0;
+    el('incidentLocationClear').hidden=points.length===0;
     el('mapPointMode').setAttribute('aria-pressed',String(multi));
     el('mapPointMode').textContent=multi?'✓ Keli taškai':'+ Keli taškai';
     el('mapAddGps').hidden=!multi;
     pointList.replaceChildren(...points.map((p,i)=>{
       const row=document.createElement('div');row.className='point-row';
       const label=document.createElement('span');label.textContent=(i+1)+'. '+format(p);
-      const b=document.createElement('button');b.type='button';b.className='outline';b.textContent='×';b.dataset.removePoint=String(i);b.setAttribute('aria-label','Pašalinti tašką '+(i+1));row.append(label,b);return row;
+      const b=document.createElement('button');b.type='button';b.className='point-remove';const glyph=document.createElement('span');glyph.className='remove-glyph';glyph.textContent='×';glyph.setAttribute('aria-hidden','true');b.append(glyph);b.dataset.removePoint=String(i);b.setAttribute('aria-label','Pašalinti tašką '+(i+1));row.append(label,b);return row;
     }));
   }
   function writePoint(p,index){
@@ -114,7 +117,7 @@ window.giIncidentLocation=function(){
   }
   function closeMap(){
     fullscreen(false);panel.hidden=true;tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
-    el('incidentMapOpen').textContent='Žemėlapis';
+    el('incidentMapOpen').hidden=false;el('incidentMapOpen').setAttribute('aria-expanded','false');
   }
   function stop(){
     generation++;searching=false;
@@ -164,7 +167,7 @@ window.giIncidentLocation=function(){
   }
   gps.addEventListener('click',()=>startGps());
   function openMapAt(p){
-    panel.hidden=false;el('incidentMapOpen').textContent='Uždaryti žemėlapį';
+    panel.hidden=false;el('incidentMapOpen').hidden=true;el('incidentMapOpen').setAttribute('aria-expanded','true');
     if(p){center=[...p];zoom=16;}render();
   }
   el('incidentMapOpen').addEventListener('click',()=>{
