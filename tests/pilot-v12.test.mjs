@@ -62,7 +62,7 @@ test('one-click result and time approval is server-side, auditable and not self-
 });
 test('task can be self-claimed without dropdown and delegated via explicit assignment',()=>{
   assert.match(js,/Prisiimti sau/);
-  assert.match(js,/<summary><b>Priskirti savanoriui<\/b><\/summary>/);
+  assert.match(js,/<summary aria-label="Priskirti savanoriui"><b>Priskirti<\/b><\/summary>/);
   assert.match(js,/data-assign/);
   assert.match(js,/>Priskirti<\/button>/);
   assert.doesNotMatch(js,/Perduoti kitam/);

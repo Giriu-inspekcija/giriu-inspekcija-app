@@ -118,11 +118,13 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
         +(parent?'<p>'+threadLink('incident',parent.incident_id,'Atverti susietą atvejį')+'</p>':'')
         +originals.map(f=>'<button type="button" class="outline" data-original="'+html(f.name)+'">Pradinė nuotrauka '+html(f.name)+'</button>').join(' ')
         +'<p class="small">'+(row.team_visible?'Kortelę gali atverti patvirtinti GI savanoriai.':'Nuorodą gali atverti turintys prieigą prie šio įrašo.')+'</p>'
-        +'<div class="actions"><button type="button" class="outline" data-do="copy">Kopijuoti nuorodą</button>'
-        +(navigator.share?'<button type="button" class="outline" data-do="share">Dalintis…</button>':'')
-        +(isStaff()&&participate?'<button type="button" class="outline" data-do="visibility">'+(row.team_visible?'Riboti prieigą':'Atverti komandai')+'</button>':'')
+        +'<div class="actions thread-primary">'
         +(participate&&!contributors.some(e=>e.actor_id===view.actor)?'<button type="button" data-do="help">Prisijungti padėti</button>':'')
         +(canClaim?'<button type="button" data-do="claim">Prisiimti užduotį</button>':'')+'</div>'
+        +'<details class="thread-secondary"><summary>Kiti veiksmai</summary><div class="actions"><button type="button" class="outline" data-do="copy">Kopijuoti nuorodą</button>'
+        +(navigator.share?'<button type="button" class="outline" data-do="share">Dalintis…</button>':'')
+        +(isStaff()&&participate?'<button type="button" class="outline" data-do="visibility">'+(row.team_visible?'Riboti prieigą':'Atverti komandai')+'</button>':'')
+        +'</div></details>'
         +(contributors.length?'<p><b>Padeda</b> · '+contributors.map(e=>html(e.actor_name)).join(', ')+'</p>':'')
         +(isStaff()&&incident&&row.status==='submitted'&&!caseRow?'<button type="button" data-do="case">Pradėti atvejo patikrą</button>':'')
         +(caseRow&&isStaff()?'<details><summary>Sukurti atvejo užduotį</summary><form data-new-task><label class="field">Pavadinimas<input name="title" required minlength="3" maxlength="140"></label><label class="field">Ką reikia atlikti?<textarea name="details" required minlength="5" maxlength="6000"></textarea></label><button>Sukurti užduotį</button></form></details>':'')

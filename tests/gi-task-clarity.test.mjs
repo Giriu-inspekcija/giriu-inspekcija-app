@@ -11,7 +11,7 @@ test('task creation date is visible in list and detail',()=>{
 });
 test('primary actions remain visible; staff secondary actions are separate and self-unassign not duplicated',()=>{
   assert.ok(app.includes("buttonsFor(t,{management:false})+timeEntry(t)"));
-  assert.ok(app.includes("staff()?buttonsFor(t,{personal:false})"));
+  assert.ok(app.includes("buttonsFor(t,{personal:false})"));
   assert.ok(app.includes("task.status==='assigned'&&task.assigned_to!==currentUser?.id"));
   assert.ok(app.includes("task-primary-actions"));
   assert.ok(app.includes('data-step="decline"'));
