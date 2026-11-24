@@ -36,6 +36,7 @@ test('manual JSON is optional fallback; proposals are never automatically assign
   const start=app.indexOf("function renderAiProposals()");
   const end=app.indexOf("function renderTasks()",start);
   const inboxUi=app.slice(start,end);
-  assert.doesNotMatch(inboxUi,/gi_assign_task|data-assign/);
+  assert.doesNotMatch(inboxUi,/client\.rpc/);
+  assert.match(inboxUi,/assignmentActions/);
   assert.match(sw,/gi-pilot-shell-\d{8}-v\d+/);
 });

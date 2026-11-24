@@ -96,6 +96,13 @@ main{max-width:960px;margin:0 auto}
 #roleName{font-size:12px}
 .task details{margin-top:8px;padding-top:8px}
 .task .task-actions-more{border-top:1px solid #edf1ed}
+.task-assignment{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 4px}
+.task-assignment>button,.task-assignment>details>summary{min-height:44px;padding:10px 12px;border-radius:9px;font-size:13px;display:flex;align-items:center}
+.task-assignment .assignment-picker{margin:0;padding:0;border:0;min-width:0}
+.task-assignment .assignment-picker summary{background:#eef5ef;border:1px solid #cfe1d2;color:#205742;cursor:pointer}
+.task-assignment .assignment-picker[open]{flex:1 1 100%}
+.task-assignment .assignment-picker .form-inline{margin:7px 0}
+.task-assignment .assignment-picker .form-inline select{min-width:0}
 .task .task-created{margin:3px 0 6px;color:var(--muted);font-size:12px}
 .task .task-primary-actions .actions{gap:6px;margin:6px 0}
 .task .task-primary-actions .actions>button{flex:0 1 auto;font-size:13px;padding:8px 12px;min-height:44px}
@@ -186,7 +193,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot">PILOTAS</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
+<header><div class="brand"><img src="../logo.png" alt="Girių inspekcijos logotipas"><div class="brand-copy"><b>Girių inspekcija</b><small>Komandos darbo vieta</small></div><span class="pilot" id="appVersion" title="Programėlės versija">v25</span><div id="accountSwitchBar" class="account-switch" hidden><span id="accountSwitchLabel" class="account-label"></span><button id="switchAccount" type="button">Atsijungti</button></div></div></header>
 <main>
 <div class="pilot-info"><b>Bandomoji GI sistema.</b> Tik išgalvoti duomenys. <details><summary>Saugaus testavimo taisyklės</summary>Nekelkite tikrų miškų koordinačių, asmens duomenų, nuotraukų ar oficialių dokumentų.</details></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
@@ -311,7 +318,7 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
      <div class="actions"><button id="aiRefresh" class="outline" type="button">Atnaujinti pasiūlymus</button></div>
      <div id="aiProposalList" aria-live="polite"><p class="small">Pasiūlymai įkeliami prisijungus.</p></div>
    </details>
-   <div class="card"><h2>Užduočių fondas</h2><p class="small">Sukurkite užduotį arba peržiūrėkite parengtus pasiūlymus.</p>
+   <div class="card"><h2>Užduočių valdymas</h2><p class="small">Sukurkite naują užduotį arba priskirkite esamą.</p>
     <details><summary><b>Sukurti naują bandomąją užduotį</b></summary><form id="proposalForm"><label class="field">Užduoties pavadinimas<input name="title" required maxlength="140" minlength="3"></label>
      <label class="field">Aprašymas<textarea name="details" required minlength="5" maxlength="6000"></textarea></label>
      <label class="field">Svarba<select name="priority"><option value="normal">Įprasta</option><option value="high">Svarbu</option><option value="low">Žema</option></select></label>

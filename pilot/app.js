@@ -772,6 +772,40 @@
     renderFeedback();
   });
 
+  function assignmentActions(task,{inbox=false}={}){
+    if(!staff()||!['proposed','pool','assigned'].includes(task.status))return '';
+    const id=escapeHTML(task.id),key=(inbox?'inbox-':'')+id;
+    const selectable=members.filter(m=>(['volunteer','coordinator','admin'].includes(m.role)
+      ||(m.role==='candidate'&&task.candidate_safe))&&memberEmails[m.id]?.verified===true);
+    const self=selectable.some(m=>m.id===currentUser?.id);
+    return '<div class="task-assignment">'
+      +(task.status==='proposed'&&self?'<button type="button" data-assign-self="'+id+'">Prisiimti sau</button>':'')
+      +(task.status==='pool'&&!task.assigned_to?'<button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button>':'')
+      +'<details class="assignment-picker" data-ui-key="assign-'+key+'"><summary><b>Priskirti savanoriui</b></summary>'
+      +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
+      +'<option value="">Pasirinkite žmogų</option>'
+      +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
+        +escapeHTML(personName(m))+(m.id===currentUser?.id?' (aš)':m.role==='candidate'?' (kandidatas)':'')+'</option>').join('')
+      +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div></details>'
+      +(task.status==='proposed'?(inbox
+        ?'<button class="outline" type="button" data-ai-approve="'+id+'">Patvirtinti į fondą</button>'
+        :'<button class="outline" type="button" data-step="publish" data-id="'+id+'">Skelbti fonde</button>'):'')
+      +'</div>';
+  }
+  async function handleStaffAssignment(button,task){
+    if(!staff()||loading||mutationInFlight||!task||!['proposed','pool','assigned'].includes(task.status))return;
+    const self=Boolean(button.dataset.assignSelf);
+    const choice=self?currentUser?.id:button.closest('article')?.querySelector('[data-person]')?.value;
+    const target=members.find(m=>m.id===choice);
+    if(!target||memberEmails[choice]?.verified!==true
+      ||!(['volunteer','coordinator','admin'].includes(target.role)||(target.role==='candidate'&&task.candidate_safe)))
+      return toast('Pasirinkite patvirtintą vykdytoją.',true);
+    if(choice===task.assigned_to)return toast('Vykdytojas jau paskirtas.');
+    if(!self&&!await ask('Priskirti užduotį žmogui „'+personName(target)+'“?'))return;
+    const ok=await run(()=>client.rpc(task.status==='proposed'?'gi_assign_proposed_task':'gi_assign_task',
+      {p_id:task.id,p_volunteer:choice}),self?'Užduotis priskirta jums.':'Užduotis priskirta: '+personName(target));
+    if(ok&&self)showTaskToastLink(task.id);
+  }
   function buttonsFor(task,{management=true,personal=true}={}){
     const id=escapeHTML(task.id);
     let markup='';
@@ -782,26 +816,7 @@
           +'<button class="outline" type="button" data-candidate-task="'+id+'">'
           +(task.candidate_safe?'Atšaukti kandidato galimybę':'Leisti bandomąją užduotį kandidatui')
           +'</button></details>':'';
-      if(task.status==='proposed'){
-        markup+='<div class="actions"><button type="button" data-step="publish" data-id="'+id+'">Paskelbti užduočių fonde</button>'
-          +safeButton+'</div>';
-      }else{
-        // One-tap "Prisiimti sau" is displayed on the card face instead.
-        const selectable=members.filter(m=>{
-          const allowed=['volunteer','coordinator','admin'].includes(m.role)
-            || (m.role==='candidate'&&task.candidate_safe);
-          return allowed && memberEmails[m.id]?.verified;
-        });
-        markup+='<details data-ui-key="assign-'+id+'"><summary><b>Priskirti savanoriui</b></summary>'
-          +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
-          +'<option value="">Pasirinkite savanorį</option>'
-          +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
-            +escapeHTML(personName(m))+' ('+escapeHTML(memberEmails[m.id]?.email||'')+')</option>').join('')
-          +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div>'
-          +'</details>'
-          +(task.status==='assigned'&&task.assigned_to!==currentUser?.id?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')
-          +safeButton;
-      }
+      markup+=(task.status==='assigned'&&task.assigned_to!==currentUser?.id?'<div class="actions"><button class="outline" type="button" data-step="unassign" data-id="'+id+'">Atšaukti paskyrimą</button></div>':'')+safeButton;
     }
     if(management&&staff() && ['proposed','pool','assigned','accepted','in_progress','returned'].includes(task.status)){
       markup+='<details data-ui-key="due-'+id+'"><summary>'+ (task.due_at?'Keisti terminą':'Nustatyti terminą') +'</summary>'
@@ -865,7 +880,7 @@
           +'<span class="small">'+escapeHTML(importance)+'</span></div>'
           +'<h3>'+escapeHTML(t.title)+'</h3>'
           +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+sourceLink+due
-          +'<div class="actions"><button type="button" data-ai-approve="'+escapeHTML(t.id)+'">Patvirtinti į fondą</button></div></article>';
+          +assignmentActions({...t,status:'proposed'},{inbox:true})+'</article>';
       }).join('')
       :'<p class="small">Kol kas nėra naujų ChatGPT pasiūlymų. Paprašykite ChatGPT pateikti užduotis GI komandai ir atnaujinkite šį sąrašą.</p>';
   }
@@ -920,10 +935,9 @@
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
-        +(staff()&&t.status==='pool'&&!t.assigned_to
-          ?'<div class="actions"><button type="button" data-step="claim" data-id="'+escapeHTML(t.id)+'">Prisiimti sau</button></div>':'')
+        +assignmentActions(t)
         + (controls?'<div class="task-primary-actions">'+controls+'</div>':'')
-        +(management?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Priskirti / keisti nustatymus</b></summary>'+management+'</details>':'')
+        +(management?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Kiti nustatymai</b></summary>'+management+'</details>':'')
         +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
         +'<summary>Veiksmų istorija</summary>'
         +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Bandyti dar kartą / atnaujinti</button>'
@@ -1541,10 +1555,12 @@
     finally{restore();}
   });
   $('aiProposalList').addEventListener('click',async event=>{
-    const button=event.target.closest('[data-ai-approve]');
+    const button=event.target.closest('[data-ai-approve],[data-assign],[data-assign-self]');
     if(!button||!staff()||loading||mutationInFlight)return;
-    const task=agentProposals.find(t=>t.id===button.dataset.aiApprove);
+    const id=button.dataset.aiApprove||button.dataset.assign||button.dataset.assignSelf;
+    const task=agentProposals.find(t=>t.id===id);
     if(!task)return;
+    if(button.dataset.assign||button.dataset.assignSelf)return handleStaffAssignment(button,{...task,status:'proposed'});
     // The button already states the action; avoid a redundant confirmation.
     await run(()=>client.rpc('gi_task_action',{p_id:task.id,p_action:'publish',p_note:null}),
       'ChatGPT pasiūlymas patvirtintas ir perkeltas į užduočių fondą.');
@@ -1754,7 +1770,7 @@
       await loadTaskHistory(b.dataset.loadHistory,box,b,{force:true});
       return;
     }
-    const id=b.dataset.id || b.dataset.assign || b.dataset.candidateTask
+    const id=b.dataset.id || b.dataset.assign || b.dataset.assignSelf || b.dataset.candidateTask
       || b.dataset.jointApprove || b.dataset.timeForTask;
     if(b.dataset.timeForTask){
       const task=tasks.find(t=>t.id===id);
@@ -1786,17 +1802,7 @@
         p_id:id,p_safe:mark,p_kind:mark?'field_visit':(task.task_kind||'other')
       }));
     }
-    if(b.dataset.assign && staff()) {
-      const choice=[...document.querySelectorAll('[data-person]')].find(e=>e.dataset.person===id)?.value;
-      if(!choice)return notice('Pasirink savanorį.',true);
-      const target=members.find(p=>p.id===choice);
-      if(!target)return notice('Savanoris nepasiekiamas. Atnaujinkite sąrašą.',true);
-      if(!await ask('Paskirti bandomąją užduotį žmogui „'+personName(target)+'“?'))return;
-      if(choice===tasks.find(t=>t.id===id)?.assigned_to)
-        return toast('Vykdytojas jau paskirtas. Nieko keisti nereikia.');
-      return run(()=>client.rpc('gi_assign_task',{p_id:id,p_volunteer:choice}),
-        'Užduotis priskirta: '+personName(target));
-    }
+    if((b.dataset.assign||b.dataset.assignSelf)&&staff())return handleStaffAssignment(b,tasks.find(t=>t.id===id));
     if((b.dataset.setDue || b.dataset.clearDue) && staff()){
       const taskId=b.dataset.setDue || b.dataset.clearDue;
       const input=b.closest('details').querySelector('[data-due]');
