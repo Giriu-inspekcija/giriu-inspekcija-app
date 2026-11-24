@@ -32,6 +32,7 @@ window.giIncidentLocation=function(){
     el('incidentPointCount').textContent=points.length?('Pažymėta: '+points.length+' iš 20'):'';
     el('mapPointMode').setAttribute('aria-pressed',String(multi));
     el('mapPointMode').textContent=multi?'✓ Keli taškai':'+ Keli taškai';
+    el('mapAddGps').hidden=!multi;
     pointList.replaceChildren(...points.map((p,i)=>{
       const row=document.createElement('div');row.className='point-row';
       const label=document.createElement('span');label.textContent=(i+1)+'. '+format(p);
@@ -93,13 +94,13 @@ window.giIncidentLocation=function(){
       const diameter=clamp(2*best.accuracy/metresPerPixel,10,100000);
       gpsCircle.style.width=gpsCircle.style.height=diameter+'px';
     }else{gpsDot.hidden=true;gpsCircle.hidden=true;}
-    el('mapZoomOut').disabled=zoom<=3;el('mapZoomIn').disabled=zoom>=19;
+
   }
   function choose(p){
     const index=chooseIndex();if(index<0)return;
     stop();writePoint(p,index);
     gpsStatus.textContent='Vieta pasirinkta žemėlapyje.';
-    status.textContent='Pasirinkta taškų: '+allPoints().length;
+    status.textContent='';
     render();
   }
   function sync(savedExtras){
@@ -126,31 +127,31 @@ window.giIncidentLocation=function(){
     gpsStatus.textContent='Vieta nepasirinkta.';
     selected=null;extras=[];multi=false;updatePoints();center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
   }
-  function showFix(){
+  function showFix(select=true){
     if(!best)return;
     const accuracy=Math.ceil(best.accuracy);
     gpsStatus.textContent=(searching?'Tikslinama… ':'GPS nustatyta. ')+'Tikslumas ±'+accuracy+' m.'
       +(accuracy>25?' Vieta apytikslė – patikrinkite žemėlapyje.':'')
-      +' Vieta pasirinkta.';
+      +(select?' Vieta pasirinkta.':'');
   }
-  gps.addEventListener('click',()=>{
+  function startGps(select=true){
     if(!navigator.geolocation){gpsStatus.textContent='GPS nepalaikomas. Galite naudoti žemėlapį arba rankines koordinates.';return;}
-    const index=chooseIndex();if(index<0)return;
+    const index=select?chooseIndex():0;if(index<0)return;
     stop();best=null;gpsIndex=index;const token=generation;searching=true;
     gps.disabled=true;gps.textContent='Tikslinama…';
     gpsStatus.textContent='Ieškoma vietos. Jei prašoma, suteikite vietos leidimą.';
     function finish(message){
       if(token!==generation)return;
       stop();
-      if(best)showFix();else gpsStatus.textContent=message;
+      if(best)showFix(select);else gpsStatus.textContent=message;
     }
     const receive=({coords})=>{
       if(token!==generation)return;
       const {latitude,longitude,accuracy}=coords;
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||!Number.isFinite(accuracy)||accuracy<=0||Math.abs(latitude)>90||Math.abs(longitude)>180)return;
       if(!best||accuracy<best.accuracy){best={point:[latitude,longitude],accuracy};
-        writePoint([...best.point],gpsIndex);showFix();
-        status.textContent='Pasirinkta taškų: '+allPoints().length;
+        if(select)writePoint([...best.point],gpsIndex);showFix(select);
+        status.textContent='';
         if(!panel.hidden&&!drag&&!pinch){center=[...best.point];zoom=16;render();}}
       if(best.accuracy<=15)finish('');
     };
@@ -160,7 +161,8 @@ window.giIncidentLocation=function(){
       const id=navigator.geolocation.watchPosition(receive,fail,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
       if(token===generation)watch=id;else navigator.geolocation.clearWatch(id);
     }catch{finish('Vietos nustatyti nepavyko. Patikrinkite leidimus.');}
-  });
+  }
+  gps.addEventListener('click',()=>startGps());
   function openMapAt(p){
     panel.hidden=false;el('incidentMapOpen').textContent='Uždaryti žemėlapį';
     if(p){center=[...p];zoom=16;}render();
@@ -169,13 +171,13 @@ window.giIncidentLocation=function(){
     if(!panel.hidden){closeMap();return;}
     selected=parse(input.value);
     openMapAt(best?.point||selected);
-    status.textContent=selected?'Įvykiui pasirinkta: '+format(selected):'Įvykiui vieta dar nepasirinkta.';
+    status.textContent=selected?'':'Palieskite žemėlapį, kad pasirinktumėte vietą.';
   });
   el('mapMyLocation').addEventListener('click',()=>{
-    if(best){if(!multi){stop();writePoint([...best.point],0);showFix();}openMapAt(best.point);}else gps.click();
+    if(best)openMapAt(best.point);else startGps(false);
   });
   input.addEventListener('change',()=>{stop();sync();gpsStatus.textContent=input.value?'Vieta pasirinkta ranka.':'Vieta nepasirinkta.';});
-  el('mapPointMode').addEventListener('click',()=>{multi=!multi;updatePoints();status.textContent=multi?'Palieskite žemėlapį arba pridėkite GPS tašką.':'Vieno taško režimas: keičiamas pirmas taškas.';});
+  el('mapPointMode').addEventListener('click',()=>{multi=!multi;updatePoints();status.textContent=multi?'Palieskite žemėlapį ir pridėkite taškų.':'';});
   el('mapAddGps').addEventListener('click',()=>{multi=true;updatePoints();gps.click();});
   pointList.addEventListener('click',e=>{
     const b=e.target.closest('[data-remove-point]');if(!b)return;
@@ -185,7 +187,9 @@ window.giIncidentLocation=function(){
   });
   function fullscreen(on){
     panel.classList.toggle('map-fullscreen',on);document.body.classList.toggle('map-lock',on);
-    el('mapFullscreen').textContent=on?'↙ Uždaryti visą ekraną':'⛶ Visas ekranas';
+    el('mapFullscreen').setAttribute('aria-label',on?'Sumažinti žemėlapį':'Visas ekranas');
+    el('mapFullscreen').title=on?'Sumažinti žemėlapį':'Visas ekranas';
+    el('mapFullscreen').querySelector('path').setAttribute('d',on?'M4 9h5V4m6 0v5h5M9 20v-5H4m16 0h-5v5':'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5');
     el('mapFullscreen').setAttribute('aria-pressed',String(on));
     if(!panel.hidden)requestAnimationFrame(render);
   }
@@ -193,9 +197,7 @@ window.giIncidentLocation=function(){
   el('mapDone').addEventListener('click',()=>{closeMap();el('incidentMapOpen').focus({preventScroll:true});});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel.classList.contains('map-fullscreen')){e.preventDefault();fullscreen(false);}});
   el('incidentLocationClear').addEventListener('click',()=>{input.value='';reset();});
-  el('mapZoomIn').addEventListener('click',()=>{zoom=clamp(zoom+1,3,19);render();});
-  el('mapZoomOut').addEventListener('click',()=>{zoom=clamp(zoom-1,3,19);render();});
-  el('mapCenter').addEventListener('click',()=>choose(center));
+
   const local=e=>{const r=map.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
   const pair=()=>{const [a,b]=[...pointers.values()];return {mid:[(a[0]+b[0])/2,(a[1]+b[1])/2],distance:Math.max(1,Math.hypot(a[0]-b[0],a[1]-b[1]))};};
   function startPinch(){
@@ -245,8 +247,10 @@ window.giIncidentLocation=function(){
   map.addEventListener('keydown',e=>{
     const delta={ArrowLeft:[-80,0],ArrowRight:[80,0],ArrowUp:[0,-80],ArrowDown:[0,80]}[e.key];
     if(delta){e.preventDefault();const [x,y]=project(...center,zoom);center=unproject(x+delta[0],y+delta[1],zoom);render();}
+    else if(['+','=','-'].includes(e.key)){e.preventDefault();zoom=clamp(zoom+(e.key==='-'?-1:1),3,19);render();}
     else if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(center);}
   });
+  map.addEventListener('wheel',e=>{if(document.activeElement!==map&&!e.ctrlKey)return;e.preventDefault();zoom=clamp(zoom+(e.deltaY<0?1:-1),3,19);render();},{passive:false});
   window.addEventListener('resize',render);
   return {reset,sync,stop,getExtra:()=>extras.map(p=>[...p])};
 };
