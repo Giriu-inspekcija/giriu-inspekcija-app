@@ -123,6 +123,23 @@ def exercise(user,password):
                 expect(card.get_by_text('Nustatyti terminą',exact=True)).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
+                # v25: a proposed task can be assigned directly from the card without publishing first.
+                expect(page.locator('#appVersion')).to_have_text('v25')
+                proposal_title='Tiesioginis paskyrimas '+name
+                create=page.locator('#proposalForm')
+                if not create.is_visible():
+                    page.get_by_text('Sukurti naują bandomąją užduotį',exact=True).click()
+                create.locator('[name=title]').fill(proposal_title)
+                create.locator('[name=details]').fill('Sintetinė tiesioginio paskyrimo patikra.')
+                create.locator('[name=destination]').select_option('proposed')
+                create.locator('button[type=submit]').click()
+                direct=page.locator('#taskList article.task').filter(has=page.get_by_role('heading',name=proposal_title,exact=True))
+                expect(direct.locator('[data-assign-self]')).to_be_visible()
+                expect(direct.get_by_text('Priskirti savanoriui',exact=True)).to_be_visible()
+                direct.locator('[data-assign-self]').click()
+                expect(direct).to_contain_text('Paskirta man')
+                expect(direct.locator('[data-assign-self]')).to_have_count(0)
+                print('PASS browser '+name+' visible version and direct proposed assignment',flush=True)
                 if name=='desktop':
                     test_forms(page)
                     page.route('**/rest/v1/gi_profiles?**',lambda route:route.fulfill(status=401,

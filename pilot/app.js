@@ -777,7 +777,9 @@
     const id=escapeHTML(task.id),key=(inbox?'inbox-':'')+id;
     const selectable=members.filter(m=>(['volunteer','coordinator','admin'].includes(m.role)
       ||(m.role==='candidate'&&task.candidate_safe))&&memberEmails[m.id]?.verified===true);
-    const self=selectable.some(m=>m.id===currentUser?.id);
+    const self=staff()&&Boolean(currentUser?.id)&&(memberEmails[currentUser.id]?.verified===true||Boolean(currentUser.email_confirmed_at));
+    if(self&&!selectable.some(m=>m.id===currentUser.id))
+      selectable.unshift({...profile,id:currentUser.id});
     return '<div class="task-assignment">'
       +(task.status==='proposed'&&self?'<button type="button" data-assign-self="'+id+'">Prisiimti sau</button>':'')
       +(task.status==='pool'&&!task.assigned_to?'<button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button>':'')
@@ -796,8 +798,9 @@
     if(!staff()||loading||mutationInFlight||!task||!['proposed','pool','assigned'].includes(task.status))return;
     const self=Boolean(button.dataset.assignSelf);
     const choice=self?currentUser?.id:button.closest('article')?.querySelector('[data-person]')?.value;
-    const target=members.find(m=>m.id===choice);
-    if(!target||memberEmails[choice]?.verified!==true
+    const target=members.find(m=>m.id===choice)||(choice===currentUser?.id?profile:null);
+    const verified=memberEmails[choice]?.verified===true||(choice===currentUser?.id&&Boolean(currentUser.email_confirmed_at));
+    if(!target||!verified
       ||!(['volunteer','coordinator','admin'].includes(target.role)||(target.role==='candidate'&&task.candidate_safe)))
       return toast('Pasirinkite patvirtintą vykdytoją.',true);
     if(choice===task.assigned_to)return toast('Vykdytojas jau paskirtas.');

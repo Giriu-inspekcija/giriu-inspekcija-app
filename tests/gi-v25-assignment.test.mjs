@@ -15,7 +15,8 @@ test('direct assignment on task face and inbox shares explicit staff handler',()
  assert.ok(app.includes('data-assign-self'));
  assert.ok(app.includes("button.closest('article')?.querySelector('[data-person]')"));
  assert.ok(app.includes("task.status==='proposed'?'gi_assign_proposed_task':'gi_assign_task'"));
- assert.ok(app.includes('memberEmails[choice]?.verified!==true'));
+ assert.ok(app.includes('memberEmails[choice]?.verified===true'));
+ assert.ok(app.includes('Boolean(currentUser.email_confirmed_at)'));
 });
 test('proposed assignment uses one invoker transaction and existing permissions',()=>{
  assert.match(sql,/SECURITY INVOKER/);
