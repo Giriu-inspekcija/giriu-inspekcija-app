@@ -5,6 +5,7 @@ on:
       - 'scripts/gi_backup*'
       - 'scripts/gi_restore.sh'
       - 'tests/test_backup_storage.py'
+      - 'tests/test_backup_incremental.py'
       - '.github/workflows/gi-backup-tests.yml'
       - 'docs/GI-BACKUP-RESTORE.md'
   workflow_dispatch:
@@ -27,6 +28,7 @@ jobs:
         run: |
           bash -n scripts/gi_backup.sh scripts/gi_restore.sh
           python -m unittest discover -s tests -p 'test_backup_storage.py' -v
+          python -m unittest discover -s tests -p 'test_backup_incremental.py' -v
       - name: Encrypt, decrypt, verify and reject unapproved restore
         shell: bash
         run: |

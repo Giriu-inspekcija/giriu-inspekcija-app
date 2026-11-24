@@ -1,0 +1,17 @@
+# GI inkrementinių kopijų prototipas — 2026-11-24
+
+**NEAKTYVUS, tik sintetiniai testai.** Esamos kasdienės pilnos DB + Storage kopijos nekeičiamos. PR #58 – nepriklausomas veidrodžio sutvirtinimas; #32 – atkūrimo vartai. Jokio DI, naujo mokamo plano, duomenų bazės pakeitimo ar automatinio trynimo.
+
+## Modelis
+Kasdien pilnas SQL (roles/schema/data/migrations). Storage objektai: nekintamos versijos, identifikuotos pagal šaltinio identifikatorių, kelią, objekto ID, updated_at, eTag ir dydį; neaiški metrika verčia persiųsti. HMAC su atskiru ≥32 B raktu slepia objektų vardus. Kiekvienas objektas age šifruojamas individualiai, kartu su identitetu ir SHA-256; kiekvienos dienos visas manifestas taip pat age šifruotas. Privatus atkūrimo raktas tik offline. Patikimas ankstesnis indeksas laiko tik neskaidrius ID ir šifruotų failų SHA-256, be originalių vardų. Jei nėra patikimo indekso, failas persiunčiamas, nieko neperrašoma. Vietinis atkūrimas patikrina šifruotų ir atšifruotų objektų tapatumą ir turinį prieš išvesdamas failus. Senų manifestų objektai neištrinami.
+
+## Šio PR ribos
+Tik vietinis immutable store ir offline rekonstrukcija su age. Nėra veikiančio Google Drive adapterio, nuolatinio indekso, Supabase metaduomenų adapterio, SQL integravimo, rotacijos ar pilno atkūrimo į projektą. Prototipas naudoja atmintyje vieno objekto baitus, todėl gamyboje būtinas srautinis limituotas apdorojimas. Egress taupymas bus tik prijungus patikimą nuotolinį indeksą ir versijų adapterį. Nepatikimas eTag ar lenktynės kopijuojant – pakartotinis metadata patikrinimas prieš/po, jei neatitinka, dienos manifestas nepublikuojamas. Viešasis age raktas nėra parašas: gamybiniam indeksui reikalingas HMAC autentiškumas ir apsauga nuo rollback; manifestui būtinas atskiras autentifikavimo sprendimas ar patikimas nepriklausomas manifestų hash žurnalas. Netekus HMAC indekso rakto senas kopijas galima atkurti su age raktu, tik nauja deduplikacija prasideda iš naujo. Jokio privataus age rakto CI.
+
+## Įjungimo seka
+1. PR #58 testai ir peržiūra; esama pilna kasdienė kopija lieka.
+2. Administratorius sukuria atskirą ribotos prieigos organizacijos Shared Drive, suteikia info@ administravimą, Gmail skaitymą, dedikuotai tarnybinei paskyrai tik rašymą; jokio domain-wide delegation. Rclone profilį ir kredencialus į GitHub Secrets įveda lokaliai, ne pokalbyje.
+3. Patvirtinti tiesioginį pilnos kopijos veidrodį ir pilną izoliuotą DB/Auth/RLS/Storage atkūrimą.
+4. Prijungti Storage sąrašo metaduomenų adapterį, patikrinti tikras ETag/updated_at/version garantijas, įgyvendinti srautinį šifravimą ir rclone objektų saugyklą. Nuotolinio indekso ir manifestų autentifikavimas, atominiu principu: tik visi objektai patikrinti, tada manifestas, tada indeksas. Jokio viešo originalių vardų ar duomenų žurnalo.
+5. Integruoti pilną SQL į dienos manifestą. Testuoti dvi dienas, pakeitimą, trynimą, dingusį objektą, pertrauktą kopijavimą, klaidingą indeksą, rollback ir šifruoto archyvo sugadinimą. Atkurti abu taškus į atskirą projektą, patikrinti RLS, Auth, failų skaičių, SHA-256 ir RPO/RTO. Matuoti faktinį egress.
+6. Tik po sėkmės vienas naktinis workflow perjungiamas į naują režimą (be papildomo grafiko). Palikti senas pilnas kopijas kaip atsarginį kelią. Vėliau atskiras dry-run rotacijos pakeitimas: 7 kasdieniai, 4 savaitiniai, 3 mėnesiniai taškai; objektus trinti tik jei jų nebereikia nė vienam išlaikytam manifestui, po žmogaus patvirtinimo ir atkūrimo bandymo. 
