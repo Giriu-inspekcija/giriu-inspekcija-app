@@ -426,7 +426,7 @@
         staff()?client.rpc('gi_review_queue').select(logFields).order('created_at').order('id'):Promise.resolve({data:[]}),
         client.from('gi_tasks').select('id,title,status,updated_at')
           .eq('assigned_to',currentUser.id).order('updated_at',{ascending:false}).limit(25),
-        client.from('gi_incidents').select('id,reporter_id,description,category,event_state,latitude,longitude,status,created_at,observed_at')
+        client.from('gi_incidents').select('id,reporter_id,description,category,event_state,latitude,longitude,extra_points,status,created_at,observed_at')
           .order('created_at',{ascending:false}).limit(100),
         admin()?client.rpc('gi_reviewer_candidate'):Promise.resolve({data:null}),
         canWriteDocuments()?client.from('gi_documents').select('id,title,body,phase,revision,author_id,task_id,case_id')
@@ -611,7 +611,7 @@
         +' · '+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')
         +(staff()?'<p class="small">Pateikė: '+escapeHTML(owner?personName(owner):v.reporter_id===currentUser?.id?'Aš':'Naudotojas')+'</p>':'')
         +'<p>'+escapeHTML(v.description)+'</p>'
-        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Išsaugota vieta: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+'</p>':'')
+        +(v.latitude!==null&&v.longitude!==null?'<p class="small">Išsaugota vieta: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+(v.extra_points?.length?' · '+(1+v.extra_points.length)+' taškai':'')+'</p>':'')
         +(v.status==='submitted'?'<p>'+thread.link('incident',v.id,'Atverti kortelę ir istoriją')+'</p>':'')
         +(v.observed_at?'<p class="small">'+escapeHTML(window.giDeadlines.display(v.observed_at))+' (Vilniaus laiku)</p>':'')
         +'<button class="outline" type="button" data-photos="'+escapeHTML(v.id)+'">Nuotraukos</button><div data-gallery></div>'
@@ -2114,7 +2114,7 @@
     $('incidentId').value=item.id;$('incidentDescription').value=item.description;
     $('incidentCategory').value=item.category;$('incidentEventState').value=item.event_state;
     $('incidentCoords').value=item.latitude===null?'':item.latitude+', '+item.longitude;
-    incidentLocation.sync();
+    incidentLocation.sync(item.extra_points||[]);
     $('incidentObserved').value=window.giDeadlines.inputValue(item.observed_at||item.created_at);
     $('incidentEditor').open=true;
     $('incidentForm').scrollIntoView({behavior:'smooth',block:'start'});
@@ -2138,7 +2138,7 @@
     controls.forEach(c=>c.disabled=true);
     $('incidentProgress').textContent=submit?'Pateikiamas pranešimas…':'Saugomas juodraštis…';
     run(async()=>{
-      const draft=await client.rpc('gi_incident_draft',{...payload,p_observed:window.giDeadlines.toInstant($('incidentObserved').value)});
+      const draft=await client.rpc('gi_incident_points_draft',{...payload,p_extra_points:incidentLocation.getExtra(),p_observed:window.giDeadlines.toInstant($('incidentObserved').value)});
       if(draft.error)throw draft.error;
       await uploadPhotos(payload.p_id,files);
       if(submit){

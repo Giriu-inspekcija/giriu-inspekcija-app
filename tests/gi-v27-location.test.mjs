@@ -8,11 +8,11 @@ test('GPS explicitly selects best fix without a second button',()=>{
  assert.match(loc,/enableHighAccuracy:true,timeout:20000,maximumAge:0/);
  const gps=loc.slice(loc.indexOf("gps.addEventListener('click'"),loc.indexOf("function openMapAt"));
  assert.doesNotMatch(gps,/fetch\(|localStorage|sessionStorage/);
- assert.match(gps,/input\.value=format\(selected\)/);
+ assert.match(gps,/writePoint\(\[\.\.\.best\.point\],gpsIndex\)/);
  assert.doesNotMatch(html,/id="incidentUseGps"/);
  assert.match(loc,/accuracy<best\.accuracy/);
  assert.match(loc,/clearWatch/);
- assert.match(loc,/selected=\[\.\.\.best\.point\]/);
+ assert.match(loc,/writePoint\(\[\.\.\.best\.point\],gpsIndex\)/);
  assert.match(html,/id="mapGpsDot"/);
  assert.match(loc,/token!==generation/);
  assert.ok(app.includes('incidentLocation.reset()'));
@@ -36,4 +36,13 @@ test('map moves with pointer and reuses still visible tiles',()=>{
  assert.match(loc,/tileNodes.get\(key\)/);
  assert.doesNotMatch(loc,/replaceChildren\(\.\.\.nodes\)/);
  assert.match(html,/Ribotas duomenų režimas/);
+});
+
+test('multiple locations use bounded points and gestures do not add a pin',()=>{
+ assert.match(loc,/allPoints\(\)\.length>=20/);
+ assert.match(loc,/gestureConsumed/);
+ assert.match(loc,/Math\.log2\(p\.scale\)/);
+ assert.match(app,/gi_incident_points_draft/);
+ assert.match(app,/p_extra_points:incidentLocation.getExtra\(\)/);
+ assert.match(html,/map-fullscreen/);
 });

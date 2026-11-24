@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v29')
+                expect(page.locator('#appVersion')).to_have_text('v30')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -224,7 +224,7 @@ def test_forms(page):
     bounds=page.locator('#incidentMap').bounding_box()
     x=bounds['x']+bounds['width']/2; y=bounds['y']+bounds['height']/2
     page.mouse.move(x,y); page.mouse.down(); page.mouse.move(x+40,y+25,steps=5)
-    offset=page.locator('#mapTiles').evaluate("""e=>{
+    offset=page.locator('#mapScene').evaluate("""e=>{
       const m=new DOMMatrixReadOnly(getComputedStyle(e).transform);
       return [m.m41,m.m42];
     }""")
@@ -235,8 +235,25 @@ def test_forms(page):
     assert page.locator('#incidentCoords').input_value()!='54.123456, 25.123456'
     page.locator('#mapMyLocation').click()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
-    page.locator('#incidentMapOpen').click()
+    page.locator('#mapFullscreen').click()
+    expect(page.locator('#incidentMapPanel')).to_have_class('map-fullscreen')
+    page.locator('#mapPointMode').click()
+    page.locator('#incidentMap').click(position={'x':65,'y':65})
+    expect(page.locator('#incidentPointCount')).to_contain_text('2 iš 20')
+    expect(page.locator('#mapExtraPins span')).to_have_count(1)
+    # Pinch must zoom without adding points (synthetic pointer events).
+    page.locator('#incidentMap').evaluate("""m=>{
+      m.setPointerCapture=()=>{};
+      const r=m.getBoundingClientRect();
+      const e=(type,id,x,y)=>m.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',clientX:r.left+x,clientY:r.top+y,button:0,bubbles:true}));
+      e('pointerdown',101,70,100);e('pointerdown',102,130,100);
+      e('pointermove',101,40,100);e('pointermove',102,160,100);
+      e('pointerup',101,40,100);e('pointerup',102,160,100);
+    }""")
+    expect(page.locator('#incidentPointCount')).to_contain_text('2 iš 20')
+    page.locator('#mapDone').click()
     expect(page.locator('#incidentMap')).to_be_hidden()
+    expect(page.locator('body')).not_to_have_class('map-lock')
     page.unroute('https://tile.openstreetmap.org/**')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
         'buffer':base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')})
@@ -246,6 +263,7 @@ def test_forms(page):
     expect(incident).to_contain_text('Pateikta')
     expect(incident).to_contain_text('54.123456')
     expect(incident).to_contain_text('25.123456')
+    expect(incident).to_contain_text('2 taškai')
     incident.get_by_role('button',name='Nuotraukos').click()
     expect(incident.locator('img')).to_have_count(1)
     incident.get_by_role('button',name='Pradėti atvejo patikrą').click()
