@@ -270,7 +270,10 @@ window.giTeamThread=function({client,user,isStaff,role,html,when,statuses,action
       if(row.error||latest.error)return;
       const changed=row.data.updated_at!==view.row.updated_at||row.data.status!==view.row.status||row.data.team_visible!==view.row.team_visible||(latest.data?.id||null)!==(view.updates.at(-1)?.id||null);
       if(!force&&!changed)return;
-      if(hasDraft()||document.activeElement?.closest('#threadContent form'))return;
+      if(hasDraft()||document.activeElement?.closest('#threadContent form')){
+        if(changed)el('threadStatus').textContent='Yra naujų papildymų. Jūsų nepaskelbtas įrašas išsaugotas ekrane.';
+        return;
+      }
       const expanded=[...content.querySelectorAll('details[open] > summary')].map(x=>x.textContent);
       const allHistory=!content.querySelector('[data-expand-history]');
       const scroll=dialog.scrollTop;
