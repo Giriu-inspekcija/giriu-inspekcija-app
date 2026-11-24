@@ -55,3 +55,12 @@ test('map corner icons preserve selected incident location when recentering',()=
  assert.match(loc,/if\(select\)writePoint/);
  assert.match(loc,/mapAddGps'\).hidden=!multi/);
 });
+
+test('coordinate list uses compact remove glyph and a single map-close action',()=>{
+ assert.match(html,/id="incidentPointsDetails"/);
+ assert.match(html,/class="manual-coordinates"/);
+ assert.match(loc,/el\('incidentMapOpen'\).hidden=true/);
+ assert.match(loc,/el\('incidentMapOpen'\).hidden=false/);
+ assert.match(loc,/glyph.className='remove-glyph'/);
+ assert.match(html,/\.point-remove \.remove-glyph\{/);
+});

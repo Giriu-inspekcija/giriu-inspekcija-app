@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v31')
+                expect(page.locator('#appVersion')).to_have_text('v32')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -216,6 +216,7 @@ def test_forms(page):
         body=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')))
     page.locator('#incidentMapOpen').click()
     expect(page.locator('#incidentMap')).to_be_visible()
+    expect(page.locator('#incidentMapOpen')).to_be_hidden()
     expect(page.locator('#mapGpsDot')).to_be_visible()
     expect(page.locator('#mapGpsCircle')).to_be_visible()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
@@ -263,6 +264,14 @@ def test_forms(page):
     expect(page.locator('#incidentPointCount')).to_contain_text('2 iš 20')
     page.locator('#mapDone').click()
     expect(page.locator('#incidentMap')).to_be_hidden()
+    expect(page.locator('#incidentMapOpen')).to_be_visible()
+    expect(page.locator('#incidentPointsSummary')).to_have_text('(2)')
+    page.locator('#incidentPointsDetails > summary').click()
+    expect(page.locator('#incidentPointList .point-row')).to_have_count(2)
+    remove=page.locator('#incidentPointList .point-remove').first
+    expect(remove).to_be_visible()
+    assert remove.bounding_box()['width']<=45
+    page.locator('#incidentPointsDetails > summary').click()
     expect(page.locator('body')).not_to_have_class('map-lock')
     page.unroute('https://tile.openstreetmap.org/**')
     page.locator('#incidentPhotos').set_input_files({'name':'test.png','mimeType':'image/png',
