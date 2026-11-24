@@ -220,10 +220,15 @@ def test_forms(page):
     expect(page.locator('#mapGpsCircle')).to_be_visible()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     expect(page.locator('#mapPin')).to_be_visible()
+    page.locator('#incidentMap').scroll_into_view_if_needed()
     bounds=page.locator('#incidentMap').bounding_box()
     x=bounds['x']+bounds['width']/2; y=bounds['y']+bounds['height']/2
     page.mouse.move(x,y); page.mouse.down(); page.mouse.move(x+40,y+25,steps=5)
-    assert page.locator('#mapTiles').evaluate('(e)=>e.style.transform').startswith('translate3d(40px')
+    offset=page.locator('#mapTiles').evaluate("""e=>{
+      const m=new DOMMatrixReadOnly(getComputedStyle(e).transform);
+      return [m.m41,m.m42];
+    }""")
+    assert abs(offset[0]-40)<2 and abs(offset[1]-25)<2, f'Map must move during drag: {offset}'
     page.mouse.up()
     expect(page.locator('#incidentCoords')).to_have_value('54.123456, 25.123456')
     page.locator('#incidentMap').click(position={'x':50,'y':50})
