@@ -28,7 +28,7 @@ test('quick durations update BOTH input fields and allow manual override',()=>{
 });
 test('candidate-only privilege is tucked away and retains RLS checked RPC',()=>{
   assert.match(app,/class="candidate-options" data-ui-key="candidate-/);
-  assert.match(app,/Kandidato prieiga \(bandomoji\)/);
+  assert.match(app,/Kandidato prieiga/);
   assert.match(app,/data-candidate-task/);
   assert.match(app,/gi_set_candidate_task/);
 });

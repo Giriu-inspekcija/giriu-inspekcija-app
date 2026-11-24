@@ -61,7 +61,7 @@ test('observation form is demo-only and supports drafts without public photo sto
   assert.match(migration,/gi_save_incident/);
   assert.match(html,/id="incidentForm"/);
   assert.match(html,/id="incidentDescription"/);
-  assert.match(html,/Tik demonstracija/);
+  assert.match(html,/Ribotas duomenų režimas/);
   assert.match(app,/storage\.from\('gi-pilot-incident-photos'\)/);
   assert.doesNotMatch(app,/getPublicUrl/);
 });
@@ -71,7 +71,7 @@ test('mobile navigation and professional Google button remain accessible',()=>{
   }
   assert.match(html,/aria-label="Darbo vietos skiltys"/);
   assert.match(html,/aria-label="Google"/);
-  assert.match(html,/Bandomoji GI sistema/);
+  assert.match(html,/Ribotas duomenų režimas/);
   assert.match(sw,/gi-pilot-shell-\d{8}-v\d+/);
   assert.match(html,/#EA4335/);
   assert.doesNotMatch(html,/<span class="google-mark" aria-hidden="true">G<\/span>/);

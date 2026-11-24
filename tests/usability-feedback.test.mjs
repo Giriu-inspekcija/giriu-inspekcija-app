@@ -102,6 +102,6 @@ test('incident editor keeps two clear actions and retains hidden new-draft utili
   assert.match(html,/value="submit"[^>]*>Pateikti pranešimą/);
   assert.match(html,/class="incident-advanced"/);
   assert.match(html,/id="incidentClear"/);
-  assert.match(html,/Tik demonstracija/);
+  assert.match(html,/Ribotas duomenų režimas/);
   assert.match(app,/\$\('incidentClear'\)\.addEventListener/);
 });
