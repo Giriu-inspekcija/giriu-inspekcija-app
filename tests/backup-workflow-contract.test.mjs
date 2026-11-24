@@ -43,3 +43,15 @@ test('restores require separate project and human approval',()=>{
   assert.match(restore,/gi_backup_storage\.py" restore/);
   assert.match(restore,/GI_RESTORE_TO_ISOLATED_TARGET=YES/);
 });
+
+test('Drive mirror is configurable, immutable and verified; required mode cannot silently skip',()=>{
+  assert.match(workflow,/GI_BACKUP_DRIVE_REQUIRED: .*vars\.GI_BACKUP_DRIVE_REQUIRED/);
+  assert.match(workflow,/GI_BACKUP_DRIVE_FOLDER_ID: .*vars\.GI_BACKUP_DRIVE_FOLDER_ID/);
+  assert.match(workflow,/Required Drive mirror lacks credentials or explicit folder ID/);
+  assert.match(workflow,/--checksum --immutable/);
+  assert.match(workflow,/check .*gidrive:/);
+  assert.match(workflow,/--one-way --include/);
+  assert.doesNotMatch(workflow,/rclone[^\n]*(?:delete|purge|sync)\s/);
+  assert.match(script,/b >= 100_000_000/);
+  assert.match(script,/31\*b/);
+});

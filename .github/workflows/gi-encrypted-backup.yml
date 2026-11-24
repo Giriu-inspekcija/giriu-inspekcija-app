@@ -21,6 +21,8 @@ jobs:
       GI_BACKUP_AGE_RECIPIENT: ${{ vars.GI_BACKUP_AGE_RECIPIENT }}
       GI_BACKUP_OUTPUT_DIR: /tmp/gi-encrypted
       GI_BACKUP_RCLONE_CONFIG_B64: ${{ secrets.GI_BACKUP_RCLONE_CONFIG_B64 }}
+      GI_BACKUP_DRIVE_FOLDER_ID: ${{ vars.GI_BACKUP_DRIVE_FOLDER_ID }}
+      GI_BACKUP_DRIVE_REQUIRED: ${{ vars.GI_BACKUP_DRIVE_REQUIRED }}
     steps:
       - uses: actions/checkout@v4
       - name: Check the required secrets without displaying them
@@ -33,6 +35,10 @@ jobs:
               exit 1
             fi
           done
+          if [[ "$GI_BACKUP_DRIVE_REQUIRED" == true && ( -z "$GI_BACKUP_RCLONE_CONFIG_B64" || -z "$GI_BACKUP_DRIVE_FOLDER_ID" ) ]]; then
+            echo '::error::Required Drive mirror lacks credentials or explicit folder ID'
+            exit 1
+          fi
       - uses: supabase/setup-cli@v1
         with:
           version: 2.83.0
@@ -42,7 +48,8 @@ jobs:
       - name: Install encryption, Drive sync and Storage client
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq age rclone
+          sudo apt-get install -y -qq age
+          if [[ -n "$GI_BACKUP_RCLONE_CONFIG_B64" ]]; then sudo apt-get install -y -qq rclone; fi
           python -m pip install requests==2.32.5
       - name: Encrypt full SQL and Storage snapshot
         id: snapshot
@@ -62,19 +69,27 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          printf '%s' "$GI_BACKUP_RCLONE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/rclone.conf"
+          config="$(mktemp "$RUNNER_TEMP/gi-rclone.XXXXXX")"
+          trap 'rm -f "$config"' EXIT
+          printf '%s' "$GI_BACKUP_RCLONE_CONFIG_B64" | base64 --decode > "$config"
+          folder="${GI_BACKUP_DRIVE_FOLDER_ID:-1_1ZxYmh5DehDWhezR4FN5eUms93YdVrM}"
+          [[ "$folder" =~ ^[A-Za-z0-9_-]+$ ]]
           file="$(find "$GI_BACKUP_OUTPUT_DIR" -maxdepth 1 -name '*.age' -type f -print -quit)"
           test -s "$file"
-          rclone --config "$RUNNER_TEMP/rclone.conf" copyto "$file" "gidrive:$(basename "$file")" \
-            --drive-root-folder-id 1_1ZxYmh5DehDWhezR4FN5eUms93YdVrM --retries 3
-          rm -f "$RUNNER_TEMP/rclone.conf"
+          rclone --config "$config" copyto "$file" "gidrive:$(basename "$file")" \
+            --drive-root-folder-id "$folder" --checksum --immutable --retries 3
+          rclone --config "$config" check "$GI_BACKUP_OUTPUT_DIR" gidrive: \
+            --drive-root-folder-id "$folder" --one-way --include "/$(basename "$file")" --checkers 1
           echo "Encrypted copy mirrored to GI Drive." >> "$GITHUB_STEP_SUMMARY"
       - name: Successful backup status
         shell: bash
         run: |
           echo "### GI encrypted backup" >> "$GITHUB_STEP_SUMMARY"
           echo "Database SQL, auth records, Storage metadata and object bytes exported and encrypted." >> "$GITHUB_STEP_SUMMARY"
-          echo "Encrypted GitHub artifact retained for 30 days; Google Drive mirror requires configured rclone credentials." >> "$GITHUB_STEP_SUMMARY"
+          echo "Encrypted GitHub artifact retained for 30 days." >> "$GITHUB_STEP_SUMMARY"
+          if [[ -z "$GI_BACKUP_RCLONE_CONFIG_B64" ]]; then
+            echo 'Drive mirror not configured; GitHub copy only.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Resolve stale backup failure alert after a verified successful backup
         if: success()
         shell: bash
