@@ -772,7 +772,7 @@
     renderFeedback();
   });
 
-  function assignmentActions(task,{inbox=false}={}){
+  function assignmentActions(task,{inbox=false,secondary=false}={}){
     if(!staff()||!['proposed','pool','assigned'].includes(task.status))return '';
     const id=escapeHTML(task.id),key=(inbox?'inbox-':'')+id;
     const selectable=members.filter(m=>(['volunteer','coordinator','admin'].includes(m.role)
@@ -781,17 +781,17 @@
     if(self&&!selectable.some(m=>m.id===currentUser.id))
       selectable.unshift({...profile,id:currentUser.id});
     return '<div class="task-assignment">'
-      +(task.status==='proposed'&&self?'<button type="button" data-assign-self="'+id+'">Prisiimti sau</button>':'')
-      +(task.status==='pool'&&!task.assigned_to?'<button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button>':'')
-      +'<details class="assignment-picker" data-ui-key="assign-'+key+'"><summary><b>Priskirti savanoriui</b></summary>'
+      +(!secondary&&task.status==='proposed'&&self?'<button type="button" data-assign-self="'+id+'">Sau</button>':'')
+      +(!secondary&&task.status==='pool'&&!task.assigned_to?'<button type="button" data-step="claim" data-id="'+id+'">Prisiimti sau</button>':'')
+      +'<details class="assignment-picker" data-ui-key="assign-'+key+'"><summary aria-label="Priskirti savanoriui"><b>Priskirti</b></summary>'
       +'<div class="form-inline"><select aria-label="Pasirinkite vykdytoją" data-person="'+id+'">'
       +'<option value="">Pasirinkite žmogų</option>'
       +selectable.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(task.assigned_to===m.id?' selected':'')+'>'
         +escapeHTML(personName(m))+(m.id===currentUser?.id?' (aš)':m.role==='candidate'?' (kandidatas)':'')+'</option>').join('')
       +'</select><button type="button" data-assign="'+id+'">Priskirti</button></div></details>'
       +(task.status==='proposed'?(inbox
-        ?'<button class="outline" type="button" data-ai-approve="'+id+'">Patvirtinti į fondą</button>'
-        :'<button class="outline" type="button" data-step="publish" data-id="'+id+'">Skelbti fonde</button>'):'')
+        ?'<button class="outline" type="button" aria-label="Patvirtinti į fondą" data-ai-approve="'+id+'">Į fondą</button>'
+        :'<button class="outline" type="button" aria-label="Skelbti fonde" data-step="publish" data-id="'+id+'">Į fondą</button>'):'')
       +'</div>';
   }
   async function handleStaffAssignment(button,task){
@@ -835,14 +835,15 @@
     }
     if(personal&&task.assigned_to===currentUser?.id){
       if(task.status==='assigned')markup+='<div class="actions">'
-        +'<button type="button" data-step="accept" data-id="'+id+'">Priimti užduotį</button>'
-        +'<button type="button" class="outline" data-step="decline" data-id="'+id+'">Atsisakyti užduoties</button></div>';
+        +'<button type="button" aria-label="Priimti užduotį" data-step="accept" data-id="'+id+'">Priimti</button></div>';
       if(['accepted','returned'].includes(task.status))markup+='<div class="actions">'
         +'<button type="button" data-step="start" data-id="'+id+'">Pradėti / tęsti</button></div>';
       if(task.status==='in_progress')markup+='<form data-submit-result="'+id+'">'
         +'<label class="field">Atlikto darbo rezultatas<textarea name="result" required minlength="10" maxlength="6000" placeholder="Tik bandomasis aprašymas. Kas atlikta?"></textarea></label>'
         +'<button type="submit">Pateikti rezultatą</button></form>';
     }
+    if(management&&task.assigned_to===currentUser?.id&&task.status==='assigned')
+      markup+='<div class="actions"><button type="button" class="outline" data-step="decline" data-id="'+id+'">Atsisakyti užduoties</button></div>';
     if(personal&&staff()&&task.status==='submitted'&&task.assigned_to!==currentUser?.id){
       markup+='<p class="small">Galite kartu patvirtinti jums leidžiamus laiko įrašus arba atskirai peržiūrėti valandas.</p>'
         +'<div class="actions"><button type="button" data-joint-approve="'+id+'">'
@@ -857,11 +858,18 @@
   function timeEntry(task){
     if(task.assigned_to!==currentUser?.id ||
        !['assigned','accepted','in_progress','submitted','returned','approved'].includes(task.status))return '';
-    return '<div class="actions"><button type="button" class="outline" data-time-for-task="'+escapeHTML(task.id)+'">'
-      +'Pridėti darbo laiką</button></div>';
+    return '<div class="actions"><button type="button" class="outline" aria-label="Pridėti darbo laiką" data-time-for-task="'+escapeHTML(task.id)+'">'
+      +'Laikas</button></div>';
   }
   // ChatGPT suggestions remain proposed until staff explicitly publishes them.
   // Escaping is mandatory: proposal bodies originate outside the application.
+  function taskDescription(task,prefix='description-'){
+    const full=String(task.details||'');
+    if(full.length<=110)return '<p class="task-description">'+escapeHTML(full)+'</p>';
+    return '<details class="task-description-toggle" data-ui-key="'+prefix+escapeHTML(task.id)+'"><summary aria-label="Rodyti visą aprašymą arba suskleisti">'
+      +'<span class="description-preview">'+escapeHTML(full.slice(0,105))+'…</span>'
+      +'<span class="description-full">'+escapeHTML(full)+'</span></summary></details>';
+  }
   function renderAiProposals(){
     if(!staff())return;
     const list=$('aiProposalList');
@@ -882,7 +890,7 @@
           +'<div class="row"><span class="tag proposed">'+(gmail?'Iš GI Gmail':'ChatGPT pasiūlymas')+'</span>'
           +'<span class="small">'+escapeHTML(importance)+'</span></div>'
           +'<h3>'+escapeHTML(t.title)+'</h3>'
-          +'<p class="task-description">'+escapeHTML(t.details)+'</p>'+sourceLink+due
+          +taskDescription(t,'ai-description-')+sourceLink+due
           +assignmentActions({...t,status:'proposed'},{inbox:true})+'</article>';
       }).join('')
       :'<p class="small">Kol kas nėra naujų ChatGPT pasiūlymų. Paprašykite ChatGPT pateikti užduotis GI komandai ir atnaujinkite šį sąrašą.</p>';
@@ -916,37 +924,34 @@
         due='<p class="small"><b>Terminas:</b> '+escapeHTML(window.giDeadlines.display(end)+' (Vilniaus laiku)')
           +(late?' · Terminas praėjęs':'')+'</p>';
       }
-      const description=t.details?.length>260
-        ?'<p class="task-description">'+escapeHTML(t.details.slice(0,220))+'…</p>'
-          +'<details data-ui-key="description-'+escapeHTML(t.id)+'"><summary>Rodyti visą aprašymą</summary>'
-          +'<p class="task-description">'+escapeHTML(t.details)+'</p></details>'
-        :'<p class="task-description">'+escapeHTML(t.details||'')+'</p>';
-      const compactDescription=String(t.details||'').length>135
-        ?'<p class="task-description">'+escapeHTML(t.details.slice(0,125))+'…</p>'
-        :description;
+      const compactDescription=taskDescription(t);
       const controls=buttonsFor(t,{management:false})+timeEntry(t);
-      const management=staff()?buttonsFor(t,{personal:false}):'';
+      const management=buttonsFor(t,{personal:false});
+      const assigned=t.status==='assigned';
+      const secondaryAssignment=assigned?assignmentActions(t,{secondary:true}):'';
       const created=t.created_at?'<p class="task-created small">Sukurta: '+escapeHTML(window.giDeadlines.display(t.created_at))+'</p>':'';
       return '<article class="task" data-task="'+escapeHTML(t.id)+'">'
         +'<div class="row"><span class="tag '+escapeHTML(t.status)+'">'
           +escapeHTML(statusNames[t.status]||t.status)+'</span>'
         +'<span class="small">'+escapeHTML(t.priority==='high'?'Svarbu':t.priority==='low'?'Maža svarba':'Įprasta')+'</span></div>'
         +'<h3>'+thread.link('task',t.id,t.title)+'</h3>'+created+compactDescription+due
-        +(staff()?'<p class="small">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
-        +(t.assigned_to===currentUser?.id?'<p class="small"><b>Paskirta man</b></p>':'')
+        +(t.assigned_to===currentUser?.id?'<p class="small task-owner"><b>Paskirta man</b></p>'
+          :staff()?'<p class="small task-owner">Vykdytojas: '+escapeHTML(owner?personName(owner):t.assigned_to?'Priskirtas savanoris':'Nepaskirta')+'</p>':'')
         +(t.candidate_safe?'<p class="small">Kandidatui leista demonstracinė užduotis</p>':'')
         +(t.feedback_text?'<p class="alert">Koordinatoriaus pastaba: '+escapeHTML(t.feedback_text)+'</p>':'')
         +(t.result_text?'<p class="small"><b>Rezultatas:</b> '+escapeHTML(t.result_text)+'</p>':'')
         +(t.case_id?'<p class="small">Atvejis '+escapeHTML(t.case_id.slice(0,8))+'</p>':'')
-        +assignmentActions(t)
-        + (controls?'<div class="task-primary-actions">'+controls+'</div>':'')
-        +(management?'<details class="task-actions-more" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary><b>Kiti nustatymai</b></summary>'+management+'</details>':'')
+        +'<div class="task-toolbar">'
+        +(!assigned?assignmentActions(t):'')
+        +(controls?'<div class="task-primary-actions">'+controls+'</div>':'')
+        +'<details class="task-actions-more task-overflow" data-ui-key="manage-'+escapeHTML(t.id)+'"><summary aria-label="Kiti veiksmai ir istorija" title="Kiti veiksmai ir istorija">⋯</summary><div class="task-overflow-content">'
+        +secondaryAssignment+management
         +'<details class="task-actions-more" data-ui-key="history-'+escapeHTML(t.id)+'">'
         +'<summary>Veiksmų istorija</summary>'
         +'<button type="button" class="ghost" data-load-history="'+escapeHTML(t.id)+'">Bandyti dar kartą / atnaujinti</button>'
         +'<div data-task-history="'+escapeHTML(t.id)+'" class="small">'
         +(taskHistoryCache.has(t.id)?taskHistoryCache.get(t.id):'Atverkite istoriją, jei reikia matyti ankstesnius veiksmus.')
-        +'</div></details></article>';
+        +'</div></details></div></details></div></article>';
     }).join('');
   }
   // Prevent duplicate taps and show a persistent, local confirmation even when
@@ -1369,7 +1374,7 @@
   $('logout').addEventListener('click',switchAccount);
   $('refresh').addEventListener('click',async()=>{
     if(loading)return;
-    const done=busy($('refresh'),'Atnaujinama…');
+    const done=busy($('refresh'),'…');
     try{await refreshWorkspace();}finally{done();}
   });
   $('dueReminderButtons').addEventListener('click',e=>{
@@ -1760,7 +1765,7 @@
   // Native toggle does not bubble, therefore the listener uses capture=true.
   $('taskList').addEventListener('toggle',event=>{
     const details=event.target;
-    if(!details.matches?.('details.task-actions-more')||!details.open)return;
+    if(!details.matches?.('details.task-actions-more[data-ui-key^="history-"]')||!details.open)return;
     const id=details.closest('[data-task]')?.dataset.task;
     if(id)void loadTaskHistory(id,details.querySelector('[data-task-history]'),
       details.querySelector('[data-load-history]'));

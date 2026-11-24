@@ -10,7 +10,7 @@ test('visible version follows service-worker cache version',()=>{
  assert.ok(html.includes('id="appVersion" title="Programėlės versija">v'+version+'</span>'));
 });
 test('direct assignment on task face and inbox shares explicit staff handler',()=>{
- assert.ok(app.includes('+assignmentActions(t)'));
+ assert.ok(app.includes("!assigned?assignmentActions(t)"));
  assert.ok(app.includes("assignmentActions({...t,status:'proposed'},{inbox:true})"));
  assert.ok(app.includes('data-assign-self'));
  assert.ok(app.includes("button.closest('article')?.querySelector('[data-person]')"));

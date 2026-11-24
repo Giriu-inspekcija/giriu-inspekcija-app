@@ -124,7 +124,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v25')
+                expect(page.locator('#appVersion')).to_have_text('v26')
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():
@@ -135,10 +135,22 @@ def exercise(user,password):
                 create.locator('button[type=submit]').click()
                 direct=page.locator('#taskList article.task').filter(has=page.get_by_role('heading',name=proposal_title,exact=True))
                 expect(direct.locator('[data-assign-self]')).to_be_visible()
-                expect(direct.get_by_text('Priskirti savanoriui',exact=True)).to_be_visible()
+                expect(direct.locator('summary[aria-label="Priskirti savanoriui"]')).to_be_visible()
                 direct.locator('[data-assign-self]').click()
                 expect(direct).to_contain_text('Paskirta man')
                 expect(direct.locator('[data-assign-self]')).to_have_count(0)
+                expect(direct.locator('[data-step="accept"]')).to_be_visible()
+                expect(direct.locator('[data-time-for-task]')).to_be_visible()
+                expect(direct.locator('[data-step="decline"]')).to_be_hidden()
+                expect(direct.locator('.task-overflow > summary')).to_be_visible()
+                direct.locator('.task-overflow > summary').click()
+                expect(direct.locator('[data-step="decline"]')).to_be_visible()
+                direct.locator('.task-overflow > summary').click()
+                expect(direct.locator('[data-step="decline"]')).to_be_hidden()
+                if name!='desktop':
+                    a=direct.locator('[data-step="accept"]').bounding_box()
+                    b=direct.locator('[data-time-for-task]').bounding_box()
+                    assert abs(a['y']-b['y'])<3, 'Primary actions must fit one mobile row'
                 print('PASS browser '+name+' visible version and direct proposed assignment',flush=True)
                 if name=='desktop':
                     test_forms(page)
