@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source=readFileSync(new URL('../pilot/team-thread.js',import.meta.url),'utf8');
 const code=source.slice(source.indexOf('  function historyItems(items){'),source.indexOf('  async function open('));
 const html=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const render=vm.runInNewContext(code+'\n({historyItems,contributionLabel})',{html,when:()=> '17:15',entryName:{help:'Prisijungė padėti'}});
+const render=vm.runInNewContext(code+'\n({historyItems,contributionLabel,coordinateLine,pointFromNote})',{html,when:()=> '17:15',entryName:{help:'Prisijungė padėti'}});
 test('history entry is collapsed, includes actor and timestamp; content safely escaped',()=>{
   const result=render.historyItems([{label:'Vilija · Papildė informaciją',at:0,body:'<script>test</script>'}]);
   assert.match(result,/<details class="thread-history-entry"><summary><b>Vilija · Papildė informaciją<\/b><time class="small">17:15<\/time><\/summary>/);
@@ -23,4 +23,14 @@ test('events without body stay compact; existing actor name is used',()=>{
   assert.doesNotMatch(render.historyItems([{label:'Pradėta patikra',at:0}]),/<details/);
   assert.match(source,/e\.actor_name.*contributionLabel\(e\)/);
   assert.match(source,/history\.slice\(0,5\)/);
+});
+
+test('point contribution validates range, is append-only note, and displays a specific label',()=>{
+  assert.equal(render.coordinateLine('54.125','25.125'),'Koordinatės: 54.125000, 25.125000');
+  assert.equal(render.coordinateLine('','25'),null);
+  assert.equal(render.coordinateLine('91','25'),null);
+  assert.equal(render.coordinateLine('54','181'),null);
+  assert.equal(render.pointFromNote('Koordinatės: 54.125000, 25.125000\nStebėjimas'),'54.125000, 25.125000');
+  assert.equal(render.pointFromNote('Koordinatės: 91.000000, 25.125000'),null);
+  assert.equal(render.contributionLabel({kind:'note',incident_id:'demo',body:'Koordinatės: 54.125000, 25.125000'}),'Pridėjo koordinates');
 });
