@@ -42,3 +42,11 @@ test('official STVK, KMB and EB polygon point sources are browser accessible', {
    console.log('protection sample',kind,JSON.stringify(sample.features?.[0]?.attributes||{}).slice(0,3500));
  }));
 });
+
+test('permit detail rows include verified type and dates; do not invent issue date',()=>{
+ const c={Intl,Date};vm.runInNewContext(js.slice(js.indexOf('  function attribute('),js.indexOf('  function protectionText('))+js.slice(js.indexOf('  function permitDate('),js.indexOf('  function paintPermits('))+';this.facts=permitFacts;',c);
+ const rows=Object.fromEntries(c.facts({id:123,kirtimo_rusis:'Plynasis',galioja_nuo:Date.UTC(2026,0,2),galioja_iki:Date.UTC(2026,11,31)}));
+ assert.equal(rows['Nr.'],'123');assert.equal(rows['Kirtimo rūšis'],'Plynasis');assert.ok(rows['Galioja nuo']);assert.ok(rows['Galioja iki']);assert.equal(rows['Išduotas'],undefined);
+ assert.match(html,/id="forestPermitDetails" hidden/);
+ assert.match(js,/details.hidden=!rows.length&&!failed/);
+});
