@@ -559,14 +559,24 @@ body.map-lock{overflow:hidden}
         <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
       </div>
       <label class="field">Darbo data <input type="date" id="manualTimeDate" required></label>
-      <label class="field">Projektas (bendroje savanorystėje palikite tuščią) <input id="timeProject" minlength="2" maxlength="120"></label>
+      <label class="field">Projektas (bendroje savanorystėje palikite tuščią) <input id="timeProject" minlength="2" maxlength="120" placeholder="Pvz., ALF 0025 / V2.1"></label>
       <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
     </form></details>
     <details class="card" id="timeHistoryPanel"><summary><b>Mano ankstesni laiko įrašai</b></summary>
       <div id="workLogsList"></div></details>
     <details id="staffTimePanel" class="review-panel" hidden><summary><b>Koordinatoriaus peržiūra · <span id="reviewCount" class="tag"></span> laiko įrašų</b></summary>
-      <div id="staffTimeLogs"></div></details>
+      <div id="staffTimeLogs"></div>
+      <details><summary><b>Patvirtintų valandų ataskaita</b></summary>
+        <form id="timeReportForm">
+          <div class="grid"><label class="field">Nuo <input id="timeReportFrom" type="date" required></label>
+            <label class="field">Iki <input id="timeReportTo" type="date" required></label></div>
+          <label class="field">Veiklos<select id="timeReportScope"><option value="all">Visos</option><option value="general">Bendra savanorystė</option><option value="project">Konkretaus projekto</option></select></label>
+          <label class="field" id="timeReportProjectField" hidden>Projekto kodas ar pavadinimo dalis<input id="timeReportProject" maxlength="120" placeholder="Pvz., ALF 0025"></label>
+          <p class="small">Tik patvirtinti įrašai pasirinktomis darbo datomis. CSV yra vidinė suvestinė, ne automatiškai užpildyta projekto ataskaita. Prieš pateikiant finansuotojui sutikrinkite veiklos kodus, įrodymus ir tinkamumą.</p>
+          <button type="submit" id="timeReportDownload">Atsisiųsti CSV</button>
+        </form>
+      </details></details>
 
   </section>
   <section id="incidentsSection" class="workspace-section" hidden>

@@ -162,7 +162,7 @@
     if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))return;
     const host=$('actionToast');
     if(host.hidden||host.classList.contains('error'))return;
-    const url=new URL(location.pathname,location.origin);
+    const url=new window.URL(location.pathname,location.origin);
     url.searchParams.set('task',id);
     const a=document.createElement('a');
     a.href=url.href;a.dataset.thread='task';a.dataset.key=id;
@@ -575,7 +575,31 @@
   });
   for(const id of ['manualTimeHours','manualTimeMinutes'])
     $(id).addEventListener('input',updateTimePresetButtons);
+  // Reporting is local to the authorised staff member's browser. No writes or
+  // third-party uploads; exact minutes retained to avoid rounding losses.
+  function timeReportCsv(rows){
+    const safe=v=>{
+      let s=String(v??'');
+      if(/^[\s]*[=+\-@]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;
+      return '"'+s.replace(/"/g,'""')+'"';
+    };
+    const header=['Data','Vykdytojas','Projektas','Veikla','Minutės','Valandos','Darbo aprašymas','Būsena','Įrašo ID'];
+    const data=rows.map(w=>[
+      w.work_date,w.worker?.display_name||'',w.general_activity?'Bendra savanorystė':(w.project_label||'Nepriskirta'),
+      w.activity_title||w.job?.title||'',Number(w.minutes),
+      (Number(w.minutes)/60).toFixed(4).replace('.',','),w.note||'','Patvirtinta',w.id
+    ]);
+    return '\uFEFF'+[header,...data].map(row=>row.map(safe).join(';')).join('\r\n')+'\r\n';
+  }
+  function timeReportMatches(w,scope,project){
+    if(w.review_status!=='approved')return false;
+    if(scope==='general')return w.general_activity===true;
+    if(scope==='project')return w.general_activity===false&&!!w.project_label&&
+      w.project_label.toLocaleLowerCase('lt').includes(project.toLocaleLowerCase('lt'));
+    return scope==='all';
+  }
   function renderWorkLogs(){
+
     const mine=workLogs.filter(w=>w.volunteer_id===currentUser?.id);
     $('myTimeSummary').textContent='Pateikta patvirtinti: '+clockDuration(Number(timeTotals.submitted))
       +' · Patvirtinta iš viso: '+clockDuration(Number(timeTotals.approved));
@@ -602,6 +626,12 @@
     const others=staff()?workLogs.filter(w=>w.volunteer_id!==currentUser?.id&&reviewableLogs.has(w.id)):[];
     $('reviewCount').textContent=others.length>50?'50+':String(others.length);
     $('staffTimePanel').hidden=!staff();
+    if(staff()){
+      const today=window.giDeadlines.inputValue(new Date()).slice(0,10);
+      for(const id of ['timeReportFrom','timeReportTo'])$(id).max=today;
+      if(!$('timeReportFrom').value)$('timeReportFrom').value=today.slice(0,7)+'-01';
+      if(!$('timeReportTo').value)$('timeReportTo').value=today;
+    }
     $('staffTimeLogs').innerHTML=others.length?others.slice(0,50).map(entry).join('')
       :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
   }
@@ -1877,6 +1907,55 @@
     return run(()=>client.rpc('gi_review_work_log',{p_id:id,p_action:action,p_note:note}),
       action==='approve'?'Savanorio darbo laikas patvirtintas.':'Laiko įrašas grąžintas patikslinti.');
   };
+  $('timeReportScope').addEventListener('change',()=>{
+    const isProject=$('timeReportScope').value==='project';
+    $('timeReportProjectField').hidden=!isProject;
+    $('timeReportProject').required=isProject;
+  });
+  $('timeReportForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!staff()||!currentUser)return;
+    const actor=currentUser.id,from=$('timeReportFrom').value,to=$('timeReportTo').value;
+    const scope=$('timeReportScope').value,project=$('timeReportProject').value.trim();
+    const button=$('timeReportDownload');
+    if(button.disabled)return;
+    if(!from||!to||from>to||to>$('timeReportTo').max)return toast('Patikrinkite ataskaitos datas.',true);
+    if(scope==='project'&&project.length<2)return toast('Įrašykite projekto pavadinimą arba kodą.',true);
+    button.disabled=true;
+    try{
+      const rows=[];let after=null;
+      // Use a deterministic keyset and a safety cap: never download a partial
+      // report silently or reuse the 70-row personal history / pending queue.
+      for(;;){
+        let query=client.from('gi_work_logs')
+          .select('id,work_date,minutes,note,activity_title,project_label,general_activity,review_status,worker:gi_profiles!volunteer_id(display_name),job:gi_tasks!task_id(title)')
+          .eq('review_status','approved').gte('work_date',from).lte('work_date',to)
+          .order('id').limit(250);
+        if(scope==='general')query=query.eq('general_activity',true);
+        if(scope==='project')query=query.eq('general_activity',false).not('project_label','is',null);
+        if(after)query=query.gt('id',after);
+        const {data,error}=await query;
+        if(error)throw error;
+        if(currentUser?.id!==actor||!staff())return;
+        if(!data?.length)break;
+        rows.push(...data);
+        if(rows.length>10000)throw Error('Pasirinkite trumpesnį laikotarpį.');
+        const next=data[data.length-1].id;
+        if(next===after)throw Error('Nepavyko patikimai gauti visų įrašų.');
+        after=next;
+        if(data.length<250)break;
+      }
+      const selected=rows.filter(w=>timeReportMatches(w,scope,project))
+        .sort((a,b)=>a.work_date.localeCompare(b.work_date)||a.id.localeCompare(b.id));
+      if(!selected.length)return toast('Nėra patvirtintų įrašų pagal pasirinktus kriterijus.',true);
+      if(currentUser?.id!==actor||!staff())return;
+      const url=window.URL.createObjectURL(new Blob([timeReportCsv(selected)],{type:'text/csv;charset=utf-8'}));
+      const link=document.createElement('a');link.href=url;link.download='GI-patvirtintos-valandos-'+from+'-'+to+'.csv';
+      document.body.append(link);link.click();link.remove();setTimeout(()=>window.URL.revokeObjectURL(url),1000);
+      toast('Eksportuota '+selected.length+' patvirtintų įrašų: '+clockDuration(selected.reduce((s,w)=>s+Number(w.minutes),0))+'.');
+    }catch(error){toast('Ataskaita neatsisiųsta. '+(error?.message||'Patikrinkite ryšį.'),true);}
+    finally{button.disabled=false;}
+  });
   $('workLogsList').addEventListener('click',handleTimeReviewClick);
   $('staffTimeLogs').addEventListener('click',handleTimeReviewClick);
   $('manualTimeForm').addEventListener('submit',async event=>{
