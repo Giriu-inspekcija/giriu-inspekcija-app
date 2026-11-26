@@ -248,6 +248,19 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 .location-advanced{margin:4px 0;padding-top:3px}
 .location-advanced summary{font-size:12px;color:#486353}
 #mapTiles{will-change:transform}
+#mapOverlays{position:absolute;inset:0;pointer-events:none}
+#mapOverlays img{position:absolute;inset:0;max-width:none;opacity:.74;pointer-events:none}
+#mapOverlays .map-vector{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.map-legend-dot{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none;border:1px solid #0003}
+.map-legend-old{background:#eab308}.map-legend-ancient{background:#7c3aed}.map-legend-permit{background:#dc2626}
+#mapLayerMenu{padding:8px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;max-height:30dvh;overflow:auto}
+#mapLayerMenu[hidden],#mapPeriodWrap[hidden]{display:none}
+#mapLayerMenu label{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px}
+#mapLayerMenu input[type=checkbox]{width:20px;height:20px;flex:0 0 20px}
+#mapPeriodWrap{display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0}
+#mapOrthoPeriod{min-width:0;flex:1;min-height:40px}
+#mapOverlayCredit,#mapOverlayStatus{font-size:11px;margin:3px 0}
+#mapOverlayCredit:empty,#mapOverlayStatus:empty{display:none}
 #incidentMap{user-select:none;-webkit-user-select:none}
 #incidentMap img{user-select:none;-webkit-user-drag:none}
 #mapScene{position:absolute;inset:0;will-change:transform;pointer-events:none}
@@ -504,7 +517,7 @@ body.map-lock{overflow:hidden}
         <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p><p id="incidentPointCount" class="small" aria-live="polite"></p>
         <div id="incidentMapPanel" hidden>
           <div class="map-frame">
-            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div></div></div>
+            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapOverlays" aria-hidden="true"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div></div></div>
             <div class="map-corner">
               <button type="button" class="map-icon" id="mapFullscreen" aria-pressed="false" aria-label="Visas ekranas" title="Visas ekranas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg></button>
               <button type="button" class="map-icon" id="mapMyLocation" aria-label="Rodyti mano vietą" title="Rodyti mano vietą"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></button>
@@ -513,10 +526,28 @@ body.map-lock{overflow:hidden}
           </div>
           <div class="map-bottom">
             <button type="button" class="outline" id="mapBasemap" aria-label="Rodyti aktualiausią ortofoto" aria-pressed="false">Ortofoto</button>
+            <button type="button" class="outline" id="mapLayersToggle" aria-expanded="false" aria-controls="mapLayerMenu">Sluoksniai</button>
             <button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Keli taškai</button>
             <button type="button" class="outline" id="mapAddGps" hidden>+ GPS taškas</button>
             <button type="button" id="mapDone">Baigti</button>
           </div>
+          <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023">2021–2023 m.</option><option value="2018-2020">2018–2020 m.</option><option value="2015-2017">2015–2017 m.</option><option value="2012-2013">2012–2013 m.</option><option value="2009-2010">2009–2010 m.</option><option value="2005-2006">2005–2006 m.</option><option value="1995-1999">1995–1999 m.</option></select></label>
+          <div id="mapLayerMenu" hidden>
+            <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> Medynai 120+ m. (įskaitant 180+)</label>
+            <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> Medynai 180+ m.</label>
+            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> VMT kirtimų leidimai</label>
+            <p class="small">Amžius – kadastro AMZ, ne biologinis atskirų medžių amžius. 120–179 m. geltona, 180+ m. violetinė. Leidimai – raudonos ribos; leidimas savaime neįrodo kirtimo.</p>
+            <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
+            <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
+            <label><input id="layer-groups" type="checkbox"> Miškų grupės ir pogrupiai</label>
+            <label><input id="layer-state" type="checkbox"> Valstybinės reikšmės miškai</label>
+            <label><input id="layer-habitats" type="checkbox"> Inventorizuotos EB buveinės (2011–2014 m.)</label>
+            <label><input id="layer-restrictions" type="checkbox"> Natura 2000 miškų apribojimai (paramos duomenys)</label>
+            <p class="small">EB inventorizacija savaime nepatvirtina teisinio apsaugos statuso.</p>
+            <button type="button" id="mapOverlayRetry" class="outline">Atnaujinti sluoksnius</button>
+            <p class="small">Papildoma patikra: <a href="https://atvira.amvmt.lt/" target="_blank" rel="noopener noreferrer">oficialus VMT žemėlapis ↗</a> · <a href="https://stvk.lt/map" target="_blank" rel="noopener noreferrer">STVK ↗</a>.</p>
+          </div>
+          <p id="mapOverlayStatus" role="status"></p><p id="mapOverlayCredit"></p>
           <p id="mapBasemapStatus" role="status" class="small"></p>
           <p id="incidentMapStatus" role="status" class="small"></p>
           <p class="map-source"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto ↗</a></p>
