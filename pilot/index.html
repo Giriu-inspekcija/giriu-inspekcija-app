@@ -130,6 +130,8 @@ dialog{color:inherit;background:#fff;border:1px solid #c1cfc4;border-radius:16px
 dialog::backdrop{background:rgb(15 35 24 / .54)}#threadDialog{width:min(96vw,45rem)}#threadDialog h2{overflow-wrap:anywhere}
 .thread-top,.log-head{display:flex;gap:12px;align-items:center;justify-content:space-between}
 .thread-history{padding-left:1.4rem}.thread-history li{padding:.45rem 0 .7rem .25rem;border-bottom:1px solid #dae2dc}
+.thread-history-entry>summary{cursor:pointer;min-height:44px;padding:4px 0;overflow-wrap:anywhere}
+.thread-history-entry>summary b{font-weight:600}.thread-history-content{padding:4px 0 6px 12px}
 .thread-history p,.log-card p{margin:.35em 0;white-space:pre-line;overflow-wrap:anywhere}.thread-history time{display:block}
 .log-card{padding:12px 0;border-bottom:1px solid #cedbd1}.log-head strong{font-size:1.12rem;color:#244c35;white-space:nowrap}
 .review-panel{padding:16px;background:#f3f7f2;border:1px solid #ccd9cd;border-radius:12px;margin:10px 0}
@@ -246,6 +248,35 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 .location-advanced{margin:4px 0;padding-top:3px}
 .location-advanced summary{font-size:12px;color:#486353}
 #mapTiles{will-change:transform}
+#mapOverlays{position:absolute;inset:0;pointer-events:none}
+#mapOverlays img{position:absolute;inset:0;max-width:none;opacity:.74;pointer-events:none}
+#mapOverlays .map-vector{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.map-legend-dot{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none;border:1px solid #0003}
+#forestInfoCard{border:1px solid #bdcfc0;border-radius:10px;padding:8px 10px;margin:5px 0;background:#fff}
+#forestInfoCard[hidden],#mapInspectHint[hidden],#mapInspectPin[hidden]{display:none}
+#forestInfoCard dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:4px 0;font-size:13px}
+#forestInfoCard dt{color:#536358}#forestInfoCard dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#forestInfoTitle{font-size:12px;color:#536358}#forestInfoGroup{font-size:15px;color:#205742}
+#forestInfoDetails summary,#forestProtectionDetails summary,#forestPermitDetails summary{font-size:13px;font-weight:600;cursor:pointer;padding:7px 0;min-height:36px}
+#forestProtectionDetails[hidden],#forestProtectionPreview[hidden],#forestProtectionStatus[hidden],#forestPermitDetails[hidden]{display:none}
+.forest-permit-entry{padding:5px 0;border-bottom:1px solid #e1e8e2}
+.forest-protection-preview{font-size:12px;color:#205742;font-weight:600;margin:4px 0}
+.forest-protection-line{display:flex;flex-direction:column;gap:2px;padding:5px 0;border-bottom:1px solid #e1e8e2;font-size:12px}
+.forest-protection-line span{overflow-wrap:anywhere;color:#304438}
+#forestProtectionDetails[open]~#forestInfoDetails{margin-top:2px}
+#mapInspect[aria-pressed=true]{background:#205742;color:#fff}
+#mapInspectPin{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;border:3px solid #0284c7;background:#fff9;z-index:7;pointer-events:none}
+#mapInspectHint{font-size:12px;color:#075985}
+.map-group-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0 6px}
+.map-legend-old{background:#eab308}.map-legend-ancient{background:#7c3aed}.map-legend-permit{background:#dc2626}
+#mapLayerMenu{padding:8px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;max-height:30dvh;overflow:auto}
+#mapLayerMenu[hidden],#mapPeriodWrap[hidden]{display:none}
+#mapLayerMenu label{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px}
+#mapLayerMenu input[type=checkbox]{width:20px;height:20px;flex:0 0 20px}
+#mapPeriodWrap{display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0}
+#mapOrthoPeriod{min-width:0;flex:1;min-height:40px}
+#mapOverlayCredit,#mapOverlayStatus{font-size:11px;margin:3px 0}
+#mapOverlayCredit:empty,#mapOverlayStatus:empty{display:none}
 #incidentMap{user-select:none;-webkit-user-select:none}
 #incidentMap img{user-select:none;-webkit-user-drag:none}
 #mapScene{position:absolute;inset:0;will-change:transform;pointer-events:none}
@@ -276,10 +307,67 @@ body.map-lock{overflow:hidden}
 .map-bottom #mapDone{margin-left:auto}
 #mapAddGps[hidden]{display:none}
 #incidentMapStatus{font-size:12px;margin:4px 0}
-#incidentMapStatus:empty{display:none}
+#incidentMapStatus:empty,#mapBasemapStatus:empty{display:none}
+#mapBasemapStatus{font-size:12px;margin:4px 0}
+#mapBasemap[aria-pressed=true]{background:#205742;color:#fff}
 .map-source{font-size:12px;margin:2px 0}
-#incidentMapPanel.map-fullscreen .map-frame{flex:1 1 auto;min-height:170px;display:flex;flex-direction:column}
-#incidentMapPanel.map-fullscreen #incidentMap{flex:1 1 auto;height:auto;max-height:none;min-height:170px}
+#incidentMapPanel.map-fullscreen{display:block;overflow:hidden;padding:0}
+#incidentMapPanel.map-fullscreen .map-frame{position:absolute;inset:0;margin:0;display:block;min-height:0}
+#incidentMapPanel.map-fullscreen .map-controls{position:absolute;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:8;background:#f9fbf8f5;border:1px solid #bdcfc0;border-radius:12px;padding:6px;box-shadow:0 2px 12px #0003}
+#incidentMapPanel.map-fullscreen .map-sheet{max-height:28dvh;overflow:auto;overscroll-behavior:contain}
+#incidentMapPanel.map-fullscreen .map-credit{top:6px;bottom:auto;left:6px;right:auto;max-width:calc(100% - 64px)}
+#incidentMapPanel.map-fullscreen .map-corner{top:max(8px,env(safe-area-inset-top))}
+.map-quick-layers{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0}
+.map-quick-layers label{display:flex;align-items:center;gap:4px;flex:1 1 auto;justify-content:center;padding:6px 5px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;font-size:12px;font-weight:600;min-height:36px}
+.map-quick-layers input{width:16px;height:16px;margin:0;flex:none}
+.map-quick-layers label:has(input:checked){background:#e1f0e5;border-color:#205742}
+#incidentMapPanel.map-fullscreen #forestInfoCard{margin:3px 0;padding:5px 8px}
+#incidentMapPanel.map-fullscreen #mapLayerMenu{max-height:none}
+#incidentMapPanel.map-fullscreen #mapBasemapStatus{font-size:10px}
+#incidentMapPanel.map-fullscreen .map-source{display:none}
+#incidentMapPanel.map-fullscreen #incidentMap{height:100%;width:100%;max-height:none;min-height:0;border-radius:0;border:0}
+/* Compact map workspace; map and controls do not compete for layout width. */
+.map-controls{display:block;min-width:0;width:100%;box-sizing:border-box}
+#mapControlsContent{width:100%;min-width:0}
+#mapControlsContent[hidden],#mapSheetToggle[hidden]{display:none}
+#mapSheetToggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:34px;margin:0 0 5px;padding:3px 8px;font-size:12px;border:0;background:transparent}
+#mapSheetChevron{font-size:19px;line-height:1}
+#incidentMapPanel.map-fullscreen .map-controls{width:auto;max-width:none}
+#incidentMapPanel.map-fullscreen .map-controls:has(#mapControlsContent[hidden]){left:auto;right:8px;width:auto;padding:3px}
+#incidentMapPanel.map-fullscreen .map-controls:has(#mapControlsContent[hidden]) #mapSheetToggle{margin:0;min-height:38px;gap:8px}
+.map-bottom{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:4px;width:100%;align-items:stretch}
+.map-bottom button{min-width:0;min-height:44px;padding:5px 3px;font-size:11px;overflow-wrap:normal}
+.map-bottom #mapDone{margin:0;min-width:44px;padding:5px 8px}
+.map-bottom #mapAddGps:not([hidden]){grid-column:1/-1;grid-row:2}
+.map-quick-layers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;width:100%}
+.map-quick-layers label{min-width:0;gap:3px;font-size:11px;padding:5px 3px}
+.map-quick-layers input{accent-color:#205742;width:15px;height:15px}
+.map-quick-layers .map-legend-dot{width:9px;height:9px}
+#forestInfoInside,#forestInfoOutside{width:100%;min-width:0}
+#forestInfoCard{width:100%;box-sizing:border-box;border:0;padding:0;background:transparent}
+.forest-block{border:1px solid;border-radius:9px;margin:5px 0;padding:0 9px;min-width:0}
+.forest-main{background:#edf5ee;border-color:#c3d9c6}
+.forest-protection{background:#eef4fb;border-color:#c8d9eb}
+.forest-permits{background:#fdf0ee;border-color:#ecc9c3}
+.forest-block summary{position:relative;display:block;list-style:none;padding:9px 20px 9px 0;min-height:36px;cursor:pointer;font-weight:600;font-size:13px;box-sizing:border-box}
+.forest-block summary::-webkit-details-marker{display:none}
+.forest-block summary::after{content:'⌄';position:absolute;right:0;top:9px;font-size:18px;line-height:1}
+.forest-block[open] summary::after{content:'⌃'}
+#forestInfoTitle,#forestInfoGroup,#forestCompactFacts{display:block}
+#forestCompactFacts{font-size:12px;color:#3e5546;font-weight:400;margin-top:3px;overflow-wrap:anywhere}
+.forest-main[open] #forestCompactFacts{display:none}
+.forest-block dl{padding-bottom:7px}
+#forestProtectionDetails summary,#forestPermitDetails summary{padding-right:20px}
+#forestProtectionDetails summary{color:#224e7c}
+#forestPermitDetails summary{color:#9a352d}
+.forest-protection-preview{font-size:11px;margin:3px 0 0;color:#385c7f;font-weight:500}
+.forest-coords{display:flex;align-items:center;gap:5px;color:#65756b;font-size:11px;padding:2px 0}
+#forestCopyCoords{min-height:32px;min-width:32px;width:32px;padding:5px;border:0;background:transparent;color:#52665a}
+#forestCopyCoords svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+#forestCopyStatus{font-size:11px}
+#forestInfoDetails summary{font-size:11px;color:#65756b;font-weight:400;min-height:28px;padding:4px 0}
+#mapOverlayStatus,#mapOverlayCredit,#mapBasemapStatus{font-size:11px;margin:3px 0}
+
 /* v32: coordinate list with small visual remove icon and full touch area. */
 #incidentForm .incident-classification{gap:4px 10px;margin:4px 0}
 #incidentForm .incident-classification>.field{margin:3px 0}
@@ -500,20 +588,77 @@ body.map-lock{overflow:hidden}
         <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p><p id="incidentPointCount" class="small" aria-live="polite"></p>
         <div id="incidentMapPanel" hidden>
           <div class="map-frame">
-            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div></div></div>
+            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapOverlays" aria-hidden="true"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div><div id="mapInspectPin" hidden aria-hidden="true"></div></div></div>
             <div class="map-corner">
+              <button type="button" class="map-icon" id="mapInspect" aria-label="Tirti vietą" title="Tirti vietą" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
               <button type="button" class="map-icon" id="mapFullscreen" aria-pressed="false" aria-label="Visas ekranas" title="Visas ekranas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg></button>
               <button type="button" class="map-icon" id="mapMyLocation" aria-label="Rodyti mano vietą" title="Rodyti mano vietą"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></button>
             </div>
-            <div class="map-credit"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div>
+            <div class="map-credit"><a id="mapCredit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div>
           </div>
+          <div class="map-controls">
+          <button type="button" id="mapSheetToggle" class="outline" aria-expanded="true" aria-controls="mapControlsContent" hidden><span id="mapSheetToggleText">Sutraukti skydelį</span><span aria-hidden="true" id="mapSheetChevron">⌄</span></button>
+          <div id="mapControlsContent">
           <div class="map-bottom">
-            <button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Keli taškai</button>
+            <button type="button" class="outline" id="mapBasemap" aria-label="Rodyti aktualiausią ortofoto" aria-pressed="false">Ortofoto</button>
+            <button type="button" class="outline" id="mapLayersToggle" aria-expanded="false" aria-controls="mapLayerMenu">Sluoksniai</button>
+            <button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Taškai</button>
             <button type="button" class="outline" id="mapAddGps" hidden>+ GPS taškas</button>
             <button type="button" id="mapDone">Baigti</button>
           </div>
+          <div class="map-quick-layers" aria-label="Svarbiausi sluoksniai">
+            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> Leidimai</label>
+            <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> 120+ m.</label>
+            <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> 180+ m.</label>
+          </div>
+          <div class="map-sheet">
+          <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023">2021–2023 m.</option><option value="2018-2020">2018–2020 m.</option><option value="2015-2017">2015–2017 m.</option><option value="2012-2013">2012–2013 m.</option><option value="2009-2010">2009–2010 m.</option><option value="2005-2006">2005–2006 m.</option><option value="1995-1999">1995–1999 m.</option></select></label>
+          <div id="mapLayerMenu" hidden>
+            <p class="small">120+ apima ir 180+ medynus.</p>
+            <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
+            <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
+            <details><summary>Miškų grupės</summary>
+            <label><input id="layer-groups" type="checkbox"> Visos grupės</label>
+            <div class="map-group-options">
+            <label><input id="layer-group1" type="checkbox"><span class="map-legend-dot" style="background:#ad1457"></span> I · rezervatiniai</label>
+            <label><input id="layer-group2a" type="checkbox"><span class="map-legend-dot" style="background:#15803d"></span> IIA · ekosistemų</label>
+            <label><input id="layer-group2b" type="checkbox"><span class="map-legend-dot" style="background:#65a30d"></span> IIB · rekreaciniai</label>
+            <label><input id="layer-group3" type="checkbox"><span class="map-legend-dot" style="background:#d97706"></span> III · apsauginiai</label>
+            <label><input id="layer-group4" type="checkbox"><span class="map-legend-dot" style="background:#64748b"></span> IV · ūkiniai</label>
+            </div></details>
+            <label><input id="layer-state" type="checkbox"> Valstybinės reikšmės miškai</label>
+            <label><input id="layer-habitats" type="checkbox"> Inventorizuotos EB buveinės (2011–2014 m.)</label>
+            <label><input id="layer-restrictions" type="checkbox"> Natura 2000 miškų apribojimai (paramos duomenys)</label>
+
+            <button type="button" id="mapOverlayRetry" class="outline">Atnaujinti sluoksnius</button>
+            <p class="small">Papildoma patikra: <a href="https://atvira.amvmt.lt/" target="_blank" rel="noopener noreferrer">oficialus VMT žemėlapis ↗</a> · <a href="https://stvk.lt/map" target="_blank" rel="noopener noreferrer">STVK ↗</a>.</p>
+          </div>
+          <p id="mapOverlayStatus" role="status"></p><p id="mapOverlayCredit"></p>
+          <p id="mapBasemapStatus" role="status" class="small"></p>
           <p id="incidentMapStatus" role="status" class="small"></p>
+          <p id="mapInspectHint" hidden>Palieskite norimą vietą – įvykio taškai nesikeis.</p>
+          <div id="forestInfoInside"></div>
           <p class="map-source"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto ↗</a></p>
+          </div></div></div>
+        </div>
+        <div id="forestInfoOutside">
+          <section id="forestInfoCard" hidden aria-label="Miško informacija">
+            <details id="forestMainDetails" class="forest-block forest-main">
+              <summary><span id="forestInfoTitle"></span><strong id="forestInfoGroup" aria-live="polite"></strong><span id="forestCompactFacts"></span></summary>
+              <dl><dt>Nuosavybė</dt><dd id="forestInfoState"></dd><dt>Vyraujanti rūšis</dt><dd id="forestInfoSpecies"></dd><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
+            </details>
+            <p id="forestProtectionPreview" class="forest-protection-preview" hidden aria-live="polite"></p>
+            <details id="forestProtectionDetails" hidden class="forest-block forest-protection"><summary id="forestProtectionSummary">Teritorijos ir buveinės</summary>
+              <div id="forestProtectionList"></div><p id="forestProtectionStatus" class="small" hidden role="status"></p>
+
+            </details>
+            <details id="forestPermitDetails" hidden class="forest-block forest-permits"><summary id="forestPermitSummary">Kirtimų leidimai</summary><div id="forestPermitList"></div></details>
+            <div class="forest-coords"><span id="forestInfoCoords"></span><button type="button" id="forestCopyCoords" class="outline" title="Kopijuoti koordinates" aria-label="Kopijuoti koordinates"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><span id="forestCopyStatus" role="status"></span></div>
+            <details id="forestInfoDetails"><summary>Šaltiniai</summary>
+              <p class="small">VMT, AM / geoportal.lt, STVK / VDA. Inventorizuotos EB buveinės savaime nepatvirtina apsaugos statuso. Nuosavybė pagal VMT leidimą arba VRM ribas. Patikrai koordinatės perduodamos GIS paslaugoms.</p>
+              <button type="button" id="forestInfoRetry" class="outline">Patikrinti iš naujo</button>
+            </details>
+          </section>
         </div>
         <details class="location-advanced" id="incidentPointsDetails"><summary>Taškai ir koordinatės <span id="incidentPointsSummary" class="small"></span></summary>
           <div id="incidentPointList"></div><p id="incidentNoPoints" class="small">Taškų dar nėra.</p>
@@ -523,8 +668,13 @@ body.map-lock{overflow:hidden}
       </fieldset>
       <label class="field">Nuotraukos <input id="incidentPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
       <p class="small">Iki 10 nuotraukų, po 5 MB.</p>
+      <label class="field">Kas matys įvykį?<select id="incidentDestination"><option value="review">Pateikti koordinatoriams (nepriskirta)</option></select></label>
+      <div id="incidentAssigneeWrap" hidden>
+        <label class="field">Vykdytojas<select id="incidentAssignee"><option value="">Pasirinkite savanorį</option></select></label>
+        <label class="field">Ką patikrinti?<textarea id="incidentReviewDetails" minlength="5" maxlength="6000"></textarea></label>
+      </div>
       <div class="actions">
-        <button type="submit" name="action" value="draft" class="outline">Išsaugoti juodraštį</button>
+        <button type="submit" name="action" value="draft" class="outline" formnovalidate>Išsaugoti juodraštį</button>
         <button type="submit" name="action" value="submit">Pateikti pranešimą</button>
       </div>
       <p class="small">Išsaugotus juodraščius rasite žemiau, pranešimų sąraše.</p>
