@@ -423,6 +423,7 @@ window.giIncidentLocation=function(){
     if(selected){center=[...selected];zoom=16;status.textContent='Įvykiui pasirinkta: '+format(selected);}
     else status.textContent='Įvykiui vieta dar nepasirinkta.';
     if(!selected)showPointInfo(null);
+    else if(!inspectMode&&infoPoint&&!allPoints().some(p=>format(p)===format(infoPoint))) {cancelInfo();infoCard.hidden=true;}
     render();
   }
   function closeMap(){
