@@ -9,9 +9,10 @@ vm.runInNewContext(js.slice(js.indexOf('  function attribute('),js.indexOf('  fu
 test('protection entries show actual names and codes, not yes/no',()=>{
  assert.equal(ctx.describe('park',{pavadinimas:'Aukštaitijos nacionalinis parkas'}),'Aukštaitijos nacionalinis parkas');
  assert.equal(ctx.describe('reserve',{pavadinimas:'Draustinio pavadinimas'}),'Draustinio pavadinimas');
- assert.equal(ctx.describe('bast',{pavadinimas:'Miškas',sitecode:'LTTEST001'}),'Miškas · LTTEST001');
+ assert.equal(ctx.describe('bast',{pavadinimas:'Miškas',bast_kodas:'LTTEST001'}),'Miškas · LTTEST001');
  assert.match(ctx.describe('kmb',{KMB_tip_kod:'A1',KMB_nr:'123'}),/A1.*123/);
- assert.match(ctx.describe('eb',{buv_kodas:'9010*',buv_pav:'Vakarų taiga'}),/9010\*.*Vakarų taiga/);
+ assert.match(ctx.describe('eb',{'BIGISDBAnketos.BuveinesTipas':'9010'}),/9010\*.*Vakarų taiga/);
+ assert.match(ctx.describe('kmb',{pot_KMB_tip_kod:'A1',KMB_kod:123}),/Potenciali KMB A1.*123/);
  assert.match(html,/id="forestProtectionDetails" hidden/);
  assert.match(js,/details.hidden=!lines.length&&!failed.length/);
  assert.match(js,/if\(infoKey!==key\|\|controller.signal.aborted\)return;\s*paintProtection/);
