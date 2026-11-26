@@ -389,8 +389,16 @@ def test_time_report(page):
         page.locator('#timeReportScope').select_option(scope)
         if project:
             page.locator('#timeReportProject').fill(project)
-        with page.expect_download() as download:
-            page.locator('#timeReportDownload').click()
+        # Capture the actual failure rather than a bare download timeout.
+        requests=[]
+        page.on('response',lambda response: requests.append((response.status,response.url.split('?')[0])) if '/gi_work_logs?' in response.url else None)
+        try:
+            with page.expect_download(timeout=15000) as download:
+                page.locator('#timeReportDownload').click()
+        except Exception as exc:
+            raise AssertionError('CSV '+scope+' toast='+page.locator('#actionToast').inner_text()+
+                ' form='+str(page.locator('#timeReportForm').evaluate("f=>({valid:f.checkValidity(),from:f.querySelector('#timeReportFrom').value,to:f.querySelector('#timeReportTo').value,max:f.querySelector('#timeReportTo').max,invalid:[...f.querySelectorAll(':invalid')].map(e=>e.id)})"))+
+                ' responses='+str(requests)) from exc
         with open(download.value.path(),encoding='utf-8-sig',newline='') as f:
             rows=list(csv.DictReader(f,delimiter=';'))
         assert rows and all(row['Būsena']=='Patvirtinta' for row in rows)
