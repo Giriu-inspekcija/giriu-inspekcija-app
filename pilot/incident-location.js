@@ -23,22 +23,87 @@ window.giIncidentLocation=function(){
   const orthoService='https://www.geoportal.lt/mapproxy/rest/services/nzt_ort10lt_recent_wm/MapServer';
   const orthoMeta='https://www.geoportal.lt/metadata-catalog/catalog/search/resource/details.page?uuid=%7B5E116F93-97ED-4F0C-AE22-8C0C71A51C54%7D';
   let basemap='street',orthoTimer=null,orthoKey='',orthoReady=false;
+  let orthoPeriod='recent';
+  const geoRoot='https://www.geoportal.lt/mapproxy/rest/services/';
+  const periods={recent:orthoService,'2024-2026':geoRoot+'nzt_ort10lt_2024_2026/MapServer'};
+  const layerDefs={
+    parcels:{service:'vmt_mkd',ids:[0,1],credit:'© RC / geoportal.lt'},
+    kmb:{service:'vmt_miskai',ids:[3],credit:'© VMT / geoportal.lt'},
+    groups:{service:'vmt_miskai',ids:[7],credit:'© VMT / geoportal.lt'},
+    state:{service:'vmt_miskai',ids:[8],credit:'© VMT / geoportal.lt'},
+    habitats:{service:'am_bigis_spalvotas',ids:[],credit:'© AM / GIS-Centras',all:true},
+    restrictions:{service:'vstt_natura_apribojimai',ids:[0,1,2,3],credit:'© VSTT'}
+  };
+  const overlayPane=el('mapOverlays'),overlayStatus=el('mapOverlayStatus'),overlayCredit=el('mapOverlayCredit'),layerMenu=el('mapLayerMenu'),periodControl=el('mapOrthoPeriod');
+  let overlayKey='',overlayTimer=null;
+  const selectedLayers=new Set();
+  function clearOverlays(){
+    if(overlayTimer!==null){clearTimeout(overlayTimer);overlayTimer=null;}
+    overlayKey='';overlayPane.replaceChildren();overlayStatus.textContent='';
+  }
+  function overlayImageUrl(service,ids,left,top,w,h,z){
+    const u=new URL(orthoImageUrl(left,top,w,h,z,geoRoot+service+'/MapServer'));
+    u.searchParams.set('format','png32');u.searchParams.set('transparent','true');
+    if(ids.length)u.searchParams.set('layers','show:'+ids.join(','));
+    return u.toString();
+  }
+  function renderOverlays(left,top,w,h){
+    if(!selectedLayers.size){clearOverlays();overlayCredit.textContent='';return;}
+    overlayCredit.textContent=[...new Set([...selectedLayers].map(k=>layerDefs[k].credit))].join(' · ');
+    if(zoom<12){clearOverlays();overlayStatus.textContent='Priartinkite žemėlapį, kad matytumėte pasirinktus sluoksnius.';return;}
+    const grouped=new Map();
+    for(const key of selectedLayers){
+      const d=layerDefs[key];if(!grouped.has(d.service))grouped.set(d.service,{ids:[],keys:[]});
+      const g=grouped.get(d.service);g.ids.push(...d.ids);g.keys.push(key);
+    }
+    const requests=[...grouped].map(([service,g])=>({url:overlayImageUrl(service,[...new Set(g.ids)].sort((a,b)=>a-b),left,top,w,h,zoom),keys:g.keys}));
+    const key=requests.map(r=>r.url).join('|');
+    if(overlayKey===key)return;
+    clearOverlays();overlayKey=key;overlayStatus.textContent='Įkeliami sluoksniai…';
+    overlayTimer=setTimeout(()=>{
+      overlayTimer=null;if(panel.hidden||overlayKey!==key)return;
+      let remaining=requests.length;const failed=[];
+      function finish(req,ok){
+        if(overlayKey!==key||panel.hidden)return;
+        if(!ok)failed.push(...req.keys.map(k=>el('layer-'+k).parentElement.textContent.trim()));
+        if(--remaining===0)overlayStatus.textContent=failed.length?'Nepasiekiama: '+failed.join(', ')+'. Keiskite mastelį arba pabandykite dar kartą.':'Sluoksniai įkelti. Tuščias vaizdas nepatvirtina, kad apribojimų nėra.';
+      }
+      for(const req of requests){
+        const img=document.createElement('img');img.alt='';img.draggable=false;img.referrerPolicy='strict-origin-when-cross-origin';
+        img.style.width=w+'px';img.style.height=h+'px';
+        img.addEventListener('load',()=>finish(req,true),{once:true});
+        img.addEventListener('error',()=>{img.remove();finish(req,false);},{once:true});
+        overlayPane.append(img);img.src=req.url;
+      }
+    },350);
+  }
+  function updateLayerButton(){el('mapLayersToggle').textContent='Sluoksniai'+(selectedLayers.size?' ('+selectedLayers.size+')':'');}
+  el('mapLayersToggle').addEventListener('click',()=>{layerMenu.hidden=!layerMenu.hidden;el('mapLayersToggle').setAttribute('aria-expanded',String(!layerMenu.hidden));});
+  for(const k of Object.keys(layerDefs))el('layer-'+k).addEventListener('change',e=>{
+    if(e.target.checked)selectedLayers.add(k);else selectedLayers.delete(k);
+    clearOverlays();updateLayerButton();render();
+  });
+  el('mapOverlayRetry').addEventListener('click',()=>{clearOverlays();render();});
+  periodControl.addEventListener('change',()=>{
+    if(!Object.hasOwn(periods,periodControl.value))return;
+    orthoPeriod=periodControl.value;basemap='ortho';clearOrtho();tileNodes.clear();tiles.replaceChildren();updateBasemap();render();
+  });
   const orthoButton=el('mapBasemap'),credit=el('mapCredit'),orthoStatus=el('mapBasemapStatus');
   // Convert the displayed Web Mercator pixel extent to metres; the Geoportal cache
   // has a different origin and level numbering from OSM. Never substitute XYZ tiles.
-  function orthoImageUrl(left,top,w,h,z){
+  function orthoImageUrl(left,top,w,h,z,service=orthoService){
     const half=20037508.342789244,step=2*half/world(z);
     const bbox=[left*step-half,half-(top+h)*step,(left+w)*step-half,half-top*step];
     const scale=Math.min(1,4096/Math.max(w,h));
     const size=[Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale))];
-    return orthoService+'/export?'+new URLSearchParams({bbox:bbox.join(','),bboxSR:'3857',imageSR:'3857',size:size.join(','),format:'jpg',f:'image'});
+    return service+'/export?'+new URLSearchParams({bbox:bbox.join(','),bboxSR:'3857',imageSR:'3857',size:size.join(','),format:'jpg',f:'image'});
   }
   function clearOrtho(){
     if(orthoTimer!==null){clearTimeout(orthoTimer);orthoTimer=null;}
     orthoKey='';orthoReady=false;
   }
   function renderOrtho(left,top,w,h){
-    const url=orthoImageUrl(left,top,w,h,zoom);
+    const url=orthoImageUrl(left,top,w,h,zoom,periods[orthoPeriod]);
     if(orthoKey===url)return;
     clearOrtho();orthoKey=url;tiles.replaceChildren();
     orthoStatus.textContent='Įkeliama ortofoto…';
@@ -52,7 +117,7 @@ window.giIncidentLocation=function(){
       img.style.left='0';img.style.top='0';img.style.width=w+'px';img.style.height=h+'px';
       img.addEventListener('load',()=>{
         if(img.isConnected&&orthoKey===url&&basemap==='ortho'){
-          orthoReady=true;orthoStatus.textContent='Aktualiausias ORT10LT · fotografavimo data nenurodyta.';
+          orthoReady=true;orthoStatus.textContent=(orthoPeriod==='recent'?'Aktualiausias ORT10LT':orthoPeriod+' m. ciklas')+' · konkrečios vietos fotografavimo data nenurodyta.';
         }
       },{once:true});
       img.addEventListener('error',()=>{
@@ -67,8 +132,9 @@ window.giIncidentLocation=function(){
     const ortho=basemap==='ortho';
     orthoButton.setAttribute('aria-pressed',String(ortho));
     orthoButton.textContent=ortho?'Žemėlapis':'Ortofoto';
+    el('mapPeriodWrap').hidden=!ortho;periodControl.value=orthoPeriod;
     orthoButton.setAttribute('aria-label',ortho?'Rodyti įprastą žemėlapį':'Rodyti aktualiausią ortofoto');
-    credit.href=ortho?orthoMeta:'https://www.openstreetmap.org/copyright';
+    credit.href=ortho?(orthoPeriod==='recent'?orthoMeta:periods[orthoPeriod]):'https://www.openstreetmap.org/copyright';
     credit.textContent=ortho?'ORT10LT © NŽT prie AM, © geoportal.lt, © SSVA':'© OpenStreetMap';
     if(!ortho)orthoStatus.textContent='';
   }
@@ -140,6 +206,7 @@ window.giIncidentLocation=function(){
     }
     for(const [key,img] of tileNodes)if(!visible.has(key)){img.remove();tileNodes.delete(key);}
     }
+    renderOverlays(left,top,w,h);
     shift();
     function position(node,p){
       const [px,py]=project(...p,zoom),dx=wrap(px-cx+world(zoom)/2,world(zoom))-world(zoom)/2;
@@ -176,7 +243,7 @@ window.giIncidentLocation=function(){
     render();
   }
   function closeMap(){
-    fullscreen(false);panel.hidden=true;clearOrtho();orthoStatus.textContent='';tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
+    fullscreen(false);panel.hidden=true;clearOrtho();clearOverlays();layerMenu.hidden=true;el('mapLayersToggle').setAttribute('aria-expanded','false');orthoStatus.textContent='';tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
     el('incidentMapOpen').hidden=false;el('incidentMapOpen').setAttribute('aria-expanded','false');
   }
   function stop(){
@@ -186,7 +253,7 @@ window.giIncidentLocation=function(){
     gps.disabled=false;gps.textContent='◎ Nustatyti GPS';
   }
   function reset(){
-    stop();best=null;basemap='street';updateBasemap();
+    stop();best=null;basemap='street';orthoPeriod='recent';selectedLayers.clear();for(const k of Object.keys(layerDefs))el('layer-'+k).checked=false;updateLayerButton();overlayCredit.textContent='';updateBasemap();
     gpsStatus.textContent='Vieta nepasirinkta.';
     selected=null;extras=[];multi=false;updatePoints();center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
   }
