@@ -22,7 +22,7 @@ test('inspection cannot change incident coordinates and detail card remains opti
   assert.ok(choose.indexOf('if(inspectMode)')<choose.indexOf('writePoint(p,index)'));
   assert.match(html,/id="mapInspect"[^>]*aria-pressed="false"/);
   assert.match(html,/id="forestInfoCard" hidden/);
-  assert.match(html,/id="forestInfoDetails"><summary>Daugiau informacijos/);
+  assert.match(html,/id="forestInfoDetails"><summary>Šaltiniai/);
   assert.match(js,/if\(!inspectMode\)showPointInfo\(p,'Įvykio taškas '/);
   assert.match(js,/if\(!infoPoint\|\|!infoDetails.open/);
   assert.match(js,/if\(infoKey!==key\|\|controller.signal.aborted\)return/);

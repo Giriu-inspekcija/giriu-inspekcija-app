@@ -326,6 +326,48 @@ body.map-lock{overflow:hidden}
 #incidentMapPanel.map-fullscreen #mapBasemapStatus{font-size:10px}
 #incidentMapPanel.map-fullscreen .map-source{display:none}
 #incidentMapPanel.map-fullscreen #incidentMap{height:100%;width:100%;max-height:none;min-height:0;border-radius:0;border:0}
+/* Compact map workspace; map and controls do not compete for layout width. */
+.map-controls{display:block;min-width:0;width:100%;box-sizing:border-box}
+#mapControlsContent{width:100%;min-width:0}
+#mapControlsContent[hidden],#mapSheetToggle[hidden]{display:none}
+#mapSheetToggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:34px;margin:0 0 5px;padding:3px 8px;font-size:12px;border:0;background:transparent}
+#mapSheetChevron{font-size:19px;line-height:1}
+#incidentMapPanel.map-fullscreen .map-controls{width:auto;max-width:none}
+#incidentMapPanel.map-fullscreen .map-controls:has(#mapControlsContent[hidden]){left:auto;right:8px;width:auto;padding:3px}
+#incidentMapPanel.map-fullscreen .map-controls:has(#mapControlsContent[hidden]) #mapSheetToggle{margin:0;min-height:38px;gap:8px}
+.map-bottom{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:4px;width:100%;align-items:stretch}
+.map-bottom button{min-width:0;min-height:44px;padding:5px 3px;font-size:11px;overflow-wrap:normal}
+.map-bottom #mapDone{margin:0;min-width:44px;padding:5px 8px}
+.map-bottom #mapAddGps:not([hidden]){grid-column:1/-1;grid-row:2}
+.map-quick-layers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;width:100%}
+.map-quick-layers label{min-width:0;gap:3px;font-size:11px;padding:5px 3px}
+.map-quick-layers input{accent-color:#205742;width:15px;height:15px}
+.map-quick-layers .map-legend-dot{width:9px;height:9px}
+#forestInfoInside,#forestInfoOutside{width:100%;min-width:0}
+#forestInfoCard{width:100%;box-sizing:border-box;border:0;padding:0;background:transparent}
+.forest-block{border:1px solid;border-radius:9px;margin:5px 0;padding:0 9px;min-width:0}
+.forest-main{background:#edf5ee;border-color:#c3d9c6}
+.forest-protection{background:#eef4fb;border-color:#c8d9eb}
+.forest-permits{background:#fdf0ee;border-color:#ecc9c3}
+.forest-block summary{position:relative;display:block;list-style:none;padding:9px 20px 9px 0;min-height:36px;cursor:pointer;font-weight:600;font-size:13px;box-sizing:border-box}
+.forest-block summary::-webkit-details-marker{display:none}
+.forest-block summary::after{content:'⌄';position:absolute;right:0;top:9px;font-size:18px;line-height:1}
+.forest-block[open] summary::after{content:'⌃'}
+#forestInfoTitle,#forestInfoGroup,#forestCompactFacts{display:block}
+#forestCompactFacts{font-size:12px;color:#3e5546;font-weight:400;margin-top:3px;overflow-wrap:anywhere}
+.forest-main[open] #forestCompactFacts{display:none}
+.forest-block dl{padding-bottom:7px}
+#forestProtectionDetails summary,#forestPermitDetails summary{padding-right:20px}
+#forestProtectionDetails summary{color:#224e7c}
+#forestPermitDetails summary{color:#9a352d}
+.forest-protection-preview{font-size:11px;margin:3px 0 0;color:#385c7f;font-weight:500}
+.forest-coords{display:flex;align-items:center;gap:5px;color:#65756b;font-size:11px;padding:2px 0}
+#forestCopyCoords{min-height:32px;min-width:32px;width:32px;padding:5px;border:0;background:transparent;color:#52665a}
+#forestCopyCoords svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+#forestCopyStatus{font-size:11px}
+#forestInfoDetails summary{font-size:11px;color:#65756b;font-weight:400;min-height:28px;padding:4px 0}
+#mapOverlayStatus,#mapOverlayCredit,#mapBasemapStatus{font-size:11px;margin:3px 0}
+
 /* v32: coordinate list with small visual remove icon and full touch area. */
 #incidentForm .incident-classification{gap:4px 10px;margin:4px 0}
 #incidentForm .incident-classification>.field{margin:3px 0}
@@ -555,10 +597,12 @@ body.map-lock{overflow:hidden}
             <div class="map-credit"><a id="mapCredit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div>
           </div>
           <div class="map-controls">
+          <button type="button" id="mapSheetToggle" class="outline" aria-expanded="true" aria-controls="mapControlsContent" hidden><span id="mapSheetToggleText">Sutraukti skydelį</span><span aria-hidden="true" id="mapSheetChevron">⌄</span></button>
+          <div id="mapControlsContent">
           <div class="map-bottom">
             <button type="button" class="outline" id="mapBasemap" aria-label="Rodyti aktualiausią ortofoto" aria-pressed="false">Ortofoto</button>
             <button type="button" class="outline" id="mapLayersToggle" aria-expanded="false" aria-controls="mapLayerMenu">Sluoksniai</button>
-            <button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Keli taškai</button>
+            <button type="button" class="outline" id="mapPointMode" aria-pressed="false">+ Taškai</button>
             <button type="button" class="outline" id="mapAddGps" hidden>+ GPS taškas</button>
             <button type="button" id="mapDone">Baigti</button>
           </div>
@@ -570,7 +614,7 @@ body.map-lock{overflow:hidden}
           <div class="map-sheet">
           <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023">2021–2023 m.</option><option value="2018-2020">2018–2020 m.</option><option value="2015-2017">2015–2017 m.</option><option value="2012-2013">2012–2013 m.</option><option value="2009-2010">2009–2010 m.</option><option value="2005-2006">2005–2006 m.</option><option value="1995-1999">1995–1999 m.</option></select></label>
           <div id="mapLayerMenu" hidden>
-            <p class="small">Amžius – kadastro AMZ, ne biologinis atskirų medžių amžius. 120–179 m. geltona, 180+ m. violetinė. Leidimai – raudonos ribos; leidimas savaime neįrodo kirtimo.</p>
+            <p class="small">120+ apima ir 180+ medynus.</p>
             <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
             <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
             <details><summary>Miškų grupės</summary>
@@ -585,7 +629,7 @@ body.map-lock{overflow:hidden}
             <label><input id="layer-state" type="checkbox"> Valstybinės reikšmės miškai</label>
             <label><input id="layer-habitats" type="checkbox"> Inventorizuotos EB buveinės (2011–2014 m.)</label>
             <label><input id="layer-restrictions" type="checkbox"> Natura 2000 miškų apribojimai (paramos duomenys)</label>
-            <p class="small">EB inventorizacija savaime nepatvirtina teisinio apsaugos statuso.</p>
+
             <button type="button" id="mapOverlayRetry" class="outline">Atnaujinti sluoksnius</button>
             <p class="small">Papildoma patikra: <a href="https://atvira.amvmt.lt/" target="_blank" rel="noopener noreferrer">oficialus VMT žemėlapis ↗</a> · <a href="https://stvk.lt/map" target="_blank" rel="noopener noreferrer">STVK ↗</a>.</p>
           </div>
@@ -595,24 +639,23 @@ body.map-lock{overflow:hidden}
           <p id="mapInspectHint" hidden>Palieskite norimą vietą – įvykio taškai nesikeis.</p>
           <div id="forestInfoInside"></div>
           <p class="map-source"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto ↗</a></p>
-          </div></div>
+          </div></div></div>
         </div>
         <div id="forestInfoOutside">
           <section id="forestInfoCard" hidden aria-label="Miško informacija">
-            <div id="forestInfoTitle"></div>
-            <strong id="forestInfoGroup" aria-live="polite"></strong>
-            <dl><dt>Nuosavybė</dt><dd id="forestInfoState"></dd><dt>Vyraujanti rūšis</dt><dd id="forestInfoSpecies"></dd><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd></dl>
-            <p id="forestProtectionPreview" class="forest-protection-preview" hidden aria-live="polite"></p>
-            <details id="forestProtectionDetails" hidden><summary id="forestProtectionSummary">Teritorijos ir buveinės</summary>
-              <div id="forestProtectionList"></div><p id="forestProtectionStatus" class="small" hidden role="status"></p>
-              <p class="small">Inventorizuotos EB buveinės savaime nepatvirtina apsaugos statuso. Duomenys: VMT, AM / geoportal.lt, STVK / VDA.</p>
+            <details id="forestMainDetails" class="forest-block forest-main">
+              <summary><span id="forestInfoTitle"></span><strong id="forestInfoGroup" aria-live="polite"></strong><span id="forestCompactFacts"></span></summary>
+              <dl><dt>Nuosavybė</dt><dd id="forestInfoState"></dd><dt>Vyraujanti rūšis</dt><dd id="forestInfoSpecies"></dd><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
             </details>
-            <details id="forestPermitDetails" hidden><summary id="forestPermitSummary">Kirtimų leidimai</summary><div id="forestPermitList"></div></details>
-            <details id="forestInfoDetails"><summary>Daugiau informacijos</summary>
-              <dl><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
-              <p class="small" id="forestInfoCoords"></p>
-              <p class="small">VMT / geoportal.lt. Tik pasirinkto taško sankirta. Grupė, VMR ir AMZ – kadastro duomenys. Nuosavybė pagal VMT leidimą arba VRM ribas; be šių duomenų nenustatoma. Nerasta sankirta nereiškia, kad apribojimų nėra.</p>
-              <p class="small">Vietos GIS patikrai koordinatės perduodamos oficialioms peržiūros paslaugoms.</p>
+            <p id="forestProtectionPreview" class="forest-protection-preview" hidden aria-live="polite"></p>
+            <details id="forestProtectionDetails" hidden class="forest-block forest-protection"><summary id="forestProtectionSummary">Teritorijos ir buveinės</summary>
+              <div id="forestProtectionList"></div><p id="forestProtectionStatus" class="small" hidden role="status"></p>
+
+            </details>
+            <details id="forestPermitDetails" hidden class="forest-block forest-permits"><summary id="forestPermitSummary">Kirtimų leidimai</summary><div id="forestPermitList"></div></details>
+            <div class="forest-coords"><span id="forestInfoCoords"></span><button type="button" id="forestCopyCoords" class="outline" title="Kopijuoti koordinates" aria-label="Kopijuoti koordinates"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><span id="forestCopyStatus" role="status"></span></div>
+            <details id="forestInfoDetails"><summary>Šaltiniai</summary>
+              <p class="small">VMT, AM / geoportal.lt, STVK / VDA. Inventorizuotos EB buveinės savaime nepatvirtina apsaugos statuso. Nuosavybė pagal VMT leidimą arba VRM ribas. Patikrai koordinatės perduodamos GIS paslaugoms.</p>
               <button type="button" id="forestInfoRetry" class="outline">Patikrinti iš naujo</button>
             </details>
           </section>

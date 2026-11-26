@@ -152,7 +152,32 @@ window.giIncidentLocation=function(){
     el('mapInspectHint').hidden=!on;el('mapInspectPin').hidden=true;
     if(!on)showPointInfo(selected,'Įvykio vieta');
   }
-  function setInfo(id,value){el(id).textContent=value;}
+  function setInfo(id,value){
+    el(id).textContent=value;
+    if(['forestInfoState','forestInfoSpecies','forestInfoAge'].includes(id)){
+      const parts=['forestInfoState','forestInfoSpecies','forestInfoAge'].map(k=>el(k).textContent).filter(v=>v&&v!=='Tikrinama…');
+      el('forestCompactFacts').textContent=parts.join(' · ')||'Tikrinama…';
+    }
+  }
+  el('forestCopyCoords').addEventListener('click',async()=>{
+    const p=infoPoint;if(!p)return;
+    const value=format(p),out=el('forestCopyStatus');
+    try{
+      if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(value);
+      else {
+        const field=document.createElement('textarea');field.value=value;field.style.position='fixed';field.style.opacity='0';document.body.append(field);field.select();
+        const ok=document.execCommand('copy');field.remove();if(!ok)throw Error('copy');
+      }
+      if(infoPoint&&format(infoPoint)===value)out.textContent='Nukopijuota';
+    }catch{if(infoPoint&&format(infoPoint)===value)out.textContent='Nepavyko kopijuoti';}
+  });
+  function setSheetCollapsed(collapsed){
+    const content=el('mapControlsContent'),toggle=el('mapSheetToggle');
+    content.hidden=collapsed;toggle.setAttribute('aria-expanded',String(!collapsed));
+    el('mapSheetToggleText').textContent=collapsed?'Rodyti valdiklius':'Sutraukti skydelį';
+    el('mapSheetChevron').textContent=collapsed?'⌃':'⌄';
+  }
+  el('mapSheetToggle').addEventListener('click',()=>setSheetCollapsed(!el('mapControlsContent').hidden));
   function describeGroup(rows){
     if(!rows.length)return 'Grupė nerasta';
     const labels=[...new Set(rows.map(a=>groupDefs[classifyGroup(a)]?.label||(Number(a.grupe)===2?'II – pogrupis nenustatytas':'Grupė nenustatyta')))];
@@ -208,9 +233,7 @@ window.giIncidentLocation=function(){
       for(const [label,value] of permitFacts(row)){
         const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
       }
-      const note=document.createElement('p');note.className='small';
-      note.textContent='Išdavimo data rodoma tik jei pateikta šaltinyje; galiojimo pradžia nėra išdavimo data.';
-      const box=document.createElement('div');box.className='forest-permit-entry';box.append(dl,note);list.append(box);
+      const box=document.createElement('div');box.className='forest-permit-entry';box.append(dl);list.append(box);
     }
   }
   function describeStand(rows){
@@ -225,7 +248,7 @@ window.giIncidentLocation=function(){
     const key=title+'|'+format(p);
     if(key===infoKey)return;
     cancelInfo();infoKey=key;infoPoint=[...p];infoCard.hidden=false;
-    infoDetails.open=false;el('forestProtectionDetails').open=false;el('forestProtectionDetails').hidden=true;
+    infoDetails.open=false;el('forestMainDetails').open=false;el('forestCopyStatus').textContent='';el('forestProtectionDetails').open=false;el('forestProtectionDetails').hidden=true;
     el('forestProtectionList').replaceChildren();el('forestProtectionStatus').hidden=true;
     el('forestProtectionPreview').hidden=false;setInfo('forestProtectionPreview','Tikrinamos teritorijos ir buveinės…');
     setInfo('forestInfoTitle',title);setInfo('forestInfoCoords',format(p));
@@ -364,7 +387,7 @@ window.giIncidentLocation=function(){
         if(overlayKey!==key||panel.hidden)return;
         if(!ok)failed.push(...req.keys.map(k=>el('layer-'+k).parentElement.textContent.trim()));
         if(ok&&Number.isInteger(count))counts.push((req.kind==='groups'?'Grupių plotai':req.kind==='stands'?'Medynai':'Leidimai')+': '+count);
-        if(--remaining===0){overlayAbort=null;overlayStatus.textContent=(failed.length?'Ne visi sluoksniai įkelti: '+failed.join(', ')+'. Priartinkite arba bandykite dar kartą. ':'Sluoksniai įkelti. ')+counts.join(' · ')+(counts.length?'. ':'')+'Tuščias vaizdas nepatvirtina, kad apribojimų nėra.';}
+        if(--remaining===0){overlayAbort=null;overlayStatus.textContent=(failed.length?'Nepavyko įkelti: '+failed.join(', ')+'. ':'')+counts.join(' · ');}
       }
       for(const req of requests){
         if(req.kind){
@@ -489,7 +512,7 @@ window.giIncidentLocation=function(){
     el('incidentNoPoints').hidden=points.length>0;
     el('incidentLocationClear').hidden=points.length===0;
     el('mapPointMode').setAttribute('aria-pressed',String(multi));
-    el('mapPointMode').textContent=multi?'✓ Keli taškai':'+ Keli taškai';
+    el('mapPointMode').textContent=multi?'✓ Taškai':'+ Taškai';
     el('mapAddGps').hidden=!multi;
     pointList.replaceChildren(...points.map((p,i)=>{
       const row=document.createElement('div');row.className='point-row';
@@ -656,6 +679,7 @@ window.giIncidentLocation=function(){
   });
   function fullscreen(on){
     panel.classList.toggle('map-fullscreen',on);document.body.classList.toggle('map-lock',on);
+    setSheetCollapsed(false);el('mapSheetToggle').hidden=!on;
     el('mapFullscreen').setAttribute('aria-label',on?'Sumažinti žemėlapį':'Visas ekranas');
     el('mapFullscreen').title=on?'Sumažinti žemėlapį':'Visas ekranas';
     el('mapFullscreen').querySelector('path').setAttribute('d',on?'M4 9h5V4m6 0v5h5M9 20v-5H4m16 0h-5v5':'M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5');
