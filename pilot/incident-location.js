@@ -65,11 +65,13 @@ window.giIncidentLocation=function(){
     return u.toString();
   }
   function vectorQueryUrl(endpoint,where,fields,left,top,w,h,z){
-    const half=20037508.342789244,step=2*half/world(z);
-    const bbox=[left*step-half,half-(top+h)*step,(left+w)*step-half,half-top*step];
+    // WGS84 envelope matches the working 2026-11-22 VMT audit query.
+    const n=world(z),lon=x=>Math.max(-180,Math.min(180,x/n*360-180)),
+      lat=y=>Math.atan(Math.sinh(Math.PI*(1-2*Math.max(0,Math.min(n,y))/n)))*180/Math.PI;
+    const bbox=[lon(left),lat(top+h),lon(left+w),lat(top)];
     const q=new URLSearchParams({f:'geojson',where,outFields:fields,returnGeometry:'true',
-      geometry:bbox.join(','),geometryType:'esriGeometryEnvelope',inSR:'3857',outSR:'4326',
-      spatialRel:'esriSpatialRelIntersects',resultRecordCount:'1000'});
+      geometry:bbox.join(','),geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',
+      spatialRel:'esriSpatialRelIntersects'});
     return endpoint+'?'+q;
   }
   function featurePath(geometry,left,top,z){
@@ -119,7 +121,7 @@ window.giIncidentLocation=function(){
     const standKeys=['old120','old180'].filter(k=>selectedLayers.has(k));
     if(standKeys.length){
       const minAge=selectedLayers.has('old120')?120:180;
-      requests.push({kind:'stands',minAge,keys:standKeys,url:vectorQueryUrl(standQuery,'AMZ >= '+minAge,'AMZ',left,top,w,h,zoom)});
+      requests.push({kind:'stands',minAge,keys:standKeys,url:vectorQueryUrl(standQuery,'AMZ >= '+minAge,'AMZ,OBJECTID',left,top,w,h,zoom)});
     }
     if(selectedLayers.has('permits'))requests.push({kind:'permits',keys:['permits'],url:vectorQueryUrl(permitQuery,'1=1','id',left,top,w,h,zoom)});
     const key=requests.map(r=>r.url).join('|');
