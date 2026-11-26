@@ -51,7 +51,7 @@ test('GIS official view services respond with real images', {skip:process.env.GI
 });
 
 const vectorHelper=js.slice(js.indexOf('  function vectorQueryUrl('),js.indexOf('  function featurePath('));
-vm.runInNewContext("const world=z=>256*2**z;"+vectorHelper+";this.query=vectorQueryUrl;",ctx);
+vm.runInNewContext(vectorHelper+";this.query=vectorQueryUrl;",ctx);
 test('public vector queries use visible extent and published stand age in years',()=>{
   const u=new URL(ctx.query('https://example.invalid/query','AMZ >= 180','AMZ',10,20,300,200,16));
   assert.equal(u.searchParams.get('where'),'AMZ >= 180');
