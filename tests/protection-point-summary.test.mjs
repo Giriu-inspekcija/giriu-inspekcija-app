@@ -37,10 +37,14 @@ test('official STVK, KMB and EB polygon point sources are browser accessible', {
    const m=await get(base+'?f=json');
    console.log('protection schema',kind,JSON.stringify(m.fields?.map(f=>({name:f.name,alias:f.alias,domain:f.domain}))));
    assert.ok(m.fields?.length,kind);
-   const q=base+'/query?'+new URLSearchParams({f:'json',where:'1=1',geometry:'24.0,55.2',geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'*',returnGeometry:'false'});
+   const fields=kind==='eb'?'BIGISDBAnketos.BuveinesTipas':kind==='kmb'?'KMB_kod,KMB_tip_kod,pot_KMB_tip_kod':['bast','past'].includes(kind)?'pavadinimas,bast_kodas':'pavadinimas';
+   const q=base+'/query?'+new URLSearchParams({f:'json',where:'1=1',geometry:'24.0,55.2',geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:fields,returnGeometry:'false'});
    const d=await get(q);assert.ok(Array.isArray(d.features),kind);
-   const sample=await get(base+'/query?'+new URLSearchParams({f:'json',where:'1=1',outFields:'*',returnGeometry:'false',resultRecordCount:'1'}));
-   console.log('protection sample',kind,JSON.stringify(sample.features?.[0]?.attributes||{}).slice(0,3500));
+   const sample=await get(base+'/query?'+new URLSearchParams({f:'json',where:'1=1',outFields:fields,returnGeometry:'false',resultRecordCount:'1'}));
+   assert.ok(sample.features?.length,kind);
+   const attrs=sample.features[0].attributes;
+   assert.ok(fields.split(',').every(k=>Object.hasOwn(attrs,k)),kind+' '+JSON.stringify(attrs));
+   console.log('protection sample',kind,JSON.stringify(attrs));
  }));
 });
 
