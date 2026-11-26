@@ -56,9 +56,7 @@ def sha256(path):
 def restore_content_type(path, key, stored=None):
     # Older manifests lack MIME metadata and incident objects have no suffix.
     if stored and stored != 'application/octet-stream':
-        if not re.fullmatch(r'[a-z0-9!#class Storage:
-^_.+-]+/[a-z0-9!#class Storage:
-^_.+-]+', stored):
+        if not re.fullmatch(r'[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+', stored):
             raise ValueError('Invalid archived MIME type')
         return stored
     with path.open('rb') as stream:
