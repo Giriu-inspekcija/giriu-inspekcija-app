@@ -162,7 +162,7 @@
     if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))return;
     const host=$('actionToast');
     if(host.hidden||host.classList.contains('error'))return;
-    const url=new URL(location.pathname,location.origin);
+    const url=new window.URL(location.pathname,location.origin);
     url.searchParams.set('task',id);
     const a=document.createElement('a');
     a.href=url.href;a.dataset.thread='task';a.dataset.key=id;
