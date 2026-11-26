@@ -252,6 +252,16 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #mapOverlays img{position:absolute;inset:0;max-width:none;opacity:.74;pointer-events:none}
 #mapOverlays .map-vector{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .map-legend-dot{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none;border:1px solid #0003}
+#forestInfoCard{border:1px solid #bdcfc0;border-radius:10px;padding:8px 10px;margin:5px 0;background:#fff}
+#forestInfoCard[hidden],#mapInspectHint[hidden],#mapInspectPin[hidden]{display:none}
+#forestInfoCard dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:4px 0;font-size:13px}
+#forestInfoCard dt{color:#536358}#forestInfoCard dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#forestInfoTitle{font-size:12px;color:#536358}#forestInfoGroup{font-size:15px;color:#205742}
+#forestInfoDetails summary{font-size:13px;cursor:pointer;padding:5px 0}
+#mapInspect[aria-pressed=true]{background:#205742;color:#fff}
+#mapInspectPin{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;border:3px solid #0284c7;background:#fff9;z-index:7;pointer-events:none}
+#mapInspectHint{font-size:12px;color:#075985}
+.map-group-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0 6px}
 .map-legend-old{background:#eab308}.map-legend-ancient{background:#7c3aed}.map-legend-permit{background:#dc2626}
 #mapLayerMenu{padding:8px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;max-height:30dvh;overflow:auto}
 #mapLayerMenu[hidden],#mapPeriodWrap[hidden]{display:none}
@@ -517,8 +527,9 @@ body.map-lock{overflow:hidden}
         <p id="incidentGpsStatus" role="status" class="small">Vieta nepasirinkta.</p><p id="incidentPointCount" class="small" aria-live="polite"></p>
         <div id="incidentMapPanel" hidden>
           <div class="map-frame">
-            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapOverlays" aria-hidden="true"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div></div></div>
+            <div id="incidentMap" tabindex="0" role="group" aria-label="Įvykio vietos žemėlapis. Rodyklėmis judėkite, plius ir minus keičia mastelį, Enter pasirinkite centrą."><div id="mapScene"><div id="mapTiles"></div><div id="mapOverlays" aria-hidden="true"></div><div id="mapGpsCircle" hidden aria-hidden="true"></div><div id="mapExtraPins" aria-hidden="true"></div><div id="mapGpsDot" hidden aria-hidden="true"></div><div id="mapPin" hidden aria-hidden="true">1</div><div id="mapInspectPin" hidden aria-hidden="true"></div></div></div>
             <div class="map-corner">
+              <button type="button" class="map-icon" id="mapInspect" aria-label="Tirti vietą" title="Tirti vietą" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
               <button type="button" class="map-icon" id="mapFullscreen" aria-pressed="false" aria-label="Visas ekranas" title="Visas ekranas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg></button>
               <button type="button" class="map-icon" id="mapMyLocation" aria-label="Rodyti mano vietą" title="Rodyti mano vietą"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg></button>
             </div>
@@ -539,7 +550,15 @@ body.map-lock{overflow:hidden}
             <p class="small">Amžius – kadastro AMZ, ne biologinis atskirų medžių amžius. 120–179 m. geltona, 180+ m. violetinė. Leidimai – raudonos ribos; leidimas savaime neįrodo kirtimo.</p>
             <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
             <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
-            <label><input id="layer-groups" type="checkbox"> Miškų grupės ir pogrupiai</label>
+            <details><summary>Miškų grupės</summary>
+            <label><input id="layer-groups" type="checkbox"> Visos grupės</label>
+            <div class="map-group-options">
+            <label><input id="layer-group1" type="checkbox"><span class="map-legend-dot" style="background:#ad1457"></span> I · rezervatiniai</label>
+            <label><input id="layer-group2a" type="checkbox"><span class="map-legend-dot" style="background:#15803d"></span> IIA · ekosistemų</label>
+            <label><input id="layer-group2b" type="checkbox"><span class="map-legend-dot" style="background:#65a30d"></span> IIB · rekreaciniai</label>
+            <label><input id="layer-group3" type="checkbox"><span class="map-legend-dot" style="background:#d97706"></span> III · apsauginiai</label>
+            <label><input id="layer-group4" type="checkbox"><span class="map-legend-dot" style="background:#64748b"></span> IV · ūkiniai</label>
+            </div></details>
             <label><input id="layer-state" type="checkbox"> Valstybinės reikšmės miškai</label>
             <label><input id="layer-habitats" type="checkbox"> Inventorizuotos EB buveinės (2011–2014 m.)</label>
             <label><input id="layer-restrictions" type="checkbox"> Natura 2000 miškų apribojimai (paramos duomenys)</label>
@@ -550,7 +569,23 @@ body.map-lock{overflow:hidden}
           <p id="mapOverlayStatus" role="status"></p><p id="mapOverlayCredit"></p>
           <p id="mapBasemapStatus" role="status" class="small"></p>
           <p id="incidentMapStatus" role="status" class="small"></p>
+          <p id="mapInspectHint" hidden>Palieskite norimą vietą – įvykio taškai nesikeis.</p>
+          <div id="forestInfoInside"></div>
           <p class="map-source"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto ↗</a></p>
+        </div>
+        <div id="forestInfoOutside">
+          <section id="forestInfoCard" hidden aria-label="Miško informacija">
+            <div id="forestInfoTitle"></div>
+            <strong id="forestInfoGroup" aria-live="polite"></strong>
+            <dl><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
+            <details id="forestInfoDetails"><summary>Daugiau informacijos</summary>
+              <dl><dt>Valstybinė reikšmė</dt><dd id="forestInfoState"></dd><dt>KMB / pKMB</dt><dd id="forestInfoKmb"></dd><dt>Kirtimų leidimai</dt><dd id="forestInfoPermits"></dd></dl>
+              <p class="small" id="forestInfoCoords"></p>
+              <p class="small">VMT / geoportal.lt. Tik pasirinkto taško sankirta. Grupė ir AMZ – kadastro duomenys; valstybinė reikšmė nėra nuosavybės patvirtinimas. Nerasta sankirta nereiškia, kad apribojimų nėra.</p>
+              <button type="button" id="forestInfoRetry" class="outline">Patikrinti iš naujo</button>
+            </details>
+            <p class="small">Vietos GIS patikrai koordinatės perduodamos oficialioms peržiūros paslaugoms.</p>
+          </section>
         </div>
         <details class="location-advanced" id="incidentPointsDetails"><summary>Taškai ir koordinatės <span id="incidentPointsSummary" class="small"></span></summary>
           <div id="incidentPointList"></div><p id="incidentNoPoints" class="small">Taškų dar nėra.</p>
