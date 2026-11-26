@@ -85,7 +85,6 @@ window.giIncidentLocation=function(){
     const labels=[...new Set(rows.map(a=>groupDefs[classifyGroup(a)]?.label||(Number(a.grupe)===2?'II – pogrupis nenustatytas':'Grupė nenustatyta')))];
     return labels.join(' / ');
   }
-  let permitOwnershipFieldPromise;
   function ownershipLabel(value){
     const s=String(value??'').trim().toLocaleLowerCase('lt');
     if(/^privat/.test(s))return 'Privatus';
@@ -93,38 +92,26 @@ window.giIncidentLocation=function(){
     if(/^savivaldyb/.test(s))return 'Savivaldybės';
     return null;
   }
-  async function permitOwnershipField(){
-    if(!permitOwnershipFieldPromise)permitOwnershipFieldPromise=fetch(permitQuery.replace(/\/query$/,'?f=json'),{credentials:'omit',signal:AbortSignal.timeout(10000)}).then(r=>r.json()).then(d=>{
-      const fields=(d.fields||[]).filter(f=>/nuosav|ownership|nuosavyb/i.test(f.name+' '+f.alias));
-      return fields.find(f=>/forma|type|tipas/i.test(f.name+' '+f.alias))||fields[0]||null;
-    }).catch(()=>{permitOwnershipFieldPromise=null;return null;});
-    return permitOwnershipFieldPromise;
-  }
   async function lookupOwnership(p,signal){
-    const [state,field]=await Promise.allSettled([queryAt(stateQuery,p,'OBJECTID',signal),permitOwnershipField()]);
-    const f=field.status==='fulfilled'?field.value:null;
-    let labels=[];
-    if(f&&!signal.aborted){
-      try{
-        const permits=await queryAt(permitQuery,p,'id,'+f.name,signal);
-        labels=[...new Set(permits.map(r=>{
-          const v=r[f.name],label=f.domain?.codedValues?.find(c=>String(c.code)===String(v))?.name??v;
-          return ownershipLabel(label);
-        }).filter(Boolean))];
-      }catch{}
-    }
+    // The public VMT permits metadata confirms nuosavybes_forma.
+    const [state,permits]=await Promise.allSettled([queryAt(stateQuery,p,'OBJECTID',signal),queryAt(permitQuery,p,'id,nuosavybes_forma',signal)]);
+    const labels=permits.status==='fulfilled'?[...new Set(permits.value.map(r=>ownershipLabel(r.nuosavybes_forma)).filter(Boolean))]:[];
     const stateHit=state.status==='fulfilled'&&state.value.length>0;
     if(stateHit&&labels.includes('Privatus'))return 'Duomenys nesutampa – tikrinti';
     if(labels.length)return labels.join(' / ')+' (VMT leidimas)';
     if(stateHit)return 'Valstybinis (VRM)';
     return 'Nenustatyta';
   }
+  function speciesLabel(v){
+    const names={P:'Pušis',E:'Eglė',B:'Beržas','Ą':'Ąžuolas',J:'Juodalksnis',Bt:'Baltalksnis',D:'Drebulė',U:'Uosis',K:'Klevas',L:'Liepa',G:'Guoba',Pb:'Bankso pušis',Pj:'Juodoji pušis'};
+    return names[v]||v;
+  }
   function describeStand(rows){
     if(!rows.length)return {age:'Medynas nerastas',species:'Nerasta',parcel:'Nerasta'};
     const age=[...new Set(rows.map(r=>Number(r.AMZ)).filter(a=>Number.isFinite(a)&&a>0))].sort((a,b)=>a-b);
     const parcel=[...new Set(rows.map(r=>[r.kv_nr,r.skl_nr].map(v=>v==null||v===''?'?':String(v)).join(' / ')))];
     const species=[...new Set(rows.map(r=>String(r.VMR??'').trim()).filter(v=>v&&v!=='0'&&v!=='-'))];
-    return {age:age.length?age.map(n=>n+' m.').join(' / '):'Amžius nenurodytas',species:species.length?species.join(' / '):'Rūšis nenurodyta',parcel:parcel.join('; ')};
+    return {age:age.length?age.map(n=>n+' m.').join(' / '):'Amžius nenurodytas',species:species.length?species.map(speciesLabel).join(' / '):'Rūšis nenurodyta',parcel:parcel.join('; ')};
   }
   function showPointInfo(p,title='Įvykio vieta'){
     if(!p){cancelInfo();infoCard.hidden=true;return;}
