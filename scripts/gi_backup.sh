@@ -51,6 +51,21 @@ for item in roles.sql schema.sql data.sql migration-schema.sql migration-data.sq
   fi
 done
 python3 scripts/gi_backup_storage.py backup --directory "$tmp/snapshot/storage-export"
+# Report byte counts only, never filenames or data. Estimate excludes DB/API egress and retries.
+python3 - "$tmp/snapshot/storage-export/storage-manifest.json" <<'PY'
+import json, os, sys
+with open(sys.argv[1], encoding='utf-8') as f:
+    m = json.load(f)
+b = int(m['total_bytes']); n = int(m['object_count'])
+assert b >= 0 and n >= 0
+summary = f'Storage bytes: {b}; objects: {n}; 31-day full-copy Storage download estimate: {31*b} bytes.'
+print(summary)
+if b >= 100_000_000:
+    print('::warning::Storage backup exceeds 100 MB per run; review egress and plan incremental object backup before scaling. Full backup preserved.')
+if os.environ.get('GITHUB_STEP_SUMMARY'):
+    with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+        f.write(summary + '\n')
+PY
 
 (
   cd "$tmp/snapshot"

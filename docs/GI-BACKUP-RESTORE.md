@@ -1,6 +1,6 @@
 # GI komanda – šifruotos atsarginės kopijos ir atkūrimas
 
-**Būsena: techninis mechanizmas parengtas, gyvos kopijos dar NEPATVIRTINTOS.**
+**Būsena 2026-11-24: pirmos tikros šifruotos kopijos ir suplanuotas 2026-11-24 eksportas patvirtinti; tiesioginis Drive veidrodis ir pilnas izoliuotas atkūrimas dar nepatvirtinti (issue #32).**
 Šio dokumento aprašoma automatika startuoja tik sukūrus visus toliau nurodytus GitHub Actions Secret/Variable ir pirmą kartą patikrinus **tikros** kopijos bei atkūrimo į izoliuotą projektą rezultatus. Prieš tai realių bylų GO = **NE**.
 
 ## 1. Architektūra ir saugumas
@@ -86,3 +86,10 @@ Papildomam veidrodžiui GI Google Drive galima sukonfigūruoti *rclone* nuotolin
 - Stebėti faktinį archyvo dydį ir kasdienės operacijos trukmę; prieš masinę realių bylų migraciją įvertinti bent 30 dienų laikomų kopijų vietos poreikį.
 
 **Kritinis vartas:** kol nėra bent vienos tikros sėkmingos šifruotos DB + Storage kopijos ir vieno patvirtinto atkūrimo į atskirą projektą – GI realių bylų aktyvavimas yra NO-GO.
+
+## 6. Etapinis taupus režimas (2026-11-24)
+Kol kopija maža (2026-11-24 GitHub ZIP ~3,48 MB), palikti vieną pilną kasdienį DB + Storage archyvą. Tai paprasčiausias atkūrimas ir nekuria priklausomų grandinių. Storage egress įvertis = per dieną nuskaitytų Storage baitų × 31; tai ne visas faktinis Supabase egress (DB, vartotojai ir retry papildomai). Nuo 100 MB Storage vienam vykdymui perspėti, bet nestabdyti kopijų; patikrinti Supabase Usage ir ruoštis inkrementiniam objektų kopijavimui. Free egress 5 GB uncached ir 5 GB cached atskirai. https://supabase.com/docs/guides/platform/manage-your-usage/egress
+
+Drive: naudoti dedikuotą ribotos narystės organizacijos Shared Drive (ne visiems savanoriams), tarnybinę tapatybę tik tai saugyklai; be domain-wide delegation. Workspace administratorius sukuria diską, patvirtina Gmail skaitytoją ir tarnybinį contributor. Rclone profilis gidrive su team_drive ir inline service_account_credentials arba dedikuotos paskyros OAuth su nuosavu Google OAuth klientu. Įvesti GitHub Secret GI_BACKUP_RCLONE_CONFIG_B64 ir Variable GI_BACKUP_DRIVE_FOLDER_ID (tikro paskirties aplanko ID), paleisti rankinį workflow, patikrinti rclone hash check ir failą Drive. Po sėkmės nustatyti GI_BACKUP_DRIVE_REQUIRED=true; jei Secret arba folder ID trūksta, workflow praneša klaidą. Dabartinis veidrodis be šių papildomų parametrų suderinamas su ankstesniu aplanku. https://rclone.org/drive/
+
+Kol neatliktas pilnas izoliuotas atkūrimas, automatinio archyvų trynimo NĖRA. Po patvirtinto atkūrimo ir atskiro rotacijos PR: tikslas 7 dienos, 4 savaitės, 3 mėnesiai (iki 14 pilnų taškų; persidengimai mažina skaičių), pirmiausia dry-run, tik griežtai atpažįstami backup failai, ne kiti Drive dokumentai. GitHub 30 d. saugojimas nekeičiamas. Kai 100 MB riba artėja, atskiras inkrementinis etapas: kasdien pilnas SQL, Storage objektų nekintamos šifruotos versijos, šifruotas kiekvienos dienos manifestas su visų objektų nuorodomis ir kontrolinėmis sumomis; ištrinti tik nebereikalingus jokiam išlaikomam manifestui objektus. Neatsisakyti pilno formato, kol abu formatai sėkmingai atkurti izoliuotai. Jokių mokamų planų ar automatinio trynimo be atskiro patvirtinimo. Šis PR neįdiegia inkrementinės sistemos ir nekeičia duomenų bazės.
