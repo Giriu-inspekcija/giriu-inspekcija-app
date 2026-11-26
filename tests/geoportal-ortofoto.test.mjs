@@ -27,9 +27,9 @@ test('basemap switching keeps coordinates and is opt-in; failed imagery has a fa
   const toggle=js.slice(js.indexOf("orthoButton.addEventListener('click'"),js.indexOf('  let extras='));
   assert.match(toggle,/updateBasemap\(\);render\(\)/);
   assert.doesNotMatch(toggle,/selected\s*=|extras\s*=|input\.value\s*=|writePoint\(/);
-  assert.match(js,/if\(panel.hidden\|\|basemap!=='ortho'\|\|orthoKey!==url\)return/);
-  assert.match(js,/if\(orthoKey===url\)return/);
-  assert.match(js,/orthoReady=false;img.remove\(\)/);
+  assert.match(js,/if\(panel.hidden\|\|basemap!=='ortho'\|\|orthoKey!==url\|\|orthoPending!==frame\)return/);
+  assert.match(js,/if\(frameCovers\(orthoPending,view\)\)return/);
+  assert.match(js,/img.remove\(\);orthoPending=null;orthoKey=''/);
   assert.match(js,/ORT10LT © NŽT prie AM/);
   assert.doesNotMatch(sw,/geoportal\.lt|MapServer\/export/);
   assert.match(sw,/geoportal/);
@@ -44,4 +44,23 @@ test('live Geoportal view returns a JPEG', {skip:process.env.GITHUB_HEAD_REF!=='
   assert.match(r.headers.get('content-type')||'',/^image\/(jpeg|jpg)/i);
   const b=new Uint8Array(await r.arrayBuffer());
   assert.ok(b.length>100&&b[0]===255&&b[1]===216,'must be a real JPEG image');
+});
+
+test('buffered ortho remains aligned on pan and retains previous loaded image until replacement',()=>{
+  const funcs=js.slice(js.indexOf('  function frameCovers('),js.indexOf('  function cancelOrthoPending('));
+  const c={};vm.runInNewContext(funcs+';this.bounds=frameBounds;this.covers=frameCovers;this.position=positionOrtho;',c);
+  const view={left:1000.25,top:2000.75,w:320,h:300,z:16,period:'recent'};
+  const frame=c.bounds(view);frame.img={style:{}};
+  assert.equal(c.covers(frame,view),true);
+  assert.equal(c.covers(frame,{...view,left:view.left+40}),true);
+  assert.equal(c.covers(frame,{...view,left:view.left+100}),false);
+  assert.equal(c.covers(frame,{...view,z:17}),false);
+  assert.equal(c.covers(frame,{...view,period:'2018-2020'}),false);
+  c.position(frame,view);assert.equal(parseFloat(frame.img.style.left),frame.left-view.left);
+  c.position(frame,{...view,left:view.left+40});assert.equal(parseFloat(frame.img.style.left),frame.left-view.left-40);
+  c.position(frame,{...view,z:17,left:2*view.left,top:2*view.top});assert.equal(parseFloat(frame.img.style.width),2*frame.w);
+  const render=js.slice(js.indexOf('  function renderOrtho('),js.indexOf('  function updateBasemap('));
+  assert.doesNotMatch(render,/tiles\.replaceChildren/);
+  assert.match(render,/img.style.visibility='hidden'/);
+  assert.match(render,/img.style.visibility='visible';old\?\.img.remove\(\)/);
 });
