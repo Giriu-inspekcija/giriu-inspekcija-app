@@ -52,8 +52,13 @@ BEGIN
  AND p_start<today THEN RAISE EXCEPTION 'Keičiant projektą pradžia negali būti praeityje.'; END IF;
  IF label IS NOT NULL AND EXISTS(SELECT 1 FROM private.gi_time_project_defaults WHERE user_id=p_user AND closed_on>p_start) THEN
  RAISE EXCEPTION 'Pradžia persidengia su ankstesniu priskyrimu.'; END IF;
- UPDATE private.gi_time_project_defaults SET closed_on=CASE WHEN label IS NULL THEN today ELSE p_start END,
- closed_at=now(),closed_by=auth.uid() WHERE user_id=p_user AND closed_at IS NULL;
+ IF label IS NULL THEN
+  UPDATE private.gi_time_project_defaults SET closed_on=today,closed_at=now(),closed_by=auth.uid()
+  WHERE user_id=p_user AND (closed_on IS NULL OR closed_on>today);
+ ELSE
+  UPDATE private.gi_time_project_defaults SET closed_on=p_start,closed_at=now(),closed_by=auth.uid()
+  WHERE user_id=p_user AND closed_at IS NULL;
+ END IF;
  IF label IS NOT NULL THEN
  INSERT INTO private.gi_time_project_defaults(user_id,project_label,starts_on,ends_on,created_by)
  VALUES(p_user,label,p_start,p_end,auth.uid());
