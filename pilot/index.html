@@ -250,6 +250,9 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #mapTiles{will-change:transform}
 #mapOverlays{position:absolute;inset:0;pointer-events:none}
 #mapOverlays img{position:absolute;inset:0;max-width:none;opacity:.74;pointer-events:none}
+#mapOverlays .map-vector{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.map-legend-dot{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none;border:1px solid #0003}
+.map-legend-old{background:#eab308}.map-legend-ancient{background:#7c3aed}.map-legend-permit{background:#dc2626}
 #mapLayerMenu{padding:8px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;max-height:30dvh;overflow:auto}
 #mapLayerMenu[hidden],#mapPeriodWrap[hidden]{display:none}
 #mapLayerMenu label{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px}
@@ -528,8 +531,12 @@ body.map-lock{overflow:hidden}
             <button type="button" class="outline" id="mapAddGps" hidden>+ GPS taškas</button>
             <button type="button" id="mapDone">Baigti</button>
           </div>
-          <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023" disabled>2021–2023 m. – derinama</option><option value="2018-2020" disabled>2018–2020 m. – derinama</option><option value="2015-2017" disabled>2015–2017 m. – derinama</option></select></label>
+          <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023">2021–2023 m.</option><option value="2018-2020">2018–2020 m.</option><option value="2015-2017">2015–2017 m.</option><option value="2012-2013">2012–2013 m.</option><option value="2009-2010">2009–2010 m.</option><option value="2005-2006">2005–2006 m.</option><option value="1995-1999">1995–1999 m.</option></select></label>
           <div id="mapLayerMenu" hidden>
+            <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> Medynai 120+ m. (įskaitant 180+)</label>
+            <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> Medynai 180+ m.</label>
+            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> VMT kirtimų leidimai</label>
+            <p class="small">Amžius – kadastro AMZ, ne biologinis atskirų medžių amžius. 120–179 m. geltona, 180+ m. violetinė. Leidimai – raudonos ribos; leidimas savaime neįrodo kirtimo.</p>
             <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
             <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
             <label><input id="layer-groups" type="checkbox"> Miškų grupės ir pogrupiai</label>
@@ -538,7 +545,7 @@ body.map-lock{overflow:hidden}
             <label><input id="layer-restrictions" type="checkbox"> Natura 2000 miškų apribojimai (paramos duomenys)</label>
             <p class="small">EB inventorizacija savaime nepatvirtina teisinio apsaugos statuso.</p>
             <button type="button" id="mapOverlayRetry" class="outline">Atnaujinti sluoksnius</button>
-            <p class="small">Kiti duomenys: <a href="https://atvira.amvmt.lt/" target="_blank" rel="noopener noreferrer">kirtimų leidimai (VMT) ↗</a> · <a href="https://stvk.lt/map" target="_blank" rel="noopener noreferrer">STVK ↗</a>. Tiesioginiai sluoksniai dar nepatvirtinti.</p>
+            <p class="small">Papildoma patikra: <a href="https://atvira.amvmt.lt/" target="_blank" rel="noopener noreferrer">oficialus VMT žemėlapis ↗</a> · <a href="https://stvk.lt/map" target="_blank" rel="noopener noreferrer">STVK ↗</a>.</p>
           </div>
           <p id="mapOverlayStatus" role="status"></p><p id="mapOverlayCredit"></p>
           <p id="mapBasemapStatus" role="status" class="small"></p>
