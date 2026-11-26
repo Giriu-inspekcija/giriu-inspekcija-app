@@ -1,0 +1,80 @@
+name: Verify public GI deployment
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-public-deployment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gi-public-verify-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - name: Report pending on production commit
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=pending -f context=gi/public-deployment -f description="Checking public GI assets" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: Verify live public assets match Git
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, time, urllib.request
+          base = "https://komanda.giriuinspekcija.lt"
+          # Compare actual executable assets, not just HTTP availability or a version label.
+          paths = ("pilot/index.html", "pilot/app.js", "pilot/incident-location.js",
+                   "pilot/team-thread.js", "pilot/deadlines.js", "pilot/document-export.js",
+                   "pilot/sw.js", "pilot/manifest.webmanifest")
+          expected = {p: hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in paths}
+          deadline = time.monotonic() + 300
+          while True:
+              mismatches = []
+              for p in paths:
+                  try:
+                      req = urllib.request.Request(f"{base}/{p}?gi_verify={expected[p][:16]}-{time.time_ns()}",
+                          headers={"Cache-Control": "no-cache", "User-Agent": "GI-deploy-verifier/1.0", "Accept-Encoding": "identity"})
+                      with urllib.request.urlopen(req, timeout=8) as response:
+                          if response.status != 200 or not response.geturl().startswith(base + "/"):
+                              raise ValueError("Unexpected response")
+                          actual = hashlib.sha256(response.read()).hexdigest()
+                      if actual != expected[p]:
+                          mismatches.append(p + ": version mismatch")
+                  except Exception as exc:
+                      mismatches.append(p + ": " + str(exc))
+              if not mismatches:
+                  print("VERIFIED: all eight public assets match the checked-out Git revision")
+                  break
+              print("Not verified:", "; ".join(mismatches), flush=True)
+              if time.monotonic() >= deadline:
+                  raise SystemExit("Public deployment was not verified within the allowed window")
+              time.sleep(15)
+          PY
+      - name: Publish production verification result
+        if: always() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success; description="Public GI assets match this commit"
+          elif [ "$JOB_STATUS" = cancelled ]; then
+            state=error; description="Verification cancelled"
+          else
+            state=failure; description="Public GI version not verified"
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state="$state" -f context=gi/public-deployment -f description="$description" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
