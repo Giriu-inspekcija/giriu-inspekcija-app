@@ -18,11 +18,12 @@ test('fullscreen keeps map independent of expandable information sheet and quick
  assert.match(js,/AMZ,VMR,kv_nr,skl_nr/);
 });
 test('stand species and age use data only; missing age never invented',()=>{
- const c={};vm.runInNewContext(js.slice(js.indexOf('  function describeStand('),js.indexOf('  function showPointInfo('))+';this.describe=describeStand;',c);
- assert.equal(c.describe([{VMR:'Pušis',AMZ:156,kv_nr:2,skl_nr:3}]).species,'Pušis');
+ const c={};vm.runInNewContext(js.slice(js.indexOf('  function speciesLabel('),js.indexOf('  function showPointInfo('))+';this.describe=describeStand;',c);
+ assert.equal(c.describe([{VMR:'P',AMZ:156,kv_nr:2,skl_nr:3}]).species,'Pušis');
+ assert.equal(c.describe([{VMR:'Ą',AMZ:182}]).species,'Ąžuolas');
  assert.equal(c.describe([{VMR:'',AMZ:0}]).age,'Amžius nenurodytas');
  assert.equal(c.describe([{VMR:'',AMZ:0}]).species,'Rūšis nenurodyta');
- const o={};vm.runInNewContext(js.slice(js.indexOf('  function ownershipLabel('),js.indexOf('  async function permitOwnershipField('))+';this.label=ownershipLabel;',o);
+ const o={};vm.runInNewContext(js.slice(js.indexOf('  function ownershipLabel('),js.indexOf('  async function lookupOwnership('))+';this.label=ownershipLabel;',o);
  assert.equal(o.label('Privati'),'Privatus');assert.equal(o.label('Valstybinė'),'Valstybinis');assert.equal(o.label('unknown'),null);
  assert.match(js,/if\(stateHit\)return 'Valstybinis \(VRM\)'/);
  assert.match(js,/return 'Nenustatyta'/);
@@ -35,6 +36,6 @@ test('live forest data and ownership metadata', {skip:process.env.GITHUB_HEAD_RE
  const base='https://services6.arcgis.com/9d0vtWtIrdsf4pvs/arcgis/rest/services/lkmp_data/FeatureServer/0';
  const m=await get(base+'?f=json');console.log('permit metadata:',JSON.stringify(m.fields.map(f=>({name:f.name,alias:f.alias,domain:f.domain}))));
  const fields=m.fields.filter(f=>/nuosav|ownership|nuosavyb/i.test(f.name+' '+f.alias));
- if(fields.length){const f=fields.find(f=>/forma|type|tipas/i.test(f.name+' '+f.alias))||fields[0];
+ assert.ok(fields.some(f=>f.name==='nuosavybes_forma')); {const f=fields.find(f=>f.name==='nuosavybes_forma');
  const d=await get(base+'/query?'+new URLSearchParams({f:'json',where:'1=1',geometry:'24.591938,55.147987',geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'id,'+f.name,returnGeometry:'false'}));console.log('ownership values:',JSON.stringify(d.features.map(x=>x.attributes[f.name])));}
 });
