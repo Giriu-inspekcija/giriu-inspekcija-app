@@ -1,5 +1,6 @@
 """Exercise the actual PWA against the disposable Supabase API in three browser contexts."""
 from functools import partial
+import csv
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import os
@@ -48,6 +49,8 @@ def exercise(user,password):
                     page.locator('#authSubmit').click()
                     expect(page.locator('#tasksHeading')).to_be_visible()
                 sign_in()
+                if name=='desktop':
+                    test_time_report(page)
                 title='Naršyklės terminas '+name
                 page.get_by_text('Sukurti naują užduotį',exact=True).click()
                 form=page.locator('#proposalForm')
@@ -376,3 +379,24 @@ def test_forms(page):
     doc.get_by_role('button',name='Pateikti peržiūrai').click()
     expect(doc).to_contain_text('Peržiūrima')
     print('PASS browser incident, private photo, case task, document review submission, DOCX and print PDF',flush=True)
+
+def test_time_report(page):
+    page.locator('[data-nav=time]').click()
+    page.locator('#staffTimePanel > summary').click()
+    page.get_by_text('Patvirtintų valandų ataskaita',exact=True).click()
+    page.locator('#timeReportFrom').fill('2020-01-01')
+    for scope, project in [('general',''),('project','ALF TEST')]:
+        page.locator('#timeReportScope').select_option(scope)
+        if project:
+            page.locator('#timeReportProject').fill(project)
+        with page.expect_download() as download:
+            page.locator('#timeReportDownload').click()
+        with open(download.value.path(),encoding='utf-8-sig',newline='') as f:
+            rows=list(csv.DictReader(f,delimiter=';'))
+        assert rows and all(row['Būsena']=='Patvirtinta' for row in rows)
+        if project:
+            assert len(rows)==1 and rows[0]['Projektas']=='ALF TEST / V2.1' and rows[0]['Minutės']=='90', rows
+        else:
+            assert all(row['Projektas']=='Bendra savanorystė' for row in rows)
+    page.locator('[data-nav=tasks]').click()
+    print('PASS browser approved-time CSV scope, approved-only project minutes and download',flush=True)
