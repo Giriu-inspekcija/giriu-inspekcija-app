@@ -67,11 +67,25 @@ url = urlparse(os.environ["GI_RESTORE_DB_URL"])
 api = urlparse(os.environ["GI_RESTORE_SUPABASE_URL"])
 if url.scheme not in ("postgresql", "postgres") or not url.hostname:
     raise SystemExit("Invalid restore database URI")
-if api.scheme != "https" or not api.hostname or not api.hostname.endswith(".supabase.co"):
-    raise SystemExit("Invalid isolated Supabase Storage URI")
-ref = api.hostname.split(".")[0]
-if ref not in ((url.hostname or "") + " " + (url.username or "")):
-    raise SystemExit("Storage target and database target are not the same project")
+# Opt-in local recovery avoids buying a second hosted project. Both endpoints
+# must be loopback, with an explicit fresh disposable local target.
+local = (os.environ.get("GI_RESTORE_ALLOW_LOOPBACK") == "YES"
+         and api.scheme == "http" and api.hostname == "127.0.0.1"
+         and url.hostname == "127.0.0.1" and api.port and url.port)
+remote = (api.scheme == "https" and api.hostname
+          and api.hostname.endswith(".supabase.co"))
+if not (local or remote):
+    raise SystemExit("Restore target must be verified Supabase or explicitly local loopback")
+if remote:
+    ref = api.hostname.split(".")[0]
+    if ref not in ((url.hostname or "") + " " + (url.username or "")):
+        raise SystemExit("Storage target and database target are not the same project")
+import json
+from pathlib import Path
+source = urlparse(json.loads(Path("storage-export/storage-manifest.json").read_text())["source_url"])
+if source.hostname == api.hostname and source.port == api.port:
+    raise SystemExit("Restore target must not be the source Storage")
+
 PY
 # A fresh Supabase project must be prepared first (extensions, webhooks).
 # Fail atomically on SQL errors. Auth/Storage objects need the platform schema.

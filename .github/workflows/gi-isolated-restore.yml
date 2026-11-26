@@ -1,0 +1,56 @@
+name: GI isolated encrypted backup and restore acceptance
+on:
+  pull_request:
+    paths:
+      - 'scripts/gi_backup*'
+      - 'scripts/gi_restore.sh'
+      - 'tests/acceptance/isolated_restore_smoke.sh'
+      - 'supabase/migrations/**'
+      - '.github/workflows/gi-isolated-restore.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gi-isolated-restore-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  restore-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.83.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Local test dependencies; never copy real GI credentials
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+          python -m pip install requests==2.32.5
+      - name: Launch first disposable Supabase and generate synthetic private evidence
+        run: |
+          supabase init
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('supabase/config.toml')
+          head,section=path.read_text().split('[auth.email]',1)
+          section=section.replace('enable_confirmations = false','enable_confirmations = true',1)
+          path.write_text(head+'[auth.email]'+section)
+          PY
+          supabase start -x studio,vector,logflare,imgproxy,realtime,edge-runtime
+          supabase status -o env > "$RUNNER_TEMP/local-restore.env"
+          set -a
+          source "$RUNNER_TEMP/local-restore.env"
+          set +a
+          python3 tests/acceptance/pilot.py
+      - name: Actually decrypt, restore and compare DB rows/RLS/Storage hashes in a SECOND disposable Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/local-restore.env"
+          set +a
+          bash tests/acceptance/isolated_restore_smoke.sh "$DB_URL" "$API_URL" "$SERVICE_ROLE_KEY"
