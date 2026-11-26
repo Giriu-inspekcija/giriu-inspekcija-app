@@ -161,9 +161,9 @@ window.giIncidentLocation=function(){
     if(/^savivaldyb/.test(s))return 'Savivaldybės';
     return null;
   }
-  async function lookupOwnership(p,signal){
+  async function lookupOwnership(p,signal,permitRows){
     // The public VMT permits metadata confirms nuosavybes_forma.
-    const [state,permits]=await Promise.allSettled([queryAt(stateQuery,p,'OBJECTID',signal),queryAt(permitQuery,p,'id,nuosavybes_forma',signal)]);
+    const [state,permits]=await Promise.allSettled([queryAt(stateQuery,p,'OBJECTID',signal),permitRows||queryAt(permitQuery,p,'id,nuosavybes_forma',signal)]);
     const labels=permits.status==='fulfilled'?[...new Set(permits.value.map(r=>ownershipLabel(r.nuosavybes_forma)).filter(Boolean))]:[];
     const stateHit=state.status==='fulfilled'&&state.value.length>0;
     if(stateHit&&labels.includes('Privatus'))return 'Duomenys nesutampa – tikrinti';
@@ -174,6 +174,40 @@ window.giIncidentLocation=function(){
   function speciesLabel(v){
     const names={P:'Pušis',E:'Eglė',B:'Beržas','Ą':'Ąžuolas',J:'Juodalksnis',Bt:'Baltalksnis',D:'Drebulė',U:'Uosis',K:'Klevas',L:'Liepa',G:'Guoba',Pb:'Bankso pušis',Pj:'Juodoji pušis'};
     return names[v]||v;
+  }
+  function permitDate(v){
+    if(v===null||v===undefined||v==='')return '';
+    const d=typeof v==='number'?new Date(v):new Date(String(v));
+    if(!Number.isFinite(d.getTime()))return '';
+    return new Intl.DateTimeFormat('lt-LT',{timeZone:'Europe/Vilnius',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+  }
+  function permitFacts(row){
+    return [
+      ['Nr.',attribute(row,'id')],
+      ['Kirtimo rūšis',attribute(row,'kirtimo_rusis')],
+      ['Išduotas',permitDate(row.isdavimo_data??row.isduota)],
+      ['Galioja nuo',permitDate(row.galioja_nuo)],
+      ['Galioja iki',permitDate(row.galioja_iki)],
+      ['Būsena',attribute(row,'leid_busena')],
+      ['Dokumento tipas',attribute(row,'tipas')],
+      ['Kertamas plotas',attribute(row,'kertamas_plotas')?attribute(row,'kertamas_plotas')+' ha':'']
+    ].filter(([,value])=>value);
+  }
+  function paintPermits(rows,failed=false){
+    const details=el('forestPermitDetails'),summary=el('forestPermitSummary'),list=el('forestPermitList');
+    details.hidden=!rows.length&&!failed;
+    summary.textContent=failed?'Kirtimų leidimų patikra':'Kirtimų leidimai / pranešimai ('+rows.length+')';
+    list.replaceChildren();
+    if(failed){list.textContent='Nepavyko patikrinti leidimų. Bandykite dar kartą.';return;}
+    for(const row of rows){
+      const dl=document.createElement('dl');
+      for(const [label,value] of permitFacts(row)){
+        const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
+      }
+      const note=document.createElement('p');note.className='small';
+      note.textContent='Išdavimo data rodoma tik jei pateikta šaltinyje; galiojimo pradžia nėra išdavimo data.';
+      const box=document.createElement('div');box.className='forest-permit-entry';box.append(dl,note);list.append(box);
+    }
   }
   function describeStand(rows){
     if(!rows.length)return {age:'Medynas nerastas',species:'Nerasta',parcel:'Nerasta'};
@@ -192,12 +226,14 @@ window.giIncidentLocation=function(){
     el('forestProtectionPreview').hidden=false;setInfo('forestProtectionPreview','Tikrinamos teritorijos ir buveinės…');
     setInfo('forestInfoTitle',title);setInfo('forestInfoCoords',format(p));
     for(const id of ['forestInfoGroup','forestInfoAge','forestInfoSpecies','forestInfoParcel','forestInfoState'])setInfo(id,'Tikrinama…');
-    setInfo('forestInfoPermits','Atverkite informaciją');
+    el('forestPermitDetails').open=false;el('forestPermitDetails').hidden=true;el('forestPermitList').replaceChildren();
     infoTimer=setTimeout(async()=>{
       infoTimer=null;const controller=new AbortController();infoAbort=controller;
       const current=()=>infoKey===key&&!controller.signal.aborted;
       void loadProtection(p,controller,key);
-      const ownership=lookupOwnership(p,controller.signal).then(v=>{if(current())setInfo('forestInfoState',v);}).catch(()=>{if(current())setInfo('forestInfoState','Nepavyko patikrinti');});
+      const permits=queryAt(permitQuery,p,'id,kirtimo_rusis,galioja_nuo,galioja_iki,leid_busena,tipas,kertamas_plotas,nuosavybes_forma',controller.signal);
+      permits.then(rows=>{if(current())paintPermits(rows);},()=>{if(current())paintPermits([],true);});
+      const ownership=lookupOwnership(p,controller.signal,permits).then(v=>{if(current())setInfo('forestInfoState',v);}).catch(()=>{if(current())setInfo('forestInfoState','Nepavyko patikrinti');});
       const [g,s]=await Promise.allSettled([queryAt(groupQuery,p,'grupe,pogrupis',controller.signal),queryAt(standQuery,p,'AMZ,VMR,kv_nr,skl_nr',controller.signal)]);
       if(!current())return;
       setInfo('forestInfoGroup',g.status==='fulfilled'?describeGroup(g.value):'Nepavyko patikrinti');
@@ -210,15 +246,7 @@ window.giIncidentLocation=function(){
     if(!infoPoint||!infoDetails.open||detailKey===infoKey)return;
     const key=infoKey,p=[...infoPoint];detailKey=key;
     const controller=infoAbort||new AbortController();infoAbort=controller;
-    const lookups=[['forestInfoPermits',permitQuery,'id','Leidimų poligonai: ','Sankirta nerasta']];
-    await Promise.all(lookups.map(async([id,url,fields,yes,no])=>{
-      setInfo(id,'Tikrinama…');
-      try{
-        const rows=await queryAt(url,p,fields,controller.signal);
-        if(infoKey!==key||controller.signal.aborted)return;
-        setInfo(id,rows.length?(id==='forestInfoPermits'?yes+[...new Set(rows.map(r=>String(r.id)))].join(', '):yes):no);
-      }catch{if(infoKey===key&&!controller.signal.aborted)setInfo(id,'Nepavyko patikrinti');}
-    }));
+    // Core and permit data are already fetched for this point; opening is local only.
   }
   infoDetails.addEventListener('toggle',()=>{if(infoDetails.open&&infoTimer===null)loadInfoDetails();});
   el('forestInfoRetry').addEventListener('click',()=>{const p=infoPoint,title=el('forestInfoTitle').textContent;cancelInfo();if(p)showPointInfo(p,title);});
