@@ -12,7 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -51,6 +51,25 @@ def sha256(path):
         while block := stream.read(CHUNK):
             h.update(block)
     return h.hexdigest()
+
+
+def restore_content_type(path, key, stored=None):
+    # Older manifests lack MIME metadata and incident objects have no suffix.
+    if stored and stored != 'application/octet-stream':
+        if not re.fullmatch(r'[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+', stored):
+            raise ValueError('Invalid archived MIME type')
+        return stored
+    with path.open('rb') as stream:
+        head = stream.read(16)
+    if head.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'image/png'
+    if head.startswith(b'\xff\xd8\xff'):
+        return 'image/jpeg'
+    if head.startswith(b'RIFF') and head[8:12] == b'WEBP':
+        return 'image/webp'
+    if head.startswith(b'%PDF-'):
+        return 'application/pdf'
+    return mimetypes.guess_type(key)[0] or 'application/octet-stream'
 
 
 class Storage:
@@ -118,6 +137,7 @@ class Storage:
             with self.request("GET", endpoint, stream=True) as result:
                 h = hashlib.sha256()
                 size = 0
+                content_type = result.headers.get('Content-Type', 'application/octet-stream').split(';', 1)[0].strip().lower()
                 with part.open("xb") as stream:
                     for block in result.iter_content(CHUNK):
                         if block:
@@ -127,16 +147,16 @@ class Storage:
                             stream.write(block)
                             h.update(block)
             os.replace(part, destination)
-            return size, h.hexdigest()
+            return size, h.hexdigest(), restore_content_type(destination, key, content_type)
         finally:
             part.unlink(missing_ok=True)
 
-    def upload(self, bucket, key, path):
+    def upload(self, bucket, key, path, *, content_type=None, isolated_restore=False):
         endpoint = "object/" + quote(bucket, safe="") + "/" + quote(key, safe="/")
-        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        content_type = restore_content_type(path, key, content_type)
         with path.open("rb") as stream:
             self.request("POST", endpoint, data=stream, headers={
-                "Content-Type": content_type, "x-upsert": "false"
+                "Content-Type": content_type, "x-upsert": "true" if isolated_restore else "false"
             })
 
     def ensure_private_bucket(self, metadata):
@@ -177,10 +197,10 @@ def snapshot(args):
             remaining = args.max_bytes - total
             if remaining < 0:
                 raise RuntimeError("Maximum backup size reached")
-            size, digest = api.download(bid, object_key, filename, remaining)
+            size, digest, content_type = api.download(bid, object_key, filename, remaining)
             total += size
             objects.append({"bucket": bid, "key": object_key,
-                            "size": size, "sha256": digest})
+                            "size": size, "sha256": digest, "content_type": content_type})
     manifest = {"format_version": 1, "source_url": api.url,
                 "buckets": metadata, "objects": objects,
                 "object_count": len(objects), "total_bytes": total}
@@ -225,6 +245,8 @@ def restore(args):
     root = args.directory.resolve()
     verify(root)
     meta = json.loads((root / "storage-manifest.json").read_text("utf-8"))
+    if urlparse(args.url).hostname == "mkhxokzuietqgjdpkcqq.supabase.co":
+        raise RuntimeError("Refusing to restore to GI production")
     if args.url.rstrip("/") == meta["source_url"].rstrip("/"):
         raise RuntimeError("Refusing to restore to the original project")
     if os.environ.get("GI_RESTORE_TO_ISOLATED_TARGET") != "YES":
@@ -234,7 +256,10 @@ def restore(args):
         api.ensure_private_bucket(bucket)
     for item in meta["objects"]:
         path = root.joinpath("storage", item["bucket"], *safe_key(item["key"]))
-        api.upload(item["bucket"], item["key"], path)
+        # SQL can already have restored storage.objects metadata. Only an explicitly
+        # isolated target may replace the missing bytes behind an existing row.
+        api.upload(item["bucket"], item["key"], path, isolated_restore=True,
+                   content_type=item.get("content_type"))
     print(f"Isolated target Storage restored: {len(meta['objects'])} objects")
 
 
