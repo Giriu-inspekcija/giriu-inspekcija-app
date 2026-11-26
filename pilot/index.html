@@ -305,8 +305,21 @@ body.map-lock{overflow:hidden}
 #mapBasemapStatus{font-size:12px;margin:4px 0}
 #mapBasemap[aria-pressed=true]{background:#205742;color:#fff}
 .map-source{font-size:12px;margin:2px 0}
-#incidentMapPanel.map-fullscreen .map-frame{flex:1 1 auto;min-height:170px;display:flex;flex-direction:column}
-#incidentMapPanel.map-fullscreen #incidentMap{flex:1 1 auto;height:auto;max-height:none;min-height:170px}
+#incidentMapPanel.map-fullscreen{display:block;overflow:hidden;padding:0}
+#incidentMapPanel.map-fullscreen .map-frame{position:absolute;inset:0;margin:0;display:block;min-height:0}
+#incidentMapPanel.map-fullscreen .map-controls{position:absolute;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));z-index:8;background:#f9fbf8f5;border:1px solid #bdcfc0;border-radius:12px;padding:6px;box-shadow:0 2px 12px #0003}
+#incidentMapPanel.map-fullscreen .map-sheet{max-height:28dvh;overflow:auto;overscroll-behavior:contain}
+#incidentMapPanel.map-fullscreen .map-credit{top:6px;bottom:auto;left:6px;right:auto;max-width:calc(100% - 64px)}
+#incidentMapPanel.map-fullscreen .map-corner{top:max(8px,env(safe-area-inset-top))}
+.map-quick-layers{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0}
+.map-quick-layers label{display:flex;align-items:center;gap:4px;flex:1 1 auto;justify-content:center;padding:6px 5px;border:1px solid #bdcfc0;border-radius:8px;background:#fff;font-size:12px;font-weight:600;min-height:36px}
+.map-quick-layers input{width:16px;height:16px;margin:0;flex:none}
+.map-quick-layers label:has(input:checked){background:#e1f0e5;border-color:#205742}
+#incidentMapPanel.map-fullscreen #forestInfoCard{margin:3px 0;padding:5px 8px}
+#incidentMapPanel.map-fullscreen #mapLayerMenu{max-height:none}
+#incidentMapPanel.map-fullscreen #mapBasemapStatus{font-size:10px}
+#incidentMapPanel.map-fullscreen .map-source{display:none}
+#incidentMapPanel.map-fullscreen #incidentMap{height:100%;width:100%;max-height:none;min-height:0;border-radius:0;border:0}
 /* v32: coordinate list with small visual remove icon and full touch area. */
 #incidentForm .incident-classification{gap:4px 10px;margin:4px 0}
 #incidentForm .incident-classification>.field{margin:3px 0}
@@ -535,6 +548,7 @@ body.map-lock{overflow:hidden}
             </div>
             <div class="map-credit"><a id="mapCredit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div>
           </div>
+          <div class="map-controls">
           <div class="map-bottom">
             <button type="button" class="outline" id="mapBasemap" aria-label="Rodyti aktualiausią ortofoto" aria-pressed="false">Ortofoto</button>
             <button type="button" class="outline" id="mapLayersToggle" aria-expanded="false" aria-controls="mapLayerMenu">Sluoksniai</button>
@@ -542,11 +556,14 @@ body.map-lock{overflow:hidden}
             <button type="button" class="outline" id="mapAddGps" hidden>+ GPS taškas</button>
             <button type="button" id="mapDone">Baigti</button>
           </div>
+          <div class="map-quick-layers" aria-label="Svarbiausi sluoksniai">
+            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> Leidimai</label>
+            <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> 120+ m.</label>
+            <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> 180+ m.</label>
+          </div>
+          <div class="map-sheet">
           <label id="mapPeriodWrap" hidden>Ortofoto laikotarpis <select id="mapOrthoPeriod"><option value="recent">Aktualiausia</option><option value="2024-2026">2024–2026 m.</option><option value="2021-2023">2021–2023 m.</option><option value="2018-2020">2018–2020 m.</option><option value="2015-2017">2015–2017 m.</option><option value="2012-2013">2012–2013 m.</option><option value="2009-2010">2009–2010 m.</option><option value="2005-2006">2005–2006 m.</option><option value="1995-1999">1995–1999 m.</option></select></label>
           <div id="mapLayerMenu" hidden>
-            <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> Medynai 120+ m. (įskaitant 180+)</label>
-            <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> Medynai 180+ m.</label>
-            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> VMT kirtimų leidimai</label>
             <p class="small">Amžius – kadastro AMZ, ne biologinis atskirų medžių amžius. 120–179 m. geltona, 180+ m. violetinė. Leidimai – raudonos ribos; leidimas savaime neįrodo kirtimo.</p>
             <label><input id="layer-parcels" type="checkbox"> Miško kvartalai ir sklypai</label>
             <label><input id="layer-kmb" type="checkbox"> Kertinės miško buveinės</label>
@@ -572,19 +589,20 @@ body.map-lock{overflow:hidden}
           <p id="mapInspectHint" hidden>Palieskite norimą vietą – įvykio taškai nesikeis.</p>
           <div id="forestInfoInside"></div>
           <p class="map-source"><a href="https://www.geoportal.lt/map/" target="_blank" rel="noopener noreferrer">Ortofoto ↗</a></p>
+          </div></div>
         </div>
         <div id="forestInfoOutside">
           <section id="forestInfoCard" hidden aria-label="Miško informacija">
             <div id="forestInfoTitle"></div>
             <strong id="forestInfoGroup" aria-live="polite"></strong>
-            <dl><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
+            <dl><dt>Nuosavybė</dt><dd id="forestInfoState"></dd><dt>Vyraujanti rūšis</dt><dd id="forestInfoSpecies"></dd><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd></dl>
             <details id="forestInfoDetails"><summary>Daugiau informacijos</summary>
-              <dl><dt>Valstybinė reikšmė</dt><dd id="forestInfoState"></dd><dt>KMB / pKMB</dt><dd id="forestInfoKmb"></dd><dt>Kirtimų leidimai</dt><dd id="forestInfoPermits"></dd></dl>
+              <dl><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd><dt>KMB / pKMB</dt><dd id="forestInfoKmb"></dd><dt>Kirtimų leidimai</dt><dd id="forestInfoPermits"></dd></dl>
               <p class="small" id="forestInfoCoords"></p>
-              <p class="small">VMT / geoportal.lt. Tik pasirinkto taško sankirta. Grupė ir AMZ – kadastro duomenys; valstybinė reikšmė nėra nuosavybės patvirtinimas. Nerasta sankirta nereiškia, kad apribojimų nėra.</p>
+              <p class="small">VMT / geoportal.lt. Tik pasirinkto taško sankirta. Grupė, VMR ir AMZ – kadastro duomenys. Nuosavybė pagal VMT leidimą arba VRM ribas; be šių duomenų nenustatoma. Nerasta sankirta nereiškia, kad apribojimų nėra.</p>
+              <p class="small">Vietos GIS patikrai koordinatės perduodamos oficialioms peržiūros paslaugoms.</p>
               <button type="button" id="forestInfoRetry" class="outline">Patikrinti iš naujo</button>
             </details>
-            <p class="small">Vietos GIS patikrai koordinatės perduodamos oficialioms peržiūros paslaugoms.</p>
           </section>
         </div>
         <details class="location-advanced" id="incidentPointsDetails"><summary>Taškai ir koordinatės <span id="incidentPointsSummary" class="small"></span></summary>
