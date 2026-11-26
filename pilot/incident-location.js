@@ -41,6 +41,75 @@ window.giIncidentLocation=function(){
   const groupQuery=archiveRoot+'vmt_miskai/MapServer/7/query';
   const stateQuery=archiveRoot+'vmt_miskai/MapServer/8/query';
   const kmbQuery=archiveRoot+'vmt_miskai/MapServer/3/query';
+  const ebQuery=archiveRoot+'am_bigis_spalvotas/MapServer/2/query';
+  // STVK data published by the State Data Agency; the BAST/PAST layers
+  // describe the Natura 2000 boundaries, not the agricultural aid restrictions.
+  const stvkRoot='https://osp-sdg.stat.gov.lt/arcgis/rest/services/vstt_stvk/MapServer/';
+  const protectionDefs=[
+    {kind:'bast',label:'Natura 2000 · BAST',url:stvkRoot+'5/query',fields:'*'},
+    {kind:'past',label:'Natura 2000 · PAST',url:stvkRoot+'14/query',fields:'*'},
+    {kind:'park',label:'Parkas',url:stvkRoot+'13/query',fields:'pavadinimas'},
+    {kind:'reserve',label:'Draustinis',url:stvkRoot+'6/query',fields:'pavadinimas'},
+    {kind:'strict',label:'Rezervatas',url:stvkRoot+'15/query',fields:'pavadinimas'},
+    {kind:'kmb',label:'KMB',url:kmbQuery,fields:'*'},
+    {kind:'eb',label:'Inventorizuota EB buveinė',url:ebQuery,fields:'*'}
+  ];
+  function attribute(row,...keys){
+    const entries=Object.entries(row||{});
+    for(const key of keys){
+      const match=entries.find(([k])=>k.toLowerCase()===key.toLowerCase());
+      if(match&&match[1]!==null&&match[1]!==undefined&&String(match[1]).trim())return String(match[1]).trim();
+    }
+    return '';
+  }
+  function protectionText(kind,row){
+    const name=attribute(row,'pavadinimas','sitename','name','st_pav');
+    if(kind==='bast'||kind==='past'){
+      const code=attribute(row,'sitecode','site_code','natura_kodas','kodas');
+      return [name,code&&code!==name?code:''].filter(Boolean).join(' · ')||'Teritorija (pavadinimas nepateiktas)';
+    }
+    if(kind==='kmb'){
+      const code=attribute(row,'KMB_tip_kod','kmb_tipas','tipo_kodas','tipas');
+      const num=attribute(row,'KMB_nr','kmb_id','numeris');
+      const label=attribute(row,'KMB_tip_pav','tip_pav','tipo_pav');
+      return [code,label,num&&'Nr. '+num].filter(Boolean).join(' · ')||'Buveinės tipas nepateiktas';
+    }
+    if(kind==='eb'){
+      const code=attribute(row,'buv_kodas','buveines_kodas','buveine','buv_kod','kodas','habitatcode');
+      const type=attribute(row,'buv_pav','buveines_pavadinimas','buveines_tipas','pavadinimas');
+      return [code,type&&type!==code?type:''].filter(Boolean).join(' · ')||'Buveinės kodas nepateiktas';
+    }
+    return name||'Pavadinimas nepateiktas';
+  }
+  function paintProtection(results){
+    const list=el('forestProtectionList'),warning=el('forestProtectionStatus'),summary=el('forestProtectionSummary'),details=el('forestProtectionDetails');
+    const lines=[],failed=[];
+    for(const [def,result] of results){
+      if(result.status!=='fulfilled'){failed.push(def.label);continue;}
+      for(const value of new Set(result.value.map(row=>protectionText(def.kind,row)))){
+        lines.push({label:def.label,value});
+      }
+    }
+    list.replaceChildren(...lines.map(({label,value})=>{
+      const line=document.createElement('div');line.className='forest-protection-line';
+      const title=document.createElement('strong');title.textContent=label;
+      const detail=document.createElement('span');detail.textContent=value;
+      line.append(title,detail);return line;
+    }));
+    details.hidden=!lines.length&&!failed.length;
+    summary.textContent=lines.length?'Teritorijos ir buveinės ('+lines.length+')':'Teritorijų patikra';
+    warning.hidden=!failed.length;warning.textContent=failed.length?'Nepavyko patikrinti: '+failed.join(', ')+'.':'';
+    el('forestProtectionPreview').textContent=lines.length?lines.map(x=>x.label).filter((v,i,a)=>a.indexOf(v)===i).join(' · '):failed.length?'Ne visa teritorijų informacija patikrinta':'';
+    el('forestProtectionPreview').hidden=!lines.length&&!failed.length;
+  }
+  async function loadProtection(p,controller,key){
+    const results=await Promise.all(protectionDefs.map(async def=>{
+      try{return [def,{status:'fulfilled',value:await queryAt(def.url,p,def.fields,controller.signal)}];}
+      catch{return [def,{status:'rejected'}];}
+    }));
+    if(infoKey!==key||controller.signal.aborted)return;
+    paintProtection(results);
+  }
   const groupDefs={
     group1:{label:'I – rezervatiniai',where:'grupe = 1',color:'#ad1457'},
     group2a:{label:'IIA – ekosistemų apsaugos',where:'grupe = 2 AND pogrupis IN (21,22,23,24)',color:'#15803d'},
@@ -118,12 +187,16 @@ window.giIncidentLocation=function(){
     const key=title+'|'+format(p);
     if(key===infoKey)return;
     cancelInfo();infoKey=key;infoPoint=[...p];infoCard.hidden=false;
-    infoDetails.open=false;setInfo('forestInfoTitle',title);setInfo('forestInfoCoords',format(p));
+    infoDetails.open=false;el('forestProtectionDetails').open=false;el('forestProtectionDetails').hidden=true;
+    el('forestProtectionList').replaceChildren();el('forestProtectionStatus').hidden=true;
+    el('forestProtectionPreview').hidden=false;setInfo('forestProtectionPreview','Tikrinamos teritorijos ir buveinės…');
+    setInfo('forestInfoTitle',title);setInfo('forestInfoCoords',format(p));
     for(const id of ['forestInfoGroup','forestInfoAge','forestInfoSpecies','forestInfoParcel','forestInfoState'])setInfo(id,'Tikrinama…');
-    for(const id of ['forestInfoKmb','forestInfoPermits'])setInfo(id,'Atverkite informaciją');
+    setInfo('forestInfoPermits','Atverkite informaciją');
     infoTimer=setTimeout(async()=>{
       infoTimer=null;const controller=new AbortController();infoAbort=controller;
       const current=()=>infoKey===key&&!controller.signal.aborted;
+      void loadProtection(p,controller,key);
       const ownership=lookupOwnership(p,controller.signal).then(v=>{if(current())setInfo('forestInfoState',v);}).catch(()=>{if(current())setInfo('forestInfoState','Nepavyko patikrinti');});
       const [g,s]=await Promise.allSettled([queryAt(groupQuery,p,'grupe,pogrupis',controller.signal),queryAt(standQuery,p,'AMZ,VMR,kv_nr,skl_nr',controller.signal)]);
       if(!current())return;
@@ -137,8 +210,7 @@ window.giIncidentLocation=function(){
     if(!infoPoint||!infoDetails.open||detailKey===infoKey)return;
     const key=infoKey,p=[...infoPoint];detailKey=key;
     const controller=infoAbort||new AbortController();infoAbort=controller;
-    const lookups=[['forestInfoKmb',kmbQuery,'OBJECTID','Patenka į KMB / pKMB sluoksnį','Sankirta nerasta'],
-      ['forestInfoPermits',permitQuery,'id','Leidimų poligonai: ','Sankirta nerasta']];
+    const lookups=[['forestInfoPermits',permitQuery,'id','Leidimų poligonai: ','Sankirta nerasta']];
     await Promise.all(lookups.map(async([id,url,fields,yes,no])=>{
       setInfo(id,'Tikrinama…');
       try{
