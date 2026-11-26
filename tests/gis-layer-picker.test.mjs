@@ -55,9 +55,9 @@ vm.runInNewContext(vectorHelper+";this.query=vectorQueryUrl;",ctx);
 test('public vector queries use visible extent and published stand age in years',()=>{
   const u=new URL(ctx.query('https://example.invalid/query','AMZ >= 180','AMZ',10,20,300,200,16));
   assert.equal(u.searchParams.get('where'),'AMZ >= 180');
-  assert.equal(u.searchParams.get('inSR'),'3857');
+  assert.equal(u.searchParams.get('inSR'),'4326');
   assert.equal(u.searchParams.get('outSR'),'4326');
-  assert.equal(u.searchParams.get('resultRecordCount'),'1000');
+  assert.ok(u.searchParams.get('geometry').split(',').every(v=>Math.abs(Number(v))<=180));
   assert.match(js,/data\.exceededTransferLimit/);
   assert.match(js,/controller\.signal\.aborted/);
   assert.match(js,/age>=180/);
@@ -67,16 +67,16 @@ test('live VMT age and permit geometry endpoints return GeoJSON', {skip:process.
   const x=(lon+180)/360*n-128,y=(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n-128;
   const stand='https://www.geoportal.lt/mapproxy/vmt_mkd/MapServer/1/query';
   const permits='https://services6.arcgis.com/9d0vtWtIrdsf4pvs/arcgis/rest/services/lkmp_data/FeatureServer/0/query';
-  for(const [endpoint,where,fields] of [[stand,'AMZ >= 120','AMZ'],[stand,'AMZ >= 180','AMZ'],[permits,'1=1','id']]){
+  for(const [endpoint,where,fields] of [[stand,'AMZ >= 120','AMZ,OBJECTID'],[stand,'AMZ >= 180','AMZ,OBJECTID'],[permits,'1=1','id']]){
     const url=ctx.query(endpoint,where,fields,x,y,256,256,z);
     const r=await fetch(url,{signal:AbortSignal.timeout(15000),headers:{Origin:'https://komanda.giriuinspekcija.lt',Referer:'https://komanda.giriuinspekcija.lt/'}});
     assert.equal(r.status,200,url);
     const cors=r.headers.get('access-control-allow-origin');
     assert.ok(cors==='*'||cors==='https://komanda.giriuinspekcija.lt','Browser CORS: '+endpoint);
     const d=await r.json();
-    assert.equal(d.type,'FeatureCollection',JSON.stringify(d.error));
+    assert.equal(d.type,'FeatureCollection',url+' '+JSON.stringify(d.error));
     assert.ok(Array.isArray(d.features)&&d.features.length>0,'Expected known GIS data in test extent');
     assert.ok(d.features.every(f=>['Polygon','MultiPolygon'].includes(f.geometry?.type)));
-    if(fields==='AMZ')assert.ok(d.features.every(f=>Number(f.properties.AMZ)>=Number(where.split(' ').at(-1))));
+    if(fields.includes('AMZ'))assert.ok(d.features.every(f=>Number(f.properties.AMZ)>=Number(where.split(' ').at(-1))));
   }
 });
