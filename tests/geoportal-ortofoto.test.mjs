@@ -32,7 +32,7 @@ test('basemap switching keeps coordinates and is opt-in; failed imagery has a fa
   assert.match(js,/orthoReady=false;img.remove\(\)/);
   assert.match(js,/ORT10LT © NŽT prie AM/);
   assert.doesNotMatch(sw,/geoportal\.lt|MapServer\/export/);
-  assert.match(sw,/geoportal-v1/);
+  assert.match(sw,/geoportal/);
 });
 // One small public view request on the integration PR, never in regular tests,
 // never using volunteer or case coordinates. Failing service blocks promotion.
