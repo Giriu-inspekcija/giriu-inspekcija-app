@@ -114,7 +114,16 @@ BEGIN
   END IF;
  END IF;
  requested:=project;
- project:=coalesce(private.gi_default_time_project(auth.uid(),p_date),project);
+ -- Non-admins cannot manufacture a project label. Old clients can retry an
+ -- existing submission, but new attribution is solely from the staff default.
+ IF NOT private.gi_project_admin() THEN
+  project:=private.gi_default_time_project(auth.uid(),p_date);
+  IF requested IS NOT NULL AND requested IS DISTINCT FROM project THEN
+   RAISE EXCEPTION 'Projektą priskiria administratorius. Atnaujinkite programėlę ir pateikite valandas be projekto.';
+  END IF;
+ ELSE
+  project:=coalesce(private.gi_default_time_project(auth.uid(),p_date),project);
+ END IF;
  new_id:=private.gi_record_volunteer_time(p_task_id,p_minutes,p_activity_title,p_note);
  UPDATE public.gi_work_logs SET work_date=p_date,project_label=project,general_activity=(project IS NULL),request_id=p_request WHERE id=new_id;
  INSERT INTO private.gi_time_project_requests(log_id,requested_project) VALUES(new_id,requested);

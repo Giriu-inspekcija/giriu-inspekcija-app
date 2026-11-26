@@ -350,6 +350,8 @@
       }
       if(!approved()){$('workspace').hidden=true;thread.clear();}
       $('staffPanel').hidden = !staff();
+      $('ownAdminProjectField').hidden=!admin();
+      if(!admin())$('timeProject').value='';
       $('adminPanel').hidden = !staff();
       $('tasksHeading').textContent = staff() ? 'Organizacijos užduotys' : 'Mano užduotys';
       $('taskFilterPanel').hidden = !approved();
@@ -2002,7 +2004,8 @@
       return toast('Veiklai be užduoties nurodykite bent 5 simbolių pavadinimą.',true);
     const params={p_task_id:taskId,p_minutes:total,
       p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim(),
-      p_date:$('manualTimeDate').value,p_project:null,p_general:true};
+      p_date:$('manualTimeDate').value,p_project:admin()?$('timeProject').value.trim()||null:null,
+      p_general:!admin()||!$('timeProject').value.trim()};
     const signature=JSON.stringify(params);
     if(timeRequest?.signature!==signature)timeRequest={signature,id:crypto.randomUUID()};
     params.p_request=timeRequest.id;

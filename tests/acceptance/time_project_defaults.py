@@ -23,6 +23,7 @@ def exercise():
     assign('ALF',yesterday,today,vol,{400,403})
     rpc('gi_get_time_project_defaults',{},vol,{400,403})
     assign('ALF',yesterday,today)
+    rpc('gi_record_dated_time',{'p_date':today.isoformat(),'p_request':str(uuid.uuid4()),'p_general':False,'p_project':'Savavališkas projektas','p_minutes':75,'p_task_id':None,'p_activity_title':'Projekto testas','p_note':'Testas'},vol,{400,403})
     assert rpc('gi_get_time_project_defaults',{},admin)==[{'user_id':uid,'project_label':'ALF','starts_on':yesterday.isoformat(),'ends_on':today.isoformat()}]
     key=str(uuid.uuid4());a=log(yesterday,key=key);check(a,'ALF');check(prior,None)
     b=log(today);check(b,'ALF');check(log(today,other),None)
@@ -38,8 +39,9 @@ def exercise():
     assign('Kitas projektas',today,today);check(log(today),'Kitas projektas')
     assign('Būsimas projektas',today+timedelta(days=1),None);check(log(today),'Kitas projektas')
     assign(None,None,None);check(log(today),None)
-    return admin_email,vol_email,uid,today
     print('PASS automatic project by work date, no retroactive change, private admin defaults, override audit, retry, expiry/disable and replacement',flush=True)
+    return admin_email,vol_email,uid,today
+
 def browser_check(admin_email,vol_email,uid,today):
     from functools import partial
     from http.server import ThreadingHTTPServer
@@ -75,15 +77,13 @@ def browser_check(admin_email,vol_email,uid,today):
             vc,vp=signin(vol_email,'Pixel 7')
             vp.locator('[data-nav=time]').click()
             vp.locator('#timeEntryPanel summary').click()
-            expect(vp.locator('#timeProject')).to_have_count(0)
+            expect(vp.locator('#timeProject')).to_be_hidden()
             vp.locator('#manualTimeActivity').fill('UI ALF bandymas')
             vp.locator('#manualTimeNote').fill('Bandomasis įrašas')
             vp.locator('#manualTimeForm button[type=submit]').click()
             expect(vp.locator('#workLogsList')).to_contain_text('UI ALF bandymas')
             assert sql(f"SELECT project_label FROM public.gi_work_logs WHERE volunteer_id='{uid}' AND activity_title='UI ALF bandymas'")=='ALF UI'
             vc.close()
-            ap.locator('#refresh').click()
-            ap.locator('[data-nav=team]').click()
             f=ap.locator('form[data-project-default="'+uid+'"]')
             if not f.is_visible(): f.locator('..').locator('summary').click()
             f.locator('[data-project-disable]').click()

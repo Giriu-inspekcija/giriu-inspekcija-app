@@ -559,6 +559,7 @@ body.map-lock{overflow:hidden}
         <label class="field">Minutės <input id="manualTimeMinutes" type="number" min="0" max="59" value="30" required></label>
       </div>
       <label class="field">Darbo data <input type="date" id="manualTimeDate" required></label>
+      <label class="field" id="ownAdminProjectField" hidden>Projektas (tik administratoriaus asmeninėms valandoms)<input id="timeProject" minlength="2" maxlength="120" placeholder="Pvz., ALF"></label>
       <label class="field">Ką atlikote? <textarea id="manualTimeNote" required maxlength="1000" placeholder="Trumpas darbo aprašymas"></textarea></label>
       <button type="submit">Pateikti laiką patvirtinti</button>
     </form></details>
