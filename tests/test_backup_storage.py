@@ -38,7 +38,7 @@ class FakeStorage(BaseHTTPRequestHandler):
             return self._send(json.dumps([
                 {"id":"photos","public":False},{"id":"reports","public":False}
             ]).encode())
-        if self.path == "/storage/v1/object/photos/2026/wood.png":
+        if self.path == "/storage/v1/object/photos/2026/01":
             return self._send(PHOTO, "image/png")
         if self.path == "/storage/v1/object/reports/report.pdf":
             return self._send(DOC, "application/pdf")
@@ -52,7 +52,7 @@ class FakeStorage(BaseHTTPRequestHandler):
         prefix = body.get("prefix", "")
         if self.path == "/storage/v1/object/list/photos":
             data = [{"name":"2026","id":None}] if prefix == "" else [
-                {"name":"wood.png","id":"uuid-1"}]
+                {"name":"01","id":"uuid-1"}]
         elif self.path == "/storage/v1/object/list/reports":
             data = [{"name":"report.pdf","id":"uuid-2"}] if prefix == "" else []
         else:
@@ -80,16 +80,39 @@ class BackupTests(unittest.TestCase):
             backup.snapshot(args)
             manifest = json.loads((path/"storage-manifest.json").read_text())
             self.assertEqual(manifest["object_count"], 2)
+            self.assertEqual(manifest["objects"][0]["content_type"], "image/png")
+            self.assertEqual(manifest["objects"][1]["content_type"], "application/pdf")
             self.assertEqual(manifest["total_bytes"],len(PHOTO)+len(DOC))
             self.assertEqual(manifest["objects"][0]["sha256"],
                              hashlib.sha256(PHOTO).hexdigest())
-            self.assertEqual((path/"storage/photos/2026/wood.png").read_bytes(),PHOTO)
+            self.assertEqual((path/"storage/photos/2026/01").read_bytes(),PHOTO)
             backup.verify(path)
             with self.assertRaises(RuntimeError):
                 backup.snapshot(args)
-            (path/"storage/photos/2026/wood.png").write_bytes(b"tampered")
+            (path/"storage/photos/2026/01").write_bytes(b"tampered")
             with self.assertRaises(RuntimeError):
                 backup.verify(path)
+
+    def test_legacy_extensionless_mime_and_isolated_upload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "01"
+            path.write_bytes(PHOTO)
+            self.assertEqual(backup.restore_content_type(path, "01"), "image/png")
+            self.assertEqual(backup.restore_content_type(path, "01", "application/octet-stream"), "image/png")
+            api = backup.Storage(self.url, "test-service-key")
+            with patch.object(api, "request") as request:
+                api.upload("photos", "01", path, isolated_restore=True)
+                self.assertEqual(request.call_args.kwargs["headers"], {"Content-Type":"image/png","x-upsert":"true"})
+                api.upload("photos", "01", path)
+                self.assertEqual(request.call_args.kwargs["headers"]["x-upsert"], "false")
+
+    def test_restore_production_never_allowed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "snapshot"
+            backup.snapshot(SimpleNamespace(directory=path,url=self.url,key="test-service-key",max_bytes=100000))
+            with patch.dict(os.environ,{"GI_RESTORE_TO_ISOLATED_TARGET":"YES"}):
+                with self.assertRaisesRegex(RuntimeError, "GI production"):
+                    backup.restore(SimpleNamespace(directory=path,url="https://mkhxokzuietqgjdpkcqq.supabase.co",key="not-a-real-key"))
 
     def test_no_leaked_names_or_traversal(self):
         for name in ("../passwords","/etc/passwd","a//b","a/./b","..\\x"):
