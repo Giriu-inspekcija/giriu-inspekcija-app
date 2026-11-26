@@ -40,7 +40,7 @@ test('official STVK, KMB and EB polygon point sources are browser accessible', {
    const fields=kind==='eb'?'BIGISDBAnketos.BuveinesTipas':kind==='kmb'?'KMB_kod,KMB_tip_kod,pot_KMB_tip_kod':['bast','past'].includes(kind)?'pavadinimas,bast_kodas':'pavadinimas';
    const q=base+'/query?'+new URLSearchParams({f:'json',where:'1=1',geometry:'24.0,55.2',geometryType:'esriGeometryPoint',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:fields,returnGeometry:'false'});
    const d=await get(q);assert.ok(Array.isArray(d.features),kind);
-   const sample=await get(base+'/query?'+new URLSearchParams({f:'json',where:'1=1',outFields:fields,returnGeometry:'false',resultRecordCount:'1'}));
+   const sample=await get(base+'/query?'+new URLSearchParams({f:'json',where:'1=1',outFields:kind==='kmb'?'*':fields,returnGeometry:'false',resultRecordCount:'1'}));
    assert.ok(sample.features?.length,kind);
    const attrs=sample.features[0].attributes;
    assert.ok(fields.split(',').every(k=>Object.hasOwn(attrs,k)),kind+' '+JSON.stringify(attrs));
