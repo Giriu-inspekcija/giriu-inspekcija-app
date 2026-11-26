@@ -46,13 +46,13 @@ window.giIncidentLocation=function(){
   // describe the Natura 2000 boundaries, not the agricultural aid restrictions.
   const stvkRoot='https://osp-sdg.stat.gov.lt/arcgis/rest/services/vstt_stvk/MapServer/';
   const protectionDefs=[
-    {kind:'bast',label:'Natura 2000 · BAST',url:stvkRoot+'5/query',fields:'*'},
-    {kind:'past',label:'Natura 2000 · PAST',url:stvkRoot+'14/query',fields:'*'},
+    {kind:'bast',label:'Natura 2000 · BAST',url:stvkRoot+'5/query',fields:'pavadinimas,bast_kodas'},
+    {kind:'past',label:'Natura 2000 · PAST',url:stvkRoot+'14/query',fields:'pavadinimas,bast_kodas'},
     {kind:'park',label:'Parkas',url:stvkRoot+'13/query',fields:'pavadinimas'},
     {kind:'reserve',label:'Draustinis',url:stvkRoot+'6/query',fields:'pavadinimas'},
     {kind:'strict',label:'Rezervatas',url:stvkRoot+'15/query',fields:'pavadinimas'},
-    {kind:'kmb',label:'KMB',url:kmbQuery,fields:'*'},
-    {kind:'eb',label:'Inventorizuota EB buveinė',url:ebQuery,fields:'*'}
+    {kind:'kmb',label:'KMB',url:kmbQuery,fields:'KMB_kod,KMB_tip_kod,pot_KMB_tip_kod'},
+    {kind:'eb',label:'Inventorizuota EB buveinė',url:ebQuery,fields:'BIGISDBAnketos.BuveinesTipas'}
   ];
   function attribute(row,...keys){
     const entries=Object.entries(row||{});
@@ -65,18 +65,22 @@ window.giIncidentLocation=function(){
   function protectionText(kind,row){
     const name=attribute(row,'pavadinimas','sitename','name','st_pav');
     if(kind==='bast'||kind==='past'){
-      const code=attribute(row,'sitecode','site_code','natura_kodas','kodas');
+      const code=attribute(row,'bast_kodas','sitecode','site_code','natura_kodas','kodas');
       return [name,code&&code!==name?code:''].filter(Boolean).join(' · ')||'Teritorija (pavadinimas nepateiktas)';
     }
     if(kind==='kmb'){
       const code=attribute(row,'KMB_tip_kod','kmb_tipas','tipo_kodas','tipas');
-      const num=attribute(row,'KMB_nr','kmb_id','numeris');
+      const num=attribute(row,'KMB_kod','KMB_nr','kmb_id','numeris');
+      const potential=attribute(row,'pot_KMB_tip_kod');
       const label=attribute(row,'KMB_tip_pav','tip_pav','tipo_pav');
-      return [code,label,num&&'Nr. '+num].filter(Boolean).join(' · ')||'Buveinės tipas nepateiktas';
+      return [code,label,potential&&'Potenciali KMB '+potential,num&&'Nr. '+num].filter(Boolean).join(' · ')||'Buveinės tipas nepateiktas';
     }
     if(kind==='eb'){
-      const code=attribute(row,'buv_kodas','buveines_kodas','buveine','buv_kod','kodas','habitatcode');
-      const type=attribute(row,'buv_pav','buveines_pavadinimas','buveines_tipas','pavadinimas');
+      const raw=attribute(row,'BIGISDBAnketos.BuveinesTipas','buv_kodas','buveines_kodas','buveine','buv_kod','kodas','habitatcode');
+      const names={'9010':['9010*','Vakarų taiga'],'9020':['9020*','Plačialapių ir mišrūs miškai'],'9050':['9050','Žolių turtingi eglynai'],'9060':['9060','Spygliuočių miškai ant ozų'],'9070':['9070','Medžiais apaugusios ganyklos'],'9080':['9080*','Pelkėti lapuočių miškai'],'9160':['9160','Skroblynai'],'9180':['9180*','Griovų ir šlaitų miškai'],'9190':['9190','Sausieji ąžuolynai'],'91D0':['91D0*','Pelkiniai miškai'],'91E0':['91E0*','Aliuviniai miškai'],'91F0':['91F0','Paupių guobynai'],'91T0':['91T0','Kerpšiliai']};
+      const mapped=names[raw.toUpperCase().replace(/\*$/,'')];
+      const code=mapped?.[0]||raw;
+      const type=attribute(row,'buv_pav','buveines_pavadinimas','buveines_tipas','pavadinimas')||mapped?.[1]||'';
       return [code,type&&type!==code?type:''].filter(Boolean).join(' · ')||'Buveinės kodas nepateiktas';
     }
     return name||'Pavadinimas nepateiktas';
@@ -87,7 +91,7 @@ window.giIncidentLocation=function(){
     for(const [def,result] of results){
       if(result.status!=='fulfilled'){failed.push(def.label);continue;}
       for(const value of new Set(result.value.map(row=>protectionText(def.kind,row)))){
-        lines.push({label:def.label,value});
+        lines.push({label:def.kind==='kmb'&&value.startsWith('Potenciali KMB')?'pKMB':def.label,value});
       }
     }
     list.replaceChildren(...lines.map(({label,value})=>{
