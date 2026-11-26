@@ -100,7 +100,7 @@
   const TASK_PAGE_SIZE = 50;
   let taskCursor = null, hasMoreTasks = false, taskFilter = 'all', memberSearchTerm = '';
 
-  let nomination=null;
+  let nomination=null, projectDefaults=null;
   let refreshFinished=Promise.resolve();
   const expiredSession=error=>['PGRST301','PGRST303','session_not_found'].includes(error?.code)
     || /JWT expired|token has expired|invalid JWT/i.test(error?.message||'');
@@ -207,7 +207,7 @@
     if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
     feedbackVisibleCount=4;feedbackShowResolved=false;
     activePanel='tasks';
-    nomination=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
+    nomination=null;projectDefaults=null;feedbackGroups=[];cases=[];documents=[];documentRequest=null;caseRequest.clear();
     taskHistoryCache.clear();taskHistoryRequests.clear();
     $('documentList').replaceChildren();$('documentCreate').reset();
     $('incidentForm').reset();incidentLocation.reset();$('incidentId').value='';$('incidentsList').replaceChildren();
@@ -419,7 +419,7 @@
       const logFields='id,task_id,volunteer_id,minutes,note,activity_title,review_status,review_note,created_at,work_date,project_label,general_activity,worker:gi_profiles!volunteer_id(display_name),job:gi_tasks!task_id(title)';
       // Fetch unrelated workspace datasets together. A slow view should not make
       // every other view wait for another network round-trip.
-      const [totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs]=await Promise.all([
+      const [totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs,defaults]=await Promise.all([
         client.rpc('gi_my_time_totals'),
         client.from('gi_work_logs').select(logFields)
           .eq('volunteer_id',currentUser.id).order('created_at',{ascending:false}).limit(70),
@@ -430,7 +430,8 @@
           .order('created_at',{ascending:false}).limit(100),
         admin()?client.rpc('gi_reviewer_candidate'):Promise.resolve({data:null}),
         canWriteDocuments()?client.from('gi_documents').select('id,title,body,phase,revision,author_id,task_id,case_id')
-          .order('updated_at',{ascending:false}).limit(50):Promise.resolve({data:[]})
+          .order('updated_at',{ascending:false}).limit(50):Promise.resolve({data:[]}),
+        admin()?client.rpc('gi_get_time_project_defaults'):Promise.resolve({data:null})
       ]);
       for(const response of [totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs])
         if(response.error)throw response.error;
@@ -439,6 +440,7 @@
       timeOwnTasks=ownTaskResult.data||[];
       incidents=incidentResult.data||[];
       nomination=reviewer.data;
+      projectDefaults=admin()&&!defaults.error?Object.fromEntries((defaults.data||[]).map(d=>[d.user_id,d])):null;
       documents=docs.data||[];
       const ids=workLogs.filter(w=>w.review_status==='submitted').map(w=>w.id);
       const [permissions,caseResult]=await Promise.all([
@@ -610,7 +612,7 @@
       return '<article class="log-card"><div class="log-head"><b>'+escapeHTML(title)+'</b><strong>'+escapeHTML(clockDuration(w.minutes))+'</strong></div>'
         +(w.volunteer_id!==currentUser?.id?'<p class="small">Vykdytojas: '+escapeHTML(w.worker?.display_name||(owner?personName(owner):'Savanoris'))+'</p>':'')
         +'<p class="small">'+escapeHTML(w.work_date||window.giDeadlines.inputValue(w.created_at).slice(0,10))
-        +(w.project_label?' · '+escapeHTML(w.project_label):'')+'</p>'
+        +(staff()&&w.project_label?' · '+escapeHTML(w.project_label):'')+'</p>'
         +'<p class="small">'
         +escapeHTML({submitted:'Pateikta',approved:'Patvirtinta',returned:'Grąžinta taisyti'}[w.review_status]||w.review_status)
         +'</p>'+(w.note?'<p class="small">'+escapeHTML(w.note)+'</p>':'')
@@ -618,7 +620,8 @@
         +(w.review_status==='returned'?'<p class="small">Patikslinkite pateikdami naują įrašą aukščiau.</p>':'')
         +(reviewableLogs.has(w.id)
           ?'<div class="actions"><button type="button" data-time-approve="'+escapeHTML(w.id)+'">Patvirtinti laiką</button>'
-           +'<button type="button" class="outline" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button></div>':'')
+           +'<button type="button" class="outline" data-time-return="'+escapeHTML(w.id)+'">Grąžinti taisyti</button>'
+           +(admin()&&projectDefaults!==null&&w.volunteer_id!==currentUser?.id?'<button type="button" class="outline" data-time-project="'+escapeHTML(w.id)+'">Keisti projektą</button>':'')+'</div>':'')
         +'</article>';
     };
     $('workLogsList').innerHTML=mine.length?mine.map(entry).join('')
@@ -694,6 +697,16 @@
       +'<p class="small">Kandidatas – tik specialiai pažymėtos demonstracinės užduotys.</p>'
       +'<button type="button" data-promote-candidate="'+escapeHTML(p.id)+'">Patvirtinti kaip savanorį</button>'
       +'</article>').join('');
+    const projectForm=p=>{
+      if(projectDefaults===null)return '<p class="small">Projektų nustatymai nepasiekiami.</p>';
+      const id=escapeHTML(p.id), d=projectDefaults[p.id],today=window.giDeadlines.inputValue(new Date()).slice(0,10);
+      return '<details><summary>Numatytasis projektas: '+escapeHTML(d?d.project_label+(d.ends_on?' iki '+d.ends_on:''):'Bendra veikla')+'</summary>'
+        +'<form data-project-default="'+id+'"><label class="field">Projektas<input name="project" required minlength="2" maxlength="120" value="'+escapeHTML(d?.project_label||'')+'" placeholder="ALF"></label>'
+        +'<label class="field">Nuo<input type="date" name="start" required value="'+escapeHTML(today)+'"></label>'
+        +'<label class="field">Iki (nebūtina)<input type="date" name="end" value="'+escapeHTML(d?.ends_on||'')+'"></label>'
+        +'<p class="small">Taikoma naujiems įrašams pagal darbo datą. Ankstesni įrašai nekeičiami.</p><button type="submit">Išsaugoti projektą</button>'
+        +(d?'<button type="button" class="outline" data-project-disable="'+id+'">Išjungti priskyrimą</button>':'')+'</form></details>';
+    };
     const managed=admin()?others.filter(p=>['candidate','volunteer','coordinator'].includes(p.role)).map(p=>{
       const id=escapeHTML(p.id);
       return '<article class="card">'+person(p)
@@ -713,7 +726,7 @@
         +(p.role==='volunteer'
           ?'<div class="actions"><button type="button" class="outline" data-doc-permission="'+id+'">'
            +(p.can_prepare_documents?'Atšaukti raštų rengimo teisę':'Leisti rengti raštų projektus')+'</button></div>'
-          :'')+'</article>';
+          :'')+projectForm(p)+'</article>';
     }).join(''):'';
     $('pendingMembers').innerHTML='<h3>Laukia peržiūros ('+pending.length+')</h3>'
       +(pendingRows||'<p class="small">Naujų registracijų nėra.</p>')
@@ -1689,9 +1702,20 @@
     notice('Patvirtintų siūlomų užduočių: '+imported+' iš '+copy.length
       +(failures.length?'. Dalis klaidų – žr. importo lauką.':'. Užduotys jau yra fonde.'),!!failures.length);
   });
+  $('pendingMembers').addEventListener('submit',async event=>{
+    const form=event.target.closest('form[data-project-default]');if(!form)return;
+    event.preventDefault();if(!admin()||projectDefaults===null||mutationInFlight)return;
+    const f=new FormData(form),p_project=String(f.get('project')||'').trim(),p_start=String(f.get('start')||''),p_end=String(f.get('end')||'')||null;
+    if(p_project.length<2||!p_start||(p_end&&p_end<p_start))return toast('Patikrinkite projektą ir datas.',true);
+    return run(()=>client.rpc('gi_set_time_project_default',{p_user:form.dataset.projectDefault,p_project,p_start,p_end}),'Projektas priskirtas.');
+  });
   $('pendingMembers').addEventListener('click',async event=>{
     const btn=event.target.closest('button');
     if(!btn || !staff() || mutationInFlight)return;
+    if(btn.dataset.projectDisable){
+      if(!admin()||projectDefaults===null||!await ask('Išjungti automatinį priskyrimą nuo šiandien? Ankstesni įrašai nekeičiami.'))return;
+      return run(()=>client.rpc('gi_set_time_project_default',{p_user:btn.dataset.projectDisable,p_project:null,p_start:null,p_end:null}),'Priskyrimas išjungtas.');
+    }
     const id=btn.dataset.approveCandidate||btn.dataset.approveVolunteer
       ||btn.dataset.promoteCandidate||btn.dataset.changeRole
       ||btn.dataset.rankChange||btn.dataset.docPermission||btn.dataset.appointReviewer
@@ -1893,6 +1917,13 @@
   const handleTimeReviewClick=async(event)=>{
     const b=event.target.closest('button');
     if(!b||!staff())return;
+    if(b.dataset.timeProject){
+      if(!admin()||projectDefaults===null||mutationInFlight)return;
+      const w=workLogs.find(x=>x.id===b.dataset.timeProject);if(!w||w.volunteer_id===currentUser?.id||!reviewableLogs.has(w.id))return;
+      const value=await ask('Įrašykite projekto pavadinimą arba BENDRA, jei veikla nesusijusi su projektu.',{input:true,value:w.project_label||'BENDRA'});
+      if(value===null)return;const label=value.trim();if(label.length<2||label.length>120)return toast('Patikrinkite projektą.',true);
+      return run(()=>client.rpc('gi_override_time_project',{p_id:w.id,p_project:label.toUpperCase()==='BENDRA'?null:label}),'Projekto priskyrimas pakeistas.');
+    }
     const id=b.dataset.timeApprove||b.dataset.timeReturn;
     if(!id)return;
     const row=workLogs.find(x=>x.id===id);
@@ -1971,8 +2002,7 @@
       return toast('Veiklai be užduoties nurodykite bent 5 simbolių pavadinimą.',true);
     const params={p_task_id:taskId,p_minutes:total,
       p_activity_title:taskId?null:title,p_note:$('manualTimeNote').value.trim(),
-      p_date:$('manualTimeDate').value,p_project:$('timeProject').value.trim()||null,
-      p_general:!$('timeProject').value.trim()};
+      p_date:$('manualTimeDate').value,p_project:null,p_general:true};
     const signature=JSON.stringify(params);
     if(timeRequest?.signature!==signature)timeRequest={signature,id:crypto.randomUUID()};
     params.p_request=timeRequest.id;
