@@ -257,7 +257,13 @@ body:has(dialog[open]) .feedback-fast{visibility:hidden;pointer-events:none}
 #forestInfoCard dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:4px 0;font-size:13px}
 #forestInfoCard dt{color:#536358}#forestInfoCard dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 #forestInfoTitle{font-size:12px;color:#536358}#forestInfoGroup{font-size:15px;color:#205742}
-#forestInfoDetails summary{font-size:13px;cursor:pointer;padding:5px 0}
+#forestInfoDetails summary,#forestProtectionDetails summary,#forestPermitDetails summary{font-size:13px;font-weight:600;cursor:pointer;padding:7px 0;min-height:36px}
+#forestProtectionDetails[hidden],#forestProtectionPreview[hidden],#forestProtectionStatus[hidden],#forestPermitDetails[hidden]{display:none}
+.forest-permit-entry{padding:5px 0;border-bottom:1px solid #e1e8e2}
+.forest-protection-preview{font-size:12px;color:#205742;font-weight:600;margin:4px 0}
+.forest-protection-line{display:flex;flex-direction:column;gap:2px;padding:5px 0;border-bottom:1px solid #e1e8e2;font-size:12px}
+.forest-protection-line span{overflow-wrap:anywhere;color:#304438}
+#forestProtectionDetails[open]~#forestInfoDetails{margin-top:2px}
 #mapInspect[aria-pressed=true]{background:#205742;color:#fff}
 #mapInspectPin{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;border:3px solid #0284c7;background:#fff9;z-index:7;pointer-events:none}
 #mapInspectHint{font-size:12px;color:#075985}
@@ -596,8 +602,14 @@ body.map-lock{overflow:hidden}
             <div id="forestInfoTitle"></div>
             <strong id="forestInfoGroup" aria-live="polite"></strong>
             <dl><dt>Nuosavybė</dt><dd id="forestInfoState"></dd><dt>Vyraujanti rūšis</dt><dd id="forestInfoSpecies"></dd><dt>Medyno amžius</dt><dd id="forestInfoAge"></dd></dl>
+            <p id="forestProtectionPreview" class="forest-protection-preview" hidden aria-live="polite"></p>
+            <details id="forestProtectionDetails" hidden><summary id="forestProtectionSummary">Teritorijos ir buveinės</summary>
+              <div id="forestProtectionList"></div><p id="forestProtectionStatus" class="small" hidden role="status"></p>
+              <p class="small">Inventorizuotos EB buveinės savaime nepatvirtina apsaugos statuso. Duomenys: VMT, AM / geoportal.lt, STVK / VDA.</p>
+            </details>
+            <details id="forestPermitDetails" hidden><summary id="forestPermitSummary">Kirtimų leidimai</summary><div id="forestPermitList"></div></details>
             <details id="forestInfoDetails"><summary>Daugiau informacijos</summary>
-              <dl><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd><dt>KMB / pKMB</dt><dd id="forestInfoKmb"></dd><dt>Kirtimų leidimai</dt><dd id="forestInfoPermits"></dd></dl>
+              <dl><dt>Kvartalas / sklypas</dt><dd id="forestInfoParcel"></dd></dl>
               <p class="small" id="forestInfoCoords"></p>
               <p class="small">VMT / geoportal.lt. Tik pasirinkto taško sankirta. Grupė, VMR ir AMZ – kadastro duomenys. Nuosavybė pagal VMT leidimą arba VRM ribas; be šių duomenų nenustatoma. Nerasta sankirta nereiškia, kad apribojimų nėra.</p>
               <p class="small">Vietos GIS patikrai koordinatės perduodamos oficialioms peržiūros paslaugoms.</p>
