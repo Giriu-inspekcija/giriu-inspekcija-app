@@ -25,8 +25,24 @@ window.giIncidentLocation=function(){
   let basemap='street',orthoTimer=null,orthoKey='',orthoReady=false;
   let orthoPeriod='recent';
   const geoRoot='https://www.geoportal.lt/mapproxy/rest/services/';
-  const periods={recent:orthoService,'2024-2026':geoRoot+'nzt_ort10lt_2024_2026/MapServer'};
+  // Older cycles approved by Geoportal by telephone, as reported by GI on 2026-11-26.
+  const archiveRoot='https://www.geoportal.lt/mapproxy/';
+  const periods={recent:orthoService,'2024-2026':geoRoot+'nzt_ort10lt_2024_2026/MapServer',
+    '2021-2023':archiveRoot+'nzt_ort10lt_2021_2023/MapServer',
+    '2018-2020':archiveRoot+'nzt_ort10lt_2018_2020/MapServer',
+    '2015-2017':archiveRoot+'nzt_ort10lt_2015_2017/MapServer',
+    '2012-2013':archiveRoot+'nzt_ort10lt_2012_2013/MapServer',
+    '2009-2010':archiveRoot+'nzt_ort10lt_2009_2010/MapServer',
+    '2005-2006':archiveRoot+'nzt_ort10lt_2005_2006/MapServer',
+    '1995-1999':archiveRoot+'nzt_ort10lt_1995_2001/MapServer'};
+  // Exact public sources already verified in GI's 2026-11-22 GIS audit.
+  const standQuery=archiveRoot+'vmt_mkd/MapServer/1/query';
+  const permitQuery='https://services6.arcgis.com/9d0vtWtIrdsf4pvs/arcgis/rest/services/lkmp_data/FeatureServer/0/query';
+  const vectorKeys=['old120','old180','permits'];
   const layerDefs={
+    old120:{vector:true,credit:'AMZ: © VMT / RC / geoportal.lt'},
+    old180:{vector:true,credit:'AMZ: © VMT / RC / geoportal.lt'},
+    permits:{vector:true,credit:'Leidimai: © VMT'},
     parcels:{service:'vmt_mkd',ids:[0,1],credit:'© RC / geoportal.lt'},
     kmb:{service:'vmt_miskai',ids:[3],credit:'© VMT / geoportal.lt'},
     groups:{service:'vmt_miskai',ids:[7],credit:'© VMT / geoportal.lt'},
@@ -35,10 +51,11 @@ window.giIncidentLocation=function(){
     restrictions:{service:'vstt_natura_apribojimai',ids:[0,1,2,3],credit:'© VSTT'}
   };
   const overlayPane=el('mapOverlays'),overlayStatus=el('mapOverlayStatus'),overlayCredit=el('mapOverlayCredit'),layerMenu=el('mapLayerMenu'),periodControl=el('mapOrthoPeriod');
-  let overlayKey='',overlayTimer=null;
+  let overlayKey='',overlayTimer=null,overlayAbort=null;
   const selectedLayers=new Set();
   function clearOverlays(){
     if(overlayTimer!==null){clearTimeout(overlayTimer);overlayTimer=null;}
+    if(overlayAbort){overlayAbort.abort();overlayAbort=null;}
     overlayKey='';overlayPane.replaceChildren();overlayStatus.textContent='';
   }
   function overlayImageUrl(service,ids,left,top,w,h,z){
@@ -47,28 +64,85 @@ window.giIncidentLocation=function(){
     if(ids.length)u.searchParams.set('layers','show:'+ids.join(','));
     return u.toString();
   }
+  function vectorQueryUrl(endpoint,where,fields,left,top,w,h,z){
+    const half=20037508.342789244,step=2*half/world(z);
+    const bbox=[left*step-half,half-(top+h)*step,(left+w)*step-half,half-top*step];
+    const q=new URLSearchParams({f:'geojson',where,outFields:fields,returnGeometry:'true',
+      geometry:bbox.join(','),geometryType:'esriGeometryEnvelope',inSR:'3857',outSR:'4326',
+      spatialRel:'esriSpatialRelIntersects',resultRecordCount:'1000'});
+    return endpoint+'?'+q;
+  }
+  function featurePath(geometry,left,top,z){
+    const polygons=geometry?.type==='Polygon'?[geometry.coordinates]:geometry?.type==='MultiPolygon'?geometry.coordinates:[];
+    if(!Array.isArray(polygons))return '';
+    const paths=[];
+    for(const polygon of polygons)for(const ring of polygon){
+      if(!Array.isArray(ring)||ring.length<4||ring.some(p=>!Array.isArray(p)||!Number.isFinite(p[0])||!Number.isFinite(p[1])||Math.abs(p[0])>180||Math.abs(p[1])>90))continue;
+      const points=ring.map(([lon,lat])=>{const [x,y]=project(lat,lon,z);return (x-left).toFixed(2)+' '+(y-top).toFixed(2);});
+      paths.push('M'+points.join(' L')+' Z');
+    }
+    return paths.join(' ');
+  }
+  function vectorPaint(data,req,left,top,w,h,z){
+    if(data.error||data.type!=='FeatureCollection'||!Array.isArray(data.features))throw Error('Invalid GIS response');
+    if(data.exceededTransferLimit||data.properties?.exceededTransferLimit||data.features.length>=1000)throw Error('GIS response truncated; zoom in');
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));
+    svg.setAttribute('class','map-vector');svg.setAttribute('aria-hidden','true');
+    let count=0;
+    for(const feature of data.features){
+      const rawAge=feature.properties?.AMZ,age=Number(rawAge);
+      if(req.kind==='stands'&&(rawAge===null||rawAge===undefined||!Number.isFinite(age)||age<req.minAge))continue;
+      const d=featurePath(feature.geometry,left,top,z);if(!d)continue;
+      const p=document.createElementNS(ns,'path');p.setAttribute('d',d);p.setAttribute('fill-rule','evenodd');
+      p.setAttribute('fill',req.kind==='permits'?'#dc2626':age>=180?'#7c3aed':'#eab308');
+      p.setAttribute('fill-opacity',req.kind==='permits'?'0.12':'0.38');
+      p.setAttribute('stroke',req.kind==='permits'?'#dc2626':age>=180?'#7c3aed':'#a16207');
+      p.setAttribute('stroke-width',req.kind==='permits'?'2.2':'1.5');
+      svg.append(p);count++;
+    }
+    // Raster layers are below vectors; permits above ages; pins remain above both.
+    svg.style.zIndex=req.kind==='permits'?'3':'2';
+    overlayPane.append(svg);return count;
+  }
   function renderOverlays(left,top,w,h){
     if(!selectedLayers.size){clearOverlays();overlayCredit.textContent='';return;}
     overlayCredit.textContent=[...new Set([...selectedLayers].map(k=>layerDefs[k].credit))].join(' · ');
     if(zoom<12){clearOverlays();overlayStatus.textContent='Priartinkite žemėlapį, kad matytumėte pasirinktus sluoksnius.';return;}
     const grouped=new Map();
     for(const key of selectedLayers){
-      const d=layerDefs[key];if(!grouped.has(d.service))grouped.set(d.service,{ids:[],keys:[]});
+      const d=layerDefs[key];if(d.vector)continue;
+      if(!grouped.has(d.service))grouped.set(d.service,{ids:[],keys:[]});
       const g=grouped.get(d.service);g.ids.push(...d.ids);g.keys.push(key);
     }
     const requests=[...grouped].map(([service,g])=>({url:overlayImageUrl(service,[...new Set(g.ids)].sort((a,b)=>a-b),left,top,w,h,zoom),keys:g.keys}));
+    const standKeys=['old120','old180'].filter(k=>selectedLayers.has(k));
+    if(standKeys.length){
+      const minAge=selectedLayers.has('old120')?120:180;
+      requests.push({kind:'stands',minAge,keys:standKeys,url:vectorQueryUrl(standQuery,'AMZ >= '+minAge,'AMZ',left,top,w,h,zoom)});
+    }
+    if(selectedLayers.has('permits'))requests.push({kind:'permits',keys:['permits'],url:vectorQueryUrl(permitQuery,'1=1','id',left,top,w,h,zoom)});
     const key=requests.map(r=>r.url).join('|');
     if(overlayKey===key)return;
     clearOverlays();overlayKey=key;overlayStatus.textContent='Įkeliami sluoksniai…';
     overlayTimer=setTimeout(()=>{
       overlayTimer=null;if(panel.hidden||overlayKey!==key)return;
-      let remaining=requests.length;const failed=[];
-      function finish(req,ok){
+      const controller=new AbortController();overlayAbort=controller;
+      let remaining=requests.length;const failed=[],counts=[];
+      function finish(req,ok,count){
         if(overlayKey!==key||panel.hidden)return;
         if(!ok)failed.push(...req.keys.map(k=>el('layer-'+k).parentElement.textContent.trim()));
-        if(--remaining===0)overlayStatus.textContent=failed.length?'Nepasiekiama: '+failed.join(', ')+'. Keiskite mastelį arba pabandykite dar kartą.':'Sluoksniai įkelti. Tuščias vaizdas nepatvirtina, kad apribojimų nėra.';
+        if(ok&&Number.isInteger(count))counts.push((req.kind==='stands'?'Medynai':'Leidimai')+': '+count);
+        if(--remaining===0){overlayAbort=null;overlayStatus.textContent=(failed.length?'Ne visi sluoksniai įkelti: '+failed.join(', ')+'. Priartinkite arba bandykite dar kartą. ':'Sluoksniai įkelti. ')+counts.join(' · ')+(counts.length?'. ':'')+'Tuščias vaizdas nepatvirtina, kad apribojimų nėra.';}
       }
       for(const req of requests){
+        if(req.kind){
+          fetch(req.url,{signal:controller.signal,credentials:'omit'}).then(r=>{if(!r.ok)throw Error('GIS HTTP '+r.status);return r.json();}).then(data=>{
+            if(panel.hidden||overlayKey!==key||controller.signal.aborted)return;
+            const count=vectorPaint(data,req,left,top,w,h,zoom);finish(req,true,count);
+          }).catch(()=>{if(!controller.signal.aborted)finish(req,false);});
+          continue;
+        }
         const img=document.createElement('img');img.alt='';img.draggable=false;img.referrerPolicy='strict-origin-when-cross-origin';
         img.style.width=w+'px';img.style.height=h+'px';
         img.addEventListener('load',()=>finish(req,true),{once:true});
