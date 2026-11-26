@@ -1949,9 +1949,9 @@
         .sort((a,b)=>a.work_date.localeCompare(b.work_date)||a.id.localeCompare(b.id));
       if(!selected.length)return toast('Nėra patvirtintų įrašų pagal pasirinktus kriterijus.',true);
       if(currentUser?.id!==actor||!staff())return;
-      const url=URL.createObjectURL(new Blob([timeReportCsv(selected)],{type:'text/csv;charset=utf-8'}));
+      const url=window.URL.createObjectURL(new Blob([timeReportCsv(selected)],{type:'text/csv;charset=utf-8'}));
       const link=document.createElement('a');link.href=url;link.download='GI-patvirtintos-valandos-'+from+'-'+to+'.csv';
-      document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      document.body.append(link);link.click();link.remove();setTimeout(()=>window.URL.revokeObjectURL(url),1000);
       toast('Eksportuota '+selected.length+' patvirtintų įrašų: '+clockDuration(selected.reduce((s,w)=>s+Number(w.minutes),0))+'.');
     }catch(error){toast('Ataskaita neatsisiųsta. '+(error?.message||'Patikrinkite ryšį.'),true);}
     finally{button.disabled=false;}
