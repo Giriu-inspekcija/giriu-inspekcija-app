@@ -22,7 +22,7 @@ window.giIncidentLocation=function(){
   const tileNodes=new Map();
   const orthoService='https://www.geoportal.lt/mapproxy/rest/services/nzt_ort10lt_recent_wm/MapServer';
   const orthoMeta='https://www.geoportal.lt/metadata-catalog/catalog/search/resource/details.page?uuid=%7B5E116F93-97ED-4F0C-AE22-8C0C71A51C54%7D';
-  let basemap='street',orthoTimer=null,orthoKey='',orthoReady=false;
+  let basemap='street',orthoTimer=null,orthoKey='',orthoReady=false,orthoFrame=null,orthoPending=null,orthoView=null;
   let orthoPeriod='recent';
   const geoRoot='https://www.geoportal.lt/mapproxy/rest/services/';
   // Older cycles approved by Geoportal by telephone, as reported by GI on 2026-11-26.
@@ -277,32 +277,60 @@ window.giIncidentLocation=function(){
     const size=[Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale))];
     return service+'/export?'+new URLSearchParams({bbox:bbox.join(','),bboxSR:'3857',imageSR:'3857',size:size.join(','),format:'jpg',f:'image'});
   }
-  function clearOrtho(){
+  function frameCovers(frame,view){
+    if(!frame||frame.period!==view.period||frame.z!==view.z)return false;
+    return view.left>=frame.left&&view.top>=frame.top&&view.left+view.w<=frame.left+frame.w&&view.top+view.h<=frame.top+frame.h;
+  }
+  function frameBounds(view){
+    // A modest guard band inside the same interactive display request, not a tile cache.
+    const px=Math.ceil(view.w*.25),py=Math.ceil(view.h*.25);
+    return {left:Math.floor(view.left)-px,top:Math.floor(view.top)-py,w:Math.ceil(view.w)+2*px+1,h:Math.ceil(view.h)+2*py+1,z:view.z,period:view.period};
+  }
+  function positionOrtho(frame,view){
+    const scale=2**(view.z-frame.z),img=frame.img;
+    img.style.left=(frame.left*scale-view.left)+'px';img.style.top=(frame.top*scale-view.top)+'px';
+    img.style.width=frame.w*scale+'px';img.style.height=frame.h*scale+'px';
+  }
+  function cancelOrthoPending(){
     if(orthoTimer!==null){clearTimeout(orthoTimer);orthoTimer=null;}
-    orthoKey='';orthoReady=false;
+    if(orthoPending){orthoPending.img?.remove();orthoPending=null;}
+    orthoKey='';
+  }
+  function clearOrtho(){
+    cancelOrthoPending();orthoFrame=null;orthoView=null;orthoReady=false;
   }
   function renderOrtho(left,top,w,h){
-    const url=orthoImageUrl(left,top,w,h,zoom,periods[orthoPeriod]);
-    if(orthoKey===url)return;
-    clearOrtho();orthoKey=url;tiles.replaceChildren();
-    orthoStatus.textContent='Įkeliama ortofoto…';
-    // One visible viewport request after the user finishes moving; no prefetch,
-    // persistent image cache, bulk downloading or background requests.
+    const view={left,top,w,h,z:zoom,period:orthoPeriod};orthoView=view;
+    if(orthoFrame)positionOrtho(orthoFrame,view);
+    orthoReady=frameCovers(orthoFrame,view);
+    const readyText=()=> (orthoPeriod==='recent'?'Aktualiausias ORT10LT':orthoPeriod+' m. ciklas')+' · konkrečios vietos fotografavimo data nenurodyta.';
+    if(orthoReady){
+      cancelOrthoPending();orthoStatus.textContent=readyText();return;
+    }
+    if(frameCovers(orthoPending,view))return;
+    cancelOrthoPending();
+    const frame=frameBounds(view),url=orthoImageUrl(frame.left,frame.top,frame.w,frame.h,frame.z,periods[frame.period]);
+    orthoKey=url;orthoPending=frame;
+    orthoStatus.textContent=orthoFrame?'Tikslinamas ortofoto vaizdas…':'Įkeliama ortofoto…';
+    // Keep the currently loaded image aligned during pan and pinch until replacement
+    // is ready. One debounced request, no persistent storage or background downloads.
     orthoTimer=setTimeout(()=>{
       orthoTimer=null;
-      if(panel.hidden||basemap!=='ortho'||orthoKey!==url)return;
-      const img=document.createElement('img');img.alt='';img.draggable=false;
-      img.referrerPolicy='strict-origin-when-cross-origin';
-      img.style.left='0';img.style.top='0';img.style.width=w+'px';img.style.height=h+'px';
+      if(panel.hidden||basemap!=='ortho'||orthoKey!==url||orthoPending!==frame)return;
+      const img=document.createElement('img');frame.img=img;img.alt='';img.draggable=false;
+      img.referrerPolicy='strict-origin-when-cross-origin';img.style.visibility='hidden';
+      positionOrtho(frame,orthoView);
       img.addEventListener('load',()=>{
-        if(img.isConnected&&orthoKey===url&&basemap==='ortho'){
-          orthoReady=true;orthoStatus.textContent=(orthoPeriod==='recent'?'Aktualiausias ORT10LT':orthoPeriod+' m. ciklas')+' · konkrečios vietos fotografavimo data nenurodyta.';
-        }
+        if(!img.isConnected||orthoPending!==frame||orthoKey!==url||panel.hidden||basemap!=='ortho')return;
+        const old=orthoFrame;orthoFrame=frame;orthoPending=null;orthoKey='';
+        positionOrtho(frame,orthoView);img.style.visibility='visible';old?.img.remove();
+        orthoReady=frameCovers(frame,orthoView);
+        if(orthoReady)orthoStatus.textContent=readyText();else renderOrtho(orthoView.left,orthoView.top,orthoView.w,orthoView.h);
       },{once:true});
       img.addEventListener('error',()=>{
-        if(img.isConnected&&orthoKey===url&&basemap==='ortho'){
-          orthoReady=false;img.remove();orthoStatus.textContent='Ortofoto nepasiekiama. Perjunkite į žemėlapį arba bandykite dar kartą.';
-        }
+        if(orthoPending!==frame||orthoKey!==url)return;
+        img.remove();orthoPending=null;orthoKey='';orthoReady=frameCovers(orthoFrame,orthoView);
+        orthoStatus.textContent='Ortofoto nepasiekiama. Perjunkite į žemėlapį arba bandykite dar kartą.';
       },{once:true});
       tiles.append(img);img.src=url;
     },300);
