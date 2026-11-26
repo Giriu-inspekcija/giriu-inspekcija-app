@@ -20,6 +20,62 @@ window.giIncidentLocation=function(){
   let center=[55.2,24.0],zoom=8,selected=null,generation=0,drag=null;
   let best=null,watch=null,timer=null,searching=false;
   const tileNodes=new Map();
+  const orthoService='https://www.geoportal.lt/mapproxy/rest/services/nzt_ort10lt_recent_wm/MapServer';
+  const orthoMeta='https://www.geoportal.lt/metadata-catalog/catalog/search/resource/details.page?uuid=%7B5E116F93-97ED-4F0C-AE22-8C0C71A51C54%7D';
+  let basemap='street',orthoTimer=null,orthoKey='',orthoReady=false;
+  const orthoButton=el('mapBasemap'),credit=el('mapCredit'),orthoStatus=el('mapBasemapStatus');
+  // Convert the displayed Web Mercator pixel extent to metres; the Geoportal cache
+  // has a different origin and level numbering from OSM. Never substitute XYZ tiles.
+  function orthoImageUrl(left,top,w,h,z){
+    const half=20037508.342789244,step=2*half/world(z);
+    const bbox=[left*step-half,half-(top+h)*step,(left+w)*step-half,half-top*step];
+    const scale=Math.min(1,4096/Math.max(w,h));
+    const size=[Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale))];
+    return orthoService+'/export?'+new URLSearchParams({bbox:bbox.join(','),bboxSR:'3857',imageSR:'3857',size:size.join(','),format:'jpg',f:'image'});
+  }
+  function clearOrtho(){
+    if(orthoTimer!==null){clearTimeout(orthoTimer);orthoTimer=null;}
+    orthoKey='';orthoReady=false;
+  }
+  function renderOrtho(left,top,w,h){
+    const url=orthoImageUrl(left,top,w,h,zoom);
+    if(orthoKey===url)return;
+    clearOrtho();orthoKey=url;tiles.replaceChildren();
+    orthoStatus.textContent='Įkeliama ortofoto…';
+    // One visible viewport request after the user finishes moving; no prefetch,
+    // persistent image cache, bulk downloading or background requests.
+    orthoTimer=setTimeout(()=>{
+      orthoTimer=null;
+      if(panel.hidden||basemap!=='ortho'||orthoKey!==url)return;
+      const img=document.createElement('img');img.alt='';img.draggable=false;
+      img.referrerPolicy='strict-origin-when-cross-origin';
+      img.style.left='0';img.style.top='0';img.style.width=w+'px';img.style.height=h+'px';
+      img.addEventListener('load',()=>{
+        if(img.isConnected&&orthoKey===url&&basemap==='ortho'){
+          orthoReady=true;orthoStatus.textContent='Aktualiausias ORT10LT · fotografavimo data nenurodyta.';
+        }
+      },{once:true});
+      img.addEventListener('error',()=>{
+        if(img.isConnected&&orthoKey===url&&basemap==='ortho'){
+          orthoReady=false;img.remove();orthoStatus.textContent='Ortofoto nepasiekiama. Perjunkite į žemėlapį arba bandykite dar kartą.';
+        }
+      },{once:true});
+      tiles.append(img);img.src=url;
+    },300);
+  }
+  function updateBasemap(){
+    const ortho=basemap==='ortho';
+    orthoButton.setAttribute('aria-pressed',String(ortho));
+    orthoButton.textContent=ortho?'Žemėlapis':'Ortofoto';
+    orthoButton.setAttribute('aria-label',ortho?'Rodyti įprastą žemėlapį':'Rodyti aktualiausią ortofoto');
+    credit.href=ortho?orthoMeta:'https://www.openstreetmap.org/copyright';
+    credit.textContent=ortho?'ORT10LT © NŽT prie AM, © geoportal.lt, © SSVA':'© OpenStreetMap';
+    if(!ortho)orthoStatus.textContent='';
+  }
+  orthoButton.addEventListener('click',()=>{
+    basemap=basemap==='street'?'ortho':'street';
+    clearOrtho();tileNodes.clear();tiles.replaceChildren();updateBasemap();render();
+  });
   let extras=[],multi=false,gpsIndex=0,pinch=null,gestureConsumed=false;
   const pointers=new Map();
   function shift(dx=0,dy=0,scale=1,origin=null){
@@ -64,6 +120,8 @@ window.giIncidentLocation=function(){
     const w=map.clientWidth,h=map.clientHeight;
     if(!w||!h)return;
     const [cx,cy]=project(...center,zoom),left=cx-w/2,top=cy-h/2,n=2**zoom;
+    if(basemap==='ortho')renderOrtho(left,top,w,h);
+    else{
     const visible=new Set();
     for(let y=Math.floor(top/256);y<=Math.floor((top+h-1)/256);y++){
       if(y<0||y>=n)continue;
@@ -81,6 +139,7 @@ window.giIncidentLocation=function(){
       }
     }
     for(const [key,img] of tileNodes)if(!visible.has(key)){img.remove();tileNodes.delete(key);}
+    }
     shift();
     function position(node,p){
       const [px,py]=project(...p,zoom),dx=wrap(px-cx+world(zoom)/2,world(zoom))-world(zoom)/2;
@@ -100,6 +159,7 @@ window.giIncidentLocation=function(){
 
   }
   function choose(p){
+    if(basemap==='ortho'&&!orthoReady){status.textContent='Palaukite ortofoto arba pasirinkite įprastą žemėlapį.';return;}
     const index=chooseIndex();if(index<0)return;
     stop();writePoint(p,index);
     gpsStatus.textContent='Vieta pasirinkta žemėlapyje.';
@@ -116,7 +176,7 @@ window.giIncidentLocation=function(){
     render();
   }
   function closeMap(){
-    fullscreen(false);panel.hidden=true;tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
+    fullscreen(false);panel.hidden=true;clearOrtho();orthoStatus.textContent='';tiles.replaceChildren();tileNodes.clear();extraLayer.replaceChildren();shift();drag=null;pinch=null;pointers.clear();gestureConsumed=false;pin.hidden=true;gpsDot.hidden=true;gpsCircle.hidden=true;
     el('incidentMapOpen').hidden=false;el('incidentMapOpen').setAttribute('aria-expanded','false');
   }
   function stop(){
@@ -126,7 +186,7 @@ window.giIncidentLocation=function(){
     gps.disabled=false;gps.textContent='◎ Nustatyti GPS';
   }
   function reset(){
-    stop();best=null;
+    stop();best=null;basemap='street';updateBasemap();
     gpsStatus.textContent='Vieta nepasirinkta.';
     selected=null;extras=[];multi=false;updatePoints();center=[55.2,24.0];zoom=8;drag=null;status.textContent='';closeMap();
   }
