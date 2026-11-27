@@ -1075,14 +1075,15 @@
   async function refreshGoogleProvider() {
     $('googleLoginPanel').hidden=true;
     $('googleSeparator').hidden=true;
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),6000);
     try {
-      const res=await fetch(URL+'/auth/v1/settings',{headers:{apikey:KEY},cache:'no-store'});
+      const res=await fetch(URL+'/auth/v1/settings',{headers:{apikey:KEY},cache:'no-store',signal:controller.signal});
       if(!res.ok)return;
       const settings=await res.json();
       const enabled=settings?.external?.google===true;
       $('googleLoginPanel').hidden=!enabled;
       $('googleSeparator').hidden=!enabled;
-    }catch {}
+    }catch {}finally{clearTimeout(timeout);}
   }
   $('googleLogin').addEventListener('click',async()=>{
     const button=$('googleLogin');
@@ -2296,7 +2297,7 @@
       if(event==='SIGNED_OUT'&&!passwordRecovery)setTimeout(showLoggedOut,0);
       if(event==='SIGNED_IN'&&session?.user&&!currentUser&&!passwordRecovery)setTimeout(onSignIn,0);
     });
-    onSignIn().catch(e=>notice('Prisijungimo klaida: '+e.message,true));
+    onSignIn().catch(e=>{if(!passwordRecovery)showLoggedOut();notice('Prisijungimo klaida: '+e.message,true);});
     // Avoid expensive all-table polling at larger volunteer counts.
     // Refresh on return to the app, plus a conservative 3-minute visible-session fallback.
     document.addEventListener('visibilitychange',()=>{
