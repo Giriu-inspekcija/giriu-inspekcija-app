@@ -5,6 +5,9 @@ on:
       - 'scripts/gi_backup*'
       - 'scripts/gi_restore.sh'
       - 'tests/test_backup_storage.py'
+      - 'tests/test_backup_drive.py'
+      - 'tests/backup-workflow-contract.test.mjs'
+      - '.github/workflows/gi-encrypted-backup.yml'
       - '.github/workflows/gi-backup-tests.yml'
       - 'docs/GI-BACKUP-RESTORE.md'
   workflow_dispatch:
@@ -26,7 +29,7 @@ jobs:
       - name: Validate shell scripts and Storage API behavior
         run: |
           bash -n scripts/gi_backup.sh scripts/gi_restore.sh
-          python -m unittest discover -s tests -p 'test_backup_storage.py' -v
+          python -m unittest discover -s tests -p 'test_backup_*.py' -v
       - name: Encrypt, decrypt, verify and reject unapproved restore
         shell: bash
         run: |
