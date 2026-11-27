@@ -161,9 +161,13 @@ def main():
     rpc('gi_change_task_due',dict(updated,p_due=None,p_expected=due),chief)
     assert rows('gi_tasks',chief,'select=due_at&id=eq.'+own)==[{'due_at':None}]
     assert rpc('gi_my_time_totals',{},vol)[0]['approved']==180
-    project_log=record(vol,project='ALF TEST / V2.1')
+    day=(date.today()-timedelta(days=1)).isoformat()
+    rpc('gi_set_time_project_default',{'p_user':uid,'p_project':'ALF TEST / V2.1','p_start':day,'p_end':None},chief)
+    project_log=record(vol)
+    assert rows('gi_work_logs',vol,'select=project_label,general_activity&id=eq.'+project_log)==[{'project_label':'ALF TEST / V2.1','general_activity':False}]
     review(chief,project_log)
-    record(vol,project='ALF TEST / V2.1') # intentionally unapproved
+    record(vol) # intentionally unapproved
+    rpc('gi_set_time_project_default',{'p_user':uid,'p_project':None,'p_start':None,'p_end':None},chief)
     print('PASS retries, concurrent deadline edit rejection, clearing and full time totals',flush=True)
     from workflows import case_and_document
     case_and_document(chief,coord,vol,other,uid)
