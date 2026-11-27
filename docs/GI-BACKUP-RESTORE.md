@@ -1,6 +1,6 @@
 # GI komanda – šifruotos atsarginės kopijos ir atkūrimas
 
-**Būsena 2026-11-24: pirmos tikros šifruotos kopijos ir suplanuotas 2026-11-24 eksportas patvirtinti; tiesioginis Drive veidrodis ir pilnas izoliuotas atkūrimas dar nepatvirtinti (issue #32).**
+**Būsena 2026-11-27:** realus šifruotas DB ir Storage archyvas atkurtas izoliuotai; 30/30 pagrindinių lentelių įrašų skaičiai, 14/14 RLS, 2/2 privatūs bucket ir 2/2 SHA-256 perskaityti iš atkurto Storage sutapo. Vietinis admin, savanorio ir kandidato Auth prisijungimas/atsijungimas bei skaitymo teisės patvirtinti; koordinatorius, slaptažodis, OAuth, MFA, rašymas ir produkcinis prisijungimas netestuoti. Drive automatinis veidrodis neįjungtas. Realių bylų GO lieka atskiras #30 sprendimas.
 Šio dokumento aprašoma automatika startuoja tik sukūrus visus toliau nurodytus GitHub Actions Secret/Variable ir pirmą kartą patikrinus **tikros** kopijos bei atkūrimo į izoliuotą projektą rezultatus. Prieš tai realių bylų GO = **NE**.
 
 ## 1. Architektūra ir saugumas
@@ -63,7 +63,7 @@ Papildomam veidrodžiui GI Google Drive galima sukonfigūruoti *rclone* nuotolin
    GI_RESTORE_SERVICE_ROLE_KEY='KITO-PROJEKTO-KLIENTUOSE-NENAUDOJAMAS-RAKTAS' \
    bash scripts/gi_restore.sh ./gi-supabase-YYYYMMDDTHHMMSSZ.tar.gz.age --restore-isolated
    ```
-   **Atsargiai:** naujo projekto kaina ir raktai turi būti patvirtinti atskirai; šios komandos nevykdyti veikiantį GI projektą. Atsikūrus tikrinti autentiškumą, RLS, bylų skaičių, 10 priedų ir jų SHA-256; atkurti atskiras OAuth, SMTP, Netlify, webhooks ir integracijų konfigūracijas.
+   **Atsargiai:** naujo projekto kaina ir raktai turi būti patvirtinti atskirai; šios komandos nevykdyti veikiantį GI projektą. Atsikūrus tikrinti autentiškumą, RLS, bylų skaičių, 10 priedų ir jų SHA-256; atkurti atskiras OAuth, SMTP, Cloudflare Pages, webhooks ir integracijų konfigūracijas.
 7. Tik po realaus atkūrimo iš atskiro archyvo užfiksuoti datą, RPO, RTO, atsakingą žmogų, kokie objektai atkurti ir kokios ribos liko.
 
 ## 4. Apribojimai
@@ -71,7 +71,7 @@ Papildomam veidrodžiui GI Google Drive galima sukonfigūruoti *rclone* nuotolin
 - **RPO tikslas:** iki 24 val. tarp kasdienių sėkmingų eksporto vykdymų. Tai ne garantija; vienas nesėkmingas vykdymas padidina laiką. **RTO nežinomas**, kol neišbandytas tikras atkūrimas.
 - SQL eksportas ir Storage failų eksportas nėra viena atominė DB+Storage transakcija; failai gali keistis kopijavimo metu. Reikšmingoms byloms derinti stabilų kopijavimo laiką ir antrą patikrą.
 - `schema.sql` pagal Supabase CLI gali neįtraukti valdomų `auth` ir `storage` schemų individualių pakeitimų. GI saugyklos migracijas reikia taikyti kartu, patikrinti `supabase_migrations`, o ne pasikliauti vien SQL eksportu.
-- Neįeina: išorinės OAuth/SMTP prieigos, Netlify nustatymai, Google Drive failai už Supabase ribų, elektroninių parašų paslaugų raktai ar API Secrets. Juos dokumentuoti ir atkurti atskirai.
+- Neįeina: išorinės OAuth/SMTP prieigos, Cloudflare Pages ir ankstesni Netlify nustatymai, Google Drive failai už Supabase ribų, elektroninių parašų paslaugų raktai ar API Secrets. Juos dokumentuoti ir atkurti atskirai.
 - Sėkmingas `age` failo atšifravimas **neįrodo pilno projekto atkūrimo**. Techninis GO tik po atskiro tikro atkūrimo ir saugumo testų.
 - GitHub Actions Artifacts viešoje saugykloje gali būti parsisiunčiami asmenų su GitHub prieiga; konfidencialumą užtikrina **tik privatūs age raktai** ir šifravimas.
 - `age` privataus rakto neatiduoti GitHub automatiniam restore; tai sumažina riziką, kad vienas pažeistas runner galėtų iššifruoti senas kopijas.
@@ -93,3 +93,17 @@ Kol kopija maža (2026-11-24 GitHub ZIP ~3,48 MB), palikti vieną pilną kasdien
 Drive: naudoti dedikuotą ribotos narystės organizacijos Shared Drive (ne visiems savanoriams), tarnybinę tapatybę tik tai saugyklai; be domain-wide delegation. Workspace administratorius sukuria diską, patvirtina Gmail skaitytoją ir tarnybinį contributor. Rclone profilis gidrive su team_drive ir inline service_account_credentials arba dedikuotos paskyros OAuth su nuosavu Google OAuth klientu. Įvesti GitHub Secret GI_BACKUP_RCLONE_CONFIG_B64 ir Variable GI_BACKUP_DRIVE_FOLDER_ID (tikro paskirties aplanko ID), paleisti rankinį workflow, patikrinti rclone hash check ir failą Drive. Po sėkmės nustatyti GI_BACKUP_DRIVE_REQUIRED=true; jei Secret arba folder ID trūksta, workflow praneša klaidą. Dabartinis veidrodis be šių papildomų parametrų suderinamas su ankstesniu aplanku. https://rclone.org/drive/
 
 Kol neatliktas pilnas izoliuotas atkūrimas, automatinio archyvų trynimo NĖRA. Po patvirtinto atkūrimo ir atskiro rotacijos PR: tikslas 7 dienos, 4 savaitės, 3 mėnesiai (iki 14 pilnų taškų; persidengimai mažina skaičių), pirmiausia dry-run, tik griežtai atpažįstami backup failai, ne kiti Drive dokumentai. GitHub 30 d. saugojimas nekeičiamas. Kai 100 MB riba artėja, atskiras inkrementinis etapas: kasdien pilnas SQL, Storage objektų nekintamos šifruotos versijos, šifruotas kiekvienos dienos manifestas su visų objektų nuorodomis ir kontrolinėmis sumomis; ištrinti tik nebereikalingus jokiam išlaikomam manifestui objektus. Neatsisakyti pilno formato, kol abu formatai sėkmingai atkurti izoliuotai. Jokių mokamų planų ar automatinio trynimo be atskiro patvirtinimo. Šis PR neįdiegia inkrementinės sistemos ir nekeičia duomenų bazės.
+
+
+## 7. Praktinio atkūrimo instrukcija (2026-11-27)
+
+Patvirtinta konfigūracija: Windows 11 + WSL2 Ubuntu 24.04, Docker Engine, Supabase CLI 3.4.0, PostgreSQL 17.12. Linux duomenų diską galima laikyti atskirame Windows diske. Pakartotinai testuoti su tomis pačiomis versijomis; nenaudoti seno PG 17.6 vaizdo šiam archyvui. Nenaudoti produkcijos kredencialų.
+
+1. Parsisiųsti naujausią šifruotą artefaktą ir pasirūpinti atskirai saugomu age raktu. Iš pradžių `--verify-only`.
+2. Sukurti NAUJĄ tuščią vietinį Supabase projektą, ne `supabase link` į GI. Docker bridge tinklą sukurti su `com.docker.network.bridge.host_binding_ipv4=127.0.0.1`, paleisti Supabase su `--network-id`; pagal `docker ps` patikrinti VISUS paskelbtus portus. Nutraukti, jei nors vienas nėra loopback. Vietiniai numatytieji raktai nėra produkcijos raktai.
+3. Patikrinti `SHOW server_version;`, vietinio `supabase_admin` superuser teises ir 0 GI lentelių public schemoje. Naudoti tik vietinį DB adresą ir vietinį API 127.0.0.1, iš vietinės CLI nuskaityti service-role raktą be išvedimo ekrane. Nenaudoti esamų debesijos sesijų.
+4. Paleisti `scripts/gi_restore.sh` su `GI_RESTORE_CONFIRM=RESTORE_TO_ISOLATED_GI_TEST`, `GI_RESTORE_ALLOW_LOOPBACK=YES`, vietiniais DB/API kredencialais, archive keliu ir age identity. Tik žinomam nesuderinamumui su tuščiu auth.custom_oauth_providers COPY bloku skirta atskira opt-in `GI_RESTORE_ALLOW_EMPTY_OAUTH_COMPAT=YES` (PR #78, prieš naudojimą būtini naujos versijos testai). Netrinti kitų SQL blokų; nepataisyti originalaus šifruoto archyvo.
+5. Palyginti pagrindinių lentelių skaičius pagal archyvą, privačių bucket inventorių, iš atkurto Storage perskaitytų failų SHA-256 ir RLS. Prisijungimo bei vaidmenų testai vykdomi tik vietinėje kopijoje; neplatinti asmens duomenų, slaptažodžių, prisijungimo žetonų ar originalaus SQL.
+6. Užfiksuoti rezultatą #32. Sustabdyti vietinį Supabase po testų; šifruotą archyvą ir raktą laikyti atskirai. Vietinis Docker volume ir išskleisti SQL yra nešifruoti – apsaugoti viso disko šifravimu, o nebereikalingą testinę kopiją pašalinti tik atskirai patvirtinus, patikrinus tikslų testinį projekto vardą ir išsaugojus šifruotą kopiją. Jokių globalių Docker prune ar produkcijos trynimų.
+
+**RTO:** pirmojo diegimo, diagnostikos ir bandymų laikas neatskirtas nuo importo laiko; tikslus RTO neišmatuotas. **RPO:** kasdienio eksporto tikslas iki 24 valandų; priklauso nuo paskutinio sėkmingo archyvo. Drive veidrodis laikomas veikiančiu tik po atskiro sėkmingo workflow ir failo patikros Drive. Neįjungti automatinio trynimo, mokamų planų ar produkcijos migracijų be patvirtinimo.
