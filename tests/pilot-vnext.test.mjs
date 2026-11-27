@@ -72,7 +72,7 @@ test('mobile navigation and professional Google button remain accessible',()=>{
   assert.match(html,/aria-label="Darbo vietos skiltys"/);
   assert.match(html,/aria-label="Google"/);
   assert.match(html,/Ribotas duomenų režimas/);
-  assert.match(sw,/gi-pilot-shell-\d{8}-v\d+/);
+  assert.match(sw,/gi-pilot-shell-\d+\.\d+\.\d+-source/);
   assert.match(html,/#EA4335/);
   assert.doesNotMatch(html,/<span class="google-mark" aria-hidden="true">G<\/span>/);
   assert.match(html,/id="switchAccount"/);
