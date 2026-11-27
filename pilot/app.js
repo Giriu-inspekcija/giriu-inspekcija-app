@@ -201,7 +201,9 @@
     when:value=>window.giDeadlines.display(value),statuses:statusNames,actions:taskEventLabels,
     categories:incidentCategoryLabel,busy,ask,copyText,refresh:refreshWorkspace});
   const incidentLocation=window.giIncidentLocation();
+  let signInFlight=null, feedbackSending=false, feedbackRetry=null;
   function showLoggedOut() {
+    $('authLoading').hidden=true;feedbackRetry=null;
     currentUser = null; profile = null; tasks = []; agentProposals = []; members = []; feedback = []; workLogs=[];incidents=[];memberEmails={};
     thread.clear();if($('decision').open)$('decision').close('cancel');
     if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
@@ -636,10 +638,10 @@
       :'<p class="small">Nėra kitų savanorių valandų, laukiančių patvirtinimo.</p>';
   }
   function renderIncidents() {
+    const expanded=new Set([...$('incidentsList').querySelectorAll('details[data-incident-id][open]')].map(el=>el.dataset.incidentId));
     $('incidentsList').innerHTML=incidents.length?incidents.map(v=>{
       const owner=members.find(m=>m.id===v.reporter_id);
-      return '<article class="card"><b>'+(v.status==='submitted'?thread.link('incident',v.id,incidentCategoryLabel[v.category]||v.category):escapeHTML(incidentCategoryLabel[v.category]||v.category))+'</b>'
-        +' · '+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')
+      return '<details class="card incident-compact" data-incident-id="'+escapeHTML(v.id)+'"'+(expanded.has(v.id)?' open':'')+'><summary><b>'+escapeHTML(incidentCategoryLabel[v.category]||v.category)+'</b><span class="small">'+escapeHTML(v.status==='draft'?'Juodraštis':'Pateikta')+'</span><span class="incident-preview">'+escapeHTML(v.description||'')+'</span></summary>'
         +(staff()?'<p class="small">Pateikė: '+escapeHTML(owner?personName(owner):v.reporter_id===currentUser?.id?'Aš':'Naudotojas')+'</p>':'')
         +'<p>'+escapeHTML(v.description)+'</p>'
         +(v.latitude!==null&&v.longitude!==null?'<p class="small">Išsaugota vieta: '+escapeHTML(v.latitude)+'; '+escapeHTML(v.longitude)+(v.extra_points?.length?' · '+(1+v.extra_points.length)+' taškai':'')+'</p>':'')
@@ -649,7 +651,7 @@
         +caseActions(v)
         +(v.status==='draft'&&v.reporter_id===currentUser?.id
           ?'<button type="button" class="outline" data-edit-incident="'+escapeHTML(v.id)+'">Redaguoti juodraštį</button>':'')
-        +'</article>';
+        +'</details>';
     }).join(''):'<p class="card">Pranešimų dar nėra.</p>';
   }
   function renderPendingMembers() {
@@ -1027,10 +1029,16 @@
       mutationInFlight=false;
     }
   }
-  async function onSignIn() {
+  function onSignIn(){
+    if(signInFlight)return signInFlight;
+    signInFlight=loadSignedIn().finally(()=>{signInFlight=null;$('authLoading').hidden=true;});
+    return signInFlight;
+  }
+  async function loadSignedIn() {
     if(!client){notice('Nepavyko įkelti prisijungimo bibliotekos. Patikrinkite ryšį.',true);return;}
     const {data,error}=await client.auth.getUser();
-    if(error || !data.user){showLoggedOut();return;}
+    if(passwordRecovery)return;
+    if(error || !data.user){await googleProviderReady;if(!passwordRecovery)showLoggedOut();return;}
     if(loading)await refreshFinished;
     currentUser=data.user;thread.afterLogin();
     updateAccountSwitcher();
@@ -1040,6 +1048,8 @@
     const providers = data.user.app_metadata?.providers || [];
     const googleLogin = providers.includes('google');
     const check=await client.rpc('gi_password_needed');
+    if(passwordRecovery||currentUser?.id!==data.user.id)return;
+    $('authLoading').hidden=true;
     if(check.error){
       $('appView').hidden=true;
       $('authView').hidden=true;
@@ -1065,14 +1075,15 @@
   async function refreshGoogleProvider() {
     $('googleLoginPanel').hidden=true;
     $('googleSeparator').hidden=true;
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),6000);
     try {
-      const res=await fetch(URL+'/auth/v1/settings',{headers:{apikey:KEY},cache:'no-store'});
+      const res=await fetch(URL+'/auth/v1/settings',{headers:{apikey:KEY},cache:'no-store',signal:controller.signal});
       if(!res.ok)return;
       const settings=await res.json();
       const enabled=settings?.external?.google===true;
       $('googleLoginPanel').hidden=!enabled;
       $('googleSeparator').hidden=!enabled;
-    }catch {}
+    }catch {}finally{clearTimeout(timeout);}
   }
   $('googleLogin').addEventListener('click',async()=>{
     const button=$('googleLogin');
@@ -1127,7 +1138,7 @@
     notice('');
   }
   selectAuthMode('login');
-  refreshGoogleProvider();
+  const googleProviderReady=refreshGoogleProvider();
   $('showSignup').addEventListener('click',()=>selectAuthMode('signup'));
   $('showLogin').addEventListener('click',()=>selectAuthMode('login'));
   window.setInterval(updateOtpButton,1000);
@@ -1343,6 +1354,7 @@
     finally{btn.disabled=false;}
   });
   function displayPasswordReset(){
+    $('authLoading').hidden=true;
     passwordRecovery=true;
     updateAccountSwitcher();
     $('authView').hidden=true;
@@ -1551,31 +1563,38 @@
       :'Užduoties pasiūlymas išsaugotas.');
   });
   async function submitFeedback(form,origin,button){
-    if(!currentUser||!approved()||mutationInFlight)return;
+    if(!currentUser||!approved()||feedbackSending)return;
     const data=new FormData(form),raw=String(data.get('message')||'').trim();
     if(raw.length<5)return toast('Aprašykite problemą bent 5 simboliais.',true);
     const message=origin?'['+origin+'] '+raw:raw;
     if(message.length>1500)return toast('Pastaba per ilga – sutrumpinkite tekstą.',true);
-    mutationInFlight=true;
+    const owner=currentUser.id,category=String(data.get('category')||'pasiulymas');
+    const signature=JSON.stringify([owner,category,message]);
+    if(feedbackRetry?.signature!==signature)feedbackRetry={signature,id:crypto.randomUUID()};
+    const id=feedbackRetry.id;
+    feedbackSending=true;
     const restore=busy(button,'Siunčiama…');
+    const controls=[...form.querySelectorAll('input,select,textarea')].filter(el=>!el.disabled);
+    controls.forEach(el=>el.disabled=true);
     toast('Pastaba siunčiama…');
     try{
-      const result=await client.from('gi_feedback').insert({
-        reporter_id:currentUser.id,
-        category:String(data.get('category')||'pasiulymas'),
-        message
-      });
-      if(result.error)throw result.error;
+      const result=await client.from('gi_feedback').insert({id,reporter_id:owner,category,message});
+      if(result.error){
+        // If the server committed but the response was lost, retry the same UUID.
+        if(result.error.code!=='23505')throw result.error;
+        const prior=await client.from('gi_feedback').select('id,reporter_id,category,message').eq('id',id).eq('reporter_id',owner).maybeSingle();
+        if(prior.error||prior.data?.id!==id||prior.data.category!==category||prior.data.message!==message)throw result.error;
+      }
+      if(currentUser?.id!==owner)return;
+      feedbackRetry=null;
       form.reset();
       if($('quickFeedbackDialog').open)$('quickFeedbackDialog').close();
       feedbackOrigin='feedback';
       toast('Pastaba išsiųsta. Ačiū, kad padedate tobulinti programėlę!');
-      // Refresh only the currently visible feedback view; do not jump away
-      // from the task or document the author was reviewing.
-      if(activePanel==='feedback')await refreshWorkspace();
+      if(activePanel==='feedback'&&!mutationInFlight)await refreshWorkspace();
     }catch(error){
-      toast('Nepavyko išsiųsti pastabos: '+(error?.message||'Patikrinkite ryšį.'),true);
-    }finally{restore();mutationInFlight=false;}
+      if(currentUser?.id===owner)toast('Nepavyko išsiųsti pastabos: '+(error?.message||'Patikrinkite ryšį.')+' Tekstas išsaugotas formoje.',true);
+    }finally{controls.forEach(el=>el.disabled=false);restore();feedbackSending=false;}
   }
   $('feedbackForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -2267,7 +2286,7 @@
     // Focus and visibility events often fire together; don't repeat full data loads.
     if(Date.now()-lastAutoRefreshAt<60000 || loading)return;
     // A native date picker can blur the window; replacing its card discards the edit.
-    if(mutationInFlight || document.querySelector('#taskList details[open]') ||
+    if(mutationInFlight || feedbackSending || document.querySelector('#taskList details[open]') ||
        document.activeElement?.closest('#workspace form,#documentList [data-body]') || document.querySelector('#documentList textarea[data-dirty]'))return;
     lastAutoRefreshAt=Date.now();
     refreshWorkspace();
@@ -2278,7 +2297,7 @@
       if(event==='SIGNED_OUT'&&!passwordRecovery)setTimeout(showLoggedOut,0);
       if(event==='SIGNED_IN'&&session?.user&&!currentUser&&!passwordRecovery)setTimeout(onSignIn,0);
     });
-    onSignIn().catch(e=>notice('Prisijungimo klaida: '+e.message,true));
+    onSignIn().catch(e=>{if(!passwordRecovery)showLoggedOut();notice('Prisijungimo klaida: '+e.message,true);});
     // Avoid expensive all-table polling at larger volunteer counts.
     // Refresh on return to the app, plus a conservative 3-minute visible-session fallback.
     document.addEventListener('visibilitychange',()=>{
@@ -2293,6 +2312,7 @@
     });
     setInterval(()=>{if(currentUser&&!document.hidden)refreshWhenIdle()},180000);
   }else{
+    $('authLoading').hidden=true;$('authView').hidden=false;
     notice('Nepavyko įkelti Supabase prisijungimo bibliotekos. Patikrink tinklą.',true);
   }
 })();

@@ -380,6 +380,7 @@ body.map-lock{overflow:hidden}
 .manual-coordinates{padding-top:5px;margin-top:5px}
 .manual-coordinates summary{font-size:12px}
 #incidentLocationClear{font-size:12px;min-height:44px;margin-top:6px}
+.permit-filter-label{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12px}.permit-filter-label select{min-height:32px;width:auto;max-width:100%;font-size:12px;padding:3px 6px}.incident-compact{margin:6px 0;padding:8px 12px}.incident-compact summary{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:36px;list-style:none}.incident-compact summary::after{content:"⌄";margin-left:auto}.incident-compact[open] summary::after{content:"⌃"}.incident-preview{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.incident-compact[open] .incident-preview{display:none}
 </style>
 </head>
 <body><div class="shell">
@@ -387,7 +388,8 @@ body.map-lock{overflow:hidden}
 <main>
 <div class="pilot-info"><b>Ribotas duomenų režimas.</b> Nekelkite tikrų bylų ar jautrių duomenų. <a href="./privatumas.html">Plačiau</a></div>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div><div id="actionToast" class="action-toast" role="status" aria-live="polite" hidden></div>
-<section id="authView">
+<section id="authLoading" class="card" role="status" aria-live="polite"><b>Atidaroma darbo vieta…</b><p class="small">Tikrinamas prisijungimas.</p></section>
+<section id="authView" hidden>
  <h1 id="authTitle">Prisijungimas</h1>
  <p class="muted" id="authIntro">Prisijunkite su Google paskyra arba el. paštu ir slaptažodžiu.</p>
  <div class="card">
@@ -607,7 +609,7 @@ body.map-lock{overflow:hidden}
             <div class="map-credit"><a id="mapCredit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div>
           </div>
           <div class="map-controls">
-          <button type="button" id="mapSheetToggle" class="outline" aria-expanded="true" aria-controls="mapControlsContent" hidden><span id="mapSheetToggleText">Sutraukti skydelį</span><span aria-hidden="true" id="mapSheetChevron">⌄</span></button>
+          <button type="button" id="mapSheetToggle" class="outline" aria-expanded="true" aria-controls="mapControlsContent"><span id="mapSheetToggleText">Sutraukti skydelį</span><span aria-hidden="true" id="mapSheetChevron">⌄</span></button>
           <div id="mapControlsContent">
           <div class="map-bottom">
             <button type="button" class="outline" id="mapBasemap" aria-label="Rodyti aktualiausią ortofoto" aria-pressed="false">Ortofoto</button>
@@ -617,7 +619,7 @@ body.map-lock{overflow:hidden}
             <button type="button" id="mapDone">Baigti</button>
           </div>
           <div class="map-quick-layers" aria-label="Svarbiausi sluoksniai">
-            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> Leidimai</label>
+            <label><input id="layer-permits" type="checkbox"><span class="map-legend-dot map-legend-permit"></span> Leidimai</label><label class="permit-filter-label" for="mapPermitFilter">Leidimų laikotarpis<select id="mapPermitFilter"><option value="all">Visi</option><option value="active">Galiojantys</option><option value="expired">Pasibaigę</option></select></label>
             <label><input id="layer-old120" type="checkbox"><span class="map-legend-dot map-legend-old"></span> 120+ m.</label>
             <label><input id="layer-old180" type="checkbox"><span class="map-legend-dot map-legend-ancient"></span> 180+ m.</label>
           </div>
@@ -662,7 +664,7 @@ body.map-lock{overflow:hidden}
               <div id="forestProtectionList"></div><p id="forestProtectionStatus" class="small" hidden role="status"></p>
 
             </details>
-            <details id="forestPermitDetails" hidden class="forest-block forest-permits"><summary id="forestPermitSummary">Kirtimų leidimai</summary><div id="forestPermitList"></div></details>
+            <details id="forestPermitDetails" hidden class="forest-block forest-permits"><summary id="forestPermitSummary">Kirtimų leidimai</summary><p class="small">Rodoma pagal VMT šaltinyje prieinamus įrašus ir galiojimo datas. Istorinių leidimų aprėptis gali būti nepilna.</p><div id="forestPermitList"></div></details>
             <div class="forest-coords"><span id="forestInfoCoords"></span><button type="button" id="forestCopyCoords" class="outline" title="Kopijuoti koordinates" aria-label="Kopijuoti koordinates"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><span id="forestCopyStatus" role="status"></span></div>
             <details id="forestInfoDetails"><summary>Šaltiniai</summary>
               <p class="small">VMT, AM / geoportal.lt, STVK / VDA. Inventorizuotos EB buveinės savaime nepatvirtina apsaugos statuso. Nuosavybė pagal VMT leidimą arba VRM ribas. Patikrai koordinatės perduodamos GIS paslaugoms.</p>

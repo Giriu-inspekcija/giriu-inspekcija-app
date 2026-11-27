@@ -15,7 +15,7 @@ test('contextual feedback opens a native-styled in-app sheet from any workspace 
   assert.match(app,/threadQuickFeedback'\)\.addEventListener\('click',openQuickFeedback\)/);
   assert.match(app,/quickFeedbackForm'\)\.addEventListener\('submit'/);
   assert.match(app,/client\.from\('gi_feedback'\)\.insert/);
-  assert.match(app,/if\(activePanel==='feedback'\)await refreshWorkspace\(\)/);
+  assert.match(app,/if\(activePanel==='feedback'&&!mutationInFlight\)await refreshWorkspace\(\)/);
   assert.match(app,/if\(\$\('quickFeedbackDialog'\)\.open\)\$\('quickFeedbackDialog'\)\.close/);
 });
 
