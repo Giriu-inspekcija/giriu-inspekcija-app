@@ -40,7 +40,7 @@ test('signup text is concise, no Workspace mailbox demand, mobile fields fit',()
   assert.match(html,/Ribotas duomenų režimas/);
   assert.match(html,/width:100%;max-width:100%/);
   assert.match(html,/overflow-wrap:anywhere/);
-  assert.match(sw,/const CACHE='gi-pilot-shell-\d{8}-v\d+-[a-z-]+'/);
+  assert.match(sw,/gi-pilot-shell-\d+\.\d+\.\d+-source/);
 });
 
 test('registered pending volunteer receives explicit coordinator-status feedback',()=>{
@@ -77,5 +77,5 @@ test('Google sign-in is hidden unless enabled on Supabase and never grants GI ro
   assert.match(js,/client\.auth\.signInWithOAuth\(\{/);
   assert.match(js,/provider:'google'/);
   assert.match(js,/client\.rpc\('gi_password_needed'\)/);
-  assert.match(sw,/gi-pilot-shell-\d{8}-v\d+/);
+  assert.match(sw,/gi-pilot-shell-\d+\.\d+\.\d+-source/);
 });

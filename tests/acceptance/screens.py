@@ -127,7 +127,7 @@ def exercise(user,password):
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow '+name
                 print('PASS browser '+name+' create, edit, fresh login, validation, network failure and clear',flush=True)
                 # v25: a proposed task can be assigned directly from the card without publishing first.
-                expect(page.locator('#appVersion')).to_have_text('v32')
+                expect(page.locator('#appVersion')).to_have_text('v'+__import__('json').loads(__import__('pathlib').Path('package.json').read_text())['version'])
                 proposal_title='Tiesioginis paskyrimas '+name
                 create=page.locator('#proposalForm')
                 if not create.is_visible():

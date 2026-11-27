@@ -49,7 +49,7 @@ test('parallel, bounded workspace refresh avoids long chains and focus-trigger d
   assert.match(app,/lastAutoRefreshAt<60000/);
 });
 test('PWA cache changed without caching private API calls',()=>{
-  assert.match(sw,/v32-location-details/);
+  assert.match(sw,/gi-pilot-shell-\d+\.\d+\.\d+-source/);
   assert.match(sw,/NEVER cache Supabase requests/);
   assert.doesNotMatch(sw,/supabase\.co/);
   assert.doesNotThrow(()=>new Function(app));

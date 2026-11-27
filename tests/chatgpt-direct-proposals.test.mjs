@@ -39,5 +39,5 @@ test('manual JSON is optional fallback; proposals are never automatically assign
   const inboxUi=app.slice(start,end);
   assert.doesNotMatch(inboxUi,/client\.rpc/);
   assert.match(inboxUi,/assignmentActions/);
-  assert.match(sw,/gi-pilot-shell-\d{8}-v\d+/);
+  assert.match(sw,/gi-pilot-shell-\d+\.\d+\.\d+-source/);
 });

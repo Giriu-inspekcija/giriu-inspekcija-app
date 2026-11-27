@@ -87,6 +87,11 @@ if source.hostname == api.hostname and source.port == api.port:
     raise SystemExit("Restore target must not be the source Storage")
 
 PY
+# Explicit opt-in only: adapt verified temporary SQL, never the original archive.
+if [[ "${GI_RESTORE_ALLOW_EMPTY_OAUTH_COMPAT:-}" == "YES" ]]; then
+  python3 "$SCRIPT_DIR/gi_restore_auth_compat.py" data.sql
+fi
+
 # A fresh Supabase project must be prepared first (extensions, webhooks).
 # Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
 psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql \
