@@ -53,5 +53,7 @@ test('permit detail rows include verified type and dates; do not invent issue da
  const rows=Object.fromEntries(c.facts({id:123,kirtimo_rusis:'Plynasis',galioja_nuo:Date.UTC(2026,0,2),galioja_iki:Date.UTC(2026,11,31)}));
  assert.equal(rows['Nr.'],'123');assert.equal(rows['Kirtimo rūšis'],'Plynasis');assert.ok(rows['Galioja nuo']);assert.ok(rows['Galioja iki']);assert.equal(rows['Išduotas'],undefined);
  assert.match(html,/id="forestPermitDetails" hidden/);
- assert.match(js,/details.hidden=!rows.length&&!failed/);
+ assert.match(js,/const filtered=rows\.filter\(row=>permitMatches\(row,permitFilter\)\)/);
+ assert.match(js,/jei|tai neįrodo, kad leidimų nėra/);
+ assert.match(html,/Istorinių leidimų aprėptis gali būti nepilna/);
 });
