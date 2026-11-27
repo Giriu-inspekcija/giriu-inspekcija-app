@@ -44,14 +44,19 @@ test('restores require separate project and human approval',()=>{
   assert.match(restore,/GI_RESTORE_TO_ISOLATED_TARGET=YES/);
 });
 
-test('Drive mirror is configurable, immutable and verified; required mode cannot silently skip',()=>{
-  assert.match(workflow,/GI_BACKUP_DRIVE_REQUIRED: .*vars\.GI_BACKUP_DRIVE_REQUIRED/);
-  assert.match(workflow,/GI_BACKUP_DRIVE_FOLDER_ID: .*vars\.GI_BACKUP_DRIVE_FOLDER_ID/);
-  assert.match(workflow,/Required Drive mirror lacks credentials or explicit folder ID/);
-  assert.match(workflow,/--checksum --immutable/);
-  assert.match(workflow,/check .*gidrive:/);
-  assert.match(workflow,/--one-way --include/);
-  assert.doesNotMatch(workflow,/rclone[^\n]*(?:delete|purge|sync)\s/);
+test('Drive mirror uses restricted short-lived credentials and must verify the encrypted copy',()=>{
+  assert.match(workflow,/id-token: write/);
+  assert.match(workflow,/github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow,/google-github-actions\/auth@[a-f0-9]{40}/);
+  assert.match(workflow,/token_format: access_token/);
+  assert.match(workflow,/create_credentials_file: false/);
+  assert.doesNotMatch(workflow,/GI_BACKUP_RCLONE_CONFIG_B64/);
+  assert.ok(workflow.indexOf('actions/upload-artifact@v4')<workflow.indexOf('id: drive_auth'));
+  assert.match(workflow,/run: python3 scripts\/gi_backup_drive\.py/);
+  const mirror=readFileSync(new URL('../scripts/gi_backup_drive.py',import.meta.url),'utf8');
+  assert.match(mirror,/sha256Checksum/);
+  assert.match(mirror,/Duplicate archive name/);
+  assert.doesNotMatch(mirror,/request\(session, "(?:DELETE|PATCH)"/);
   assert.match(script,/b >= 100_000_000/);
   assert.match(script,/31\*b/);
 });
