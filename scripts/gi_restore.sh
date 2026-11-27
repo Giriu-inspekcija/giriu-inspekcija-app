@@ -87,6 +87,88 @@ if source.hostname == api.hostname and source.port == api.port:
     raise SystemExit("Restore target must not be the source Storage")
 
 PY
+# Real hosted snapshots can include newer Auth platform columns than the local
+# platform image. Adapt only a verified, empty COPY block, only by explicit
+# opt-in, only on loopback. The original encrypted archive is never changed.
+if [[ "${GI_RESTORE_ALLOW_EMPTY_OAUTH_COMPAT:-}" == "YES" ]]; then
+  python3 - <<'GI_LOCAL_AUTH_COMPAT'
+import os, re, subprocess
+from pathlib import Path
+from urllib.parse import urlparse
+
+db = urlparse(os.environ["GI_RESTORE_DB_URL"])
+api = urlparse(os.environ["GI_RESTORE_SUPABASE_URL"])
+if (os.environ.get("GI_RESTORE_ALLOW_LOOPBACK") != "YES"
+        or db.hostname != "127.0.0.1" or api.hostname != "127.0.0.1"
+        or api.scheme != "http" or not db.port or not api.port):
+    raise SystemExit("Empty OAuth compatibility is local-loopback only")
+
+def query(sql):
+    result = subprocess.run(
+        ["psql", os.environ["GI_RESTORE_DB_URL"], "-XAtq",
+         "-v", "ON_ERROR_STOP=1", "-c", sql],
+        capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+p = Path("data.sql")
+lines = p.read_bytes().splitlines(keepends=True)
+header = re.compile(rb'^\s*COPY\s+(?:"auth"|auth)\s*\.\s*(?:"custom_oauth_providers"|custom_oauth_providers)\s*\(([^)]*)\)\s+FROM\s+stdin\s*;\s*
+# Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
+psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql \
+  --command 'SET session_replication_role = replica' --file data.sql \
+  --dbname "$GI_RESTORE_DB_URL"
+psql --single-transaction --variable ON_ERROR_STOP=1 --file migration-schema.sql \
+  --file migration-data.sql --dbname "$GI_RESTORE_DB_URL"
+
+GI_RESTORE_TO_ISOLATED_TARGET=YES GI_SUPABASE_SERVICE_ROLE_KEY="$GI_RESTORE_SERVICE_ROLE_KEY" \
+python3 "$SCRIPT_DIR/gi_backup_storage.py" restore \
+  --directory "$tmp/snapshot/storage-export" --url "$GI_RESTORE_SUPABASE_URL"
+echo "Isolated restore completed. Now audit RLS and sign-in before declaring GO."
+, re.I)
+any_copy = re.compile(rb'^\s*COPY\s+.+\s+FROM\s+stdin\s*;\s*
+# Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
+psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql \
+  --command 'SET session_replication_role = replica' --file data.sql \
+  --dbname "$GI_RESTORE_DB_URL"
+psql --single-transaction --variable ON_ERROR_STOP=1 --file migration-schema.sql \
+  --file migration-data.sql --dbname "$GI_RESTORE_DB_URL"
+
+GI_RESTORE_TO_ISOLATED_TARGET=YES GI_SUPABASE_SERVICE_ROLE_KEY="$GI_RESTORE_SERVICE_ROLE_KEY" \
+python3 "$SCRIPT_DIR/gi_backup_storage.py" restore \
+  --directory "$tmp/snapshot/storage-export" --url "$GI_RESTORE_SUPABASE_URL"
+echo "Isolated restore completed. Now audit RLS and sign-in before declaring GO."
+, re.I)
+matches = []
+active = False
+for i, line in enumerate(lines):
+    if active:
+        if line.rstrip(b'\r\n') == b'\\.':
+            active = False
+        continue
+    m = header.fullmatch(line)
+    if m:
+        matches.append((i, m.group(1)))
+        active = True
+    elif any_copy.fullmatch(line):
+        active = True
+if active or len(matches) > 1:
+    raise SystemExit("Unexpected COPY format; refusing compatibility adaptation")
+if matches:
+    i, raw_names = matches[0]
+    columns = {x.strip().strip(b'"').decode("ascii") for x in raw_names.split(b',')}
+    actual = set(query("SELECT column_name FROM information_schema.columns WHERE table_schema='auth' AND table_name='custom_oauth_providers' ORDER BY column_name;").splitlines())
+    missing = columns - actual
+    if missing:
+        allowed = {"client_auth_method", "client_assertion_audience"}
+        if (not actual or not missing <= allowed
+                or i+1 >= len(lines) or lines[i+1].rstrip(b'\r\n') != b'\\.'
+                or query("SELECT count(*) FROM auth.custom_oauth_providers;") != "0"):
+            raise SystemExit("OAuth compatibility not safe: unexpected missing columns or nonempty table")
+        p.write_bytes(b''.join(lines[:i] + lines[i+2:]))
+        print("PASS: only the verified empty auth.custom_oauth_providers COPY block omitted.")
+GI_LOCAL_AUTH_COMPAT
+fi
+
 # A fresh Supabase project must be prepared first (extensions, webhooks).
 # Fail atomically on SQL errors. Auth/Storage objects need the platform schema.
 psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql \
