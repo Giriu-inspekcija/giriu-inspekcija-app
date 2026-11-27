@@ -43,8 +43,9 @@ test('Gmail proposals remain staff-only, reviewable, and link to authorized mail
   assert.doesNotMatch(html,/1a2089422577695f|1a208853eee2cb4b/);
 });
 test('parallel, bounded workspace refresh avoids long chains and focus-trigger duplication',()=>{
-  assert.match(app,/const \[totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs\]=await Promise\.all/);
+  assert.match(app,/const \[totals,ownLogs,pendingLogs,ownTaskResult,incidentResult,reviewer,docs,defaults\]=await Promise\.all/);
   assert.match(app,/const \[feedbackResult,queue,reminder\]=await Promise\.all/);
+  assert.match(app,/admin\(\)\?client\.rpc\('gi_get_time_project_defaults'\):Promise\.resolve\(\{data:null\}\)/);
   assert.match(app,/lastAutoRefreshAt<60000/);
 });
 test('PWA cache changed without caching private API calls',()=>{
