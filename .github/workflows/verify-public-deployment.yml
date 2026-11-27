@@ -30,6 +30,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=pending -f context=gi/public-deployment -f description="Checking public GI assets" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: Build expected Cloudflare assets for checked-out commit
+        shell: bash
+        run: CF_PAGES_COMMIT_SHA="$(git rev-parse HEAD)" node scripts/build-pages.mjs
       - name: Verify live public assets match Git
         shell: bash
         run: |
@@ -40,7 +43,7 @@ jobs:
           paths = ("pilot/index.html", "pilot/app.js", "pilot/incident-location.js",
                    "pilot/team-thread.js", "pilot/deadlines.js", "pilot/document-export.js",
                    "pilot/sw.js", "pilot/manifest.webmanifest")
-          expected = {p: hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in paths}
+          expected = {p: hashlib.sha256((pathlib.Path('dist') / p).read_bytes()).hexdigest() for p in paths}
           deadline = time.monotonic() + 300
           while True:
               mismatches = []
