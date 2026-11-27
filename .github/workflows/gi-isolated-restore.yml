@@ -4,6 +4,8 @@ on:
     paths:
       - 'scripts/gi_backup*'
       - 'scripts/gi_restore.sh'
+      - 'scripts/gi_restore_auth_compat.py'
+      - 'tests/acceptance/test_restore_auth_compat.py'
       - 'tests/acceptance/isolated_restore_smoke.sh'
       - 'supabase/migrations/**'
       - '.github/workflows/gi-isolated-restore.yml'
@@ -30,6 +32,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq age
           python -m pip install requests==2.32.5
+      - name: Check guarded Auth compatibility parser
+        run: |
+          bash -n scripts/gi_restore.sh
+          python3 tests/acceptance/test_restore_auth_compat.py
       - name: Launch first disposable Supabase and generate synthetic private evidence
         run: |
           supabase init
