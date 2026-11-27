@@ -1,5 +1,10 @@
 # GI komanda – šifruotos atsarginės kopijos ir atkūrimas
 
+## 2026-11-27 – nauja Drive autorizacija (WIF)
+Google organizacijos politika draudžia ilgalaikius service-account raktus; jos nekeisti. Naujas dedikuotas GI Backup projektas, atskiras Shared Drive ir Contributor techninė paskyra. GitHub OIDC teikėjas apribotas organizacijos ID, repo ID, main šaka ir konkrečiu gi-encrypted-backup.yml workflow. Trumpalaikis access token (1800 s, Drive scope) generuojamas tik po šifruoto GitHub artefakto išsaugojimo. Jokių JSON raktų, rclone Secret ar papildomų GitHub Variables nereikia. 
+
+[GI Shared Drive paskirties aplankas](https://drive.google.com/drive/folders/1UuGP7gdRifvnzY_k0DYn8qbvtiCqCj_G). Paskirties ID fiksuoti kode. Drive API patikrina folder/drive ID, įkelia tik vieną age archyvą, neperrašo ankstesnio failo, patikrina SHA256 ir dydį. Jei Drive kopija nepavyksta, GitHub artefaktas išlieka, vykdymas žymimas nesėkmingu ir registruojamas klaidos issue. Nėra automatinio trynimo. PR testuoja tik sintetinius duomenis; realus WIF testas galimas tik main dėl Google sąlygos. Po sujungimo vieną kartą Run workflow, tikrinti abiejų saugyklų rezultatą ir Drive failą. Šio skyriaus WIF instrukcija pakeičia senesnį rclone veidrodžio konfigūravimą, kai atitinkamas PR įdiegtas.
+
 **Būsena 2026-11-24: pirmos tikros šifruotos kopijos ir suplanuotas 2026-11-24 eksportas patvirtinti; tiesioginis Drive veidrodis ir pilnas izoliuotas atkūrimas dar nepatvirtinti (issue #32).**
 Šio dokumento aprašoma automatika startuoja tik sukūrus visus toliau nurodytus GitHub Actions Secret/Variable ir pirmą kartą patikrinus **tikros** kopijos bei atkūrimo į izoliuotą projektą rezultatus. Prieš tai realių bylų GO = **NE**.
 
