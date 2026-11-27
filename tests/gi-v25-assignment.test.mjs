@@ -5,7 +5,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const app=read('pilot/app.js'),html=read('pilot/index.html'),sw=read('pilot/sw.js');
 const sql=read('supabase/migrations/20261124105037_gi_atomic_proposed_task_assignment.sql');
 test('visible version follows service-worker cache version',()=>{
- const version=sw.match(/gi-pilot-shell-\d{8}-v(\d+)/)?.[1];
+ const version=sw.match(/gi-pilot-shell-(\d+\.\d+\.\d+)-source/)?.[1];
  assert.ok(version);
  assert.ok(html.includes('id="appVersion" title="Programėlės versija">v'+version+'</span>'));
 });
